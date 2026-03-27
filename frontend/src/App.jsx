@@ -72,7 +72,13 @@ function StockGrid({ data, currency, capLabel }) {
 }
 
 function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accentColor, TooltipComponent, bannerTheme }) {
-  const chartWidth = Math.max(1200, histData.length * 22);
+  const [selectedMonth, setSelectedMonth] = useState('All');
+  const months = [...new Set(histData.map(d => d.date.substring(0, 7)))].sort().reverse();
+  const filteredHistData = selectedMonth === 'All' ? histData : histData.filter(d => d.date.startsWith(selectedMonth));
+  const chartWidth = Math.max(1200, filteredHistData.length * 22);
+  const monthlySignals = filteredHistData.reduce((sum, day) => sum + day.count, 0);
+  const monthlyCost = filteredHistData.reduce((sum, day) => sum + day.signals.reduce((s, stock) => s + stock.entry, 0), 0);
+
   return (
     <>
       {stats && stats.total_signals > 0 && (
@@ -110,18 +116,36 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
 
       {histData.length > 0 && (
         <div style={{ marginBottom:'30px', backgroundColor:'var(--panel-bg)', padding:'20px', borderRadius:'15px', border:'1px solid var(--border-color)', boxSizing:'border-box' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
+          <div style={{ display:'flex', flexWrap:'wrap', justifyContent:'space-between', alignItems:'center', gap:'10px', marginBottom:'10px' }}>
             <h3 style={{ margin:0, color:'var(--text-main)', fontSize:'1.1rem' }}>Historical Signal Frequency</h3>
-            <span style={{ fontSize:'0.85rem', color:accentColor }}>← Scroll → • Click bar for trade outcomes</span>
+            
+            <div style={{ display:'flex', alignItems:'center', gap:'15px', flexWrap:'wrap' }}>
+              <select 
+                value={selectedMonth} 
+                onChange={(e) => { setSelectedMonth(e.target.value); onSelect(null); }}
+                style={{ padding: '4px 10px', borderRadius: '6px', background: 'var(--bg-color)', color: 'var(--text-bright)', border: `1px solid ${accentColor}44`, outline: 'none', cursor: 'pointer' }}
+              >
+                <option value="All">All Time</option>
+                {months.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+              
+              {selectedMonth !== 'All' && (
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-bright)', display: 'flex', gap: '15px' }}>
+                  <span>Signals: <strong style={{color:accentColor}}>{monthlySignals}</strong></span>
+                  <span>Cost (1x Qty): <strong style={{color:accentColor}}>₹{monthlyCost.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></span>
+                </div>
+              )}
+              <span style={{ fontSize:'0.85rem', color:accentColor }}>← Scroll → • Click bar</span>
+            </div>
           </div>
           <div style={{ overflowX:'auto', paddingBottom:'4px' }}>
-            <BarChart width={chartWidth} height={210} data={histData} margin={{ top:5, right:10, left:0, bottom:0 }}>
+            <BarChart width={chartWidth} height={210} data={filteredHistData} margin={{ top:5, right:10, left:0, bottom:0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
               <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} tickFormatter={(t) => t.slice(5)} tickMargin={8} />
               <YAxis stroke="#94a3b8" fontSize={11} allowDecimals={false} width={28} />
               <ChartTooltip content={<TooltipComponent />} cursor={{ fill:'#334155', opacity:0.4 }} />
               <Bar dataKey="count" radius={[4,4,0,0]} maxBarSize={36} onClick={(d) => onSelect(d.payload)} style={{cursor:'pointer'}}>
-                {histData.map((entry, i) => (
+                {filteredHistData.map((entry, i) => (
                   <Cell key={`cell-${i}`} fill={selectedDate && selectedDate.date === entry.date ? '#fbbf24' : accentColor} />
                 ))}
               </Bar>
