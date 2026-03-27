@@ -10,7 +10,7 @@ import pytz
 import threading
 
 from data_fetcher import fetch_daily_data
-from ml_model import add_features, create_labels, IntradayModel
+from ml_model import add_features, create_labels, IntradayModel, passes_quality_gates
 from backtest import run_backtest
 
 app = FastAPI()
@@ -62,6 +62,20 @@ HC_PROB_UP    = 0.72   # at least 72% ML confidence
 HC_VOL_RATIO  = 1.5    # at least 1.5x average volume spike
 HC_ATR_FILTER = 0.015  # require at least 1.5% ATR (avoid noise)
 
+_nifty_bullish = True  # global cache for regime; updated with each scan
+
+def is_nifty_bullish() -> bool:
+    """Returns True if Nifty 50 is above its 50-day EMA (broad market regime filter)."""
+    try:
+        df = fetch_daily_data("^NSEI", years=1)
+        if len(df) < 55:
+            return True  # default allow if data unavailable
+        close = df['close']
+        ema50 = close.ewm(span=50, adjust=False).mean()
+        return bool(close.iloc[-1] > ema50.iloc[-1])
+    except Exception:
+        return True  # fail open
+
 
 def compute_hc_historical_stats(historical_map):
     """Given the HC historical signal map, compute aggregate backtest stats."""
@@ -94,6 +108,10 @@ def update_universe_cache():
     historical_map = {}
     hc_buys = []
     hc_historical_map = {}
+    
+    # Regime filter — check Nifty stance once before scanning all stocks
+    market_bullish = is_nifty_bullish()
+    print(f"Nifty 50 regime: {'BULLISH ✅' if market_bullish else 'BEARISH ⚠️'}")
     
     for symbol in NSE_UNIVERSE:
         try:
@@ -149,13 +167,17 @@ def update_universe_cache():
                 date_str = date.strftime("%Y-%m-%d")
                 if date_str not in historical_map:
                     historical_map[date_str] = []
-                historical_map[date_str].append(build_signal(row, date, df, sym, latest_close))
+                sig = build_signal(row, date, df, sym, latest_close)
+                if passes_quality_gates(row):
+                    historical_map[date_str].append(sig)
             
             for date, row in hc_entries.iterrows():
                 date_str = date.strftime("%Y-%m-%d")
                 if date_str not in hc_historical_map:
                     hc_historical_map[date_str] = []
-                hc_historical_map[date_str].append(build_signal(row, date, df, sym, latest_close))
+                sig = build_signal(row, date, df, sym, latest_close, sl_mult=2.0, tp_mult=5.0)
+                if passes_quality_gates(row):
+                    hc_historical_map[date_str].append(sig)
             
             latest = df.iloc[-1]
             entry_price = float(latest['close'])
@@ -168,7 +190,7 @@ def update_universe_cache():
             target = entry_price + (5.0 * atr)
             stoploss = entry_price - (2.0 * atr)
             
-            if prob_up > 0.55 and vol_ratio > 0.5:
+            if prob_up > 0.55 and vol_ratio > 0.5 and market_bullish and passes_quality_gates(latest):
                 buys.append({
                     "symbol": sym,
                     "action": "BUY",
@@ -180,7 +202,7 @@ def update_universe_cache():
                     "backtest": bt_stats
                 })
             
-            if prob_up > HC_PROB_UP and vol_ratio > HC_VOL_RATIO and atr_pct > HC_ATR_FILTER:
+            if prob_up > HC_PROB_UP and vol_ratio > HC_VOL_RATIO and atr_pct > HC_ATR_FILTER and market_bullish and passes_quality_gates(latest):
                 hc_buys.append({
                     "symbol": sym,
                     "action": "STRONG BUY",

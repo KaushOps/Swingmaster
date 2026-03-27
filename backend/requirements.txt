@@ -9,3 +9,4 @@ yfinance
 scikit-learn
 vectorbt
 ta
+xgboost
