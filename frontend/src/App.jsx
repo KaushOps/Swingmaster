@@ -72,6 +72,8 @@ function StockGrid({ data, currency, capLabel, onLogTrade }) {
       ))}
     </>
   );
+}
+
 function PortfolioGrid({ portfolio, setPortfolio }) {
   if (portfolio.length === 0) return <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'40px',color:'var(--text-dim)'}}>Your portfolio is empty. Click "+ Log" on any signal to add it here.</div>;
 
