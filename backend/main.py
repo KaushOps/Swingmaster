@@ -167,17 +167,15 @@ def update_universe_cache():
                 date_str = date.strftime("%Y-%m-%d")
                 if date_str not in historical_map:
                     historical_map[date_str] = []
-                sig = build_signal(row, date, df, sym, latest_close)
-                if passes_quality_gates(row):
-                    historical_map[date_str].append(sig)
+                # No quality gate on historical data — full unfiltered backtest accuracy
+                historical_map[date_str].append(build_signal(row, date, df, sym, latest_close))
             
             for date, row in hc_entries.iterrows():
                 date_str = date.strftime("%Y-%m-%d")
                 if date_str not in hc_historical_map:
                     hc_historical_map[date_str] = []
-                sig = build_signal(row, date, df, sym, latest_close, sl_mult=2.0, tp_mult=5.0)
-                if passes_quality_gates(row):
-                    hc_historical_map[date_str].append(sig)
+                # No quality gate on historical data — full unfiltered backtest accuracy
+                hc_historical_map[date_str].append(build_signal(row, date, df, sym, latest_close, sl_mult=2.0, tp_mult=5.0))
             
             latest = df.iloc[-1]
             entry_price = float(latest['close'])
