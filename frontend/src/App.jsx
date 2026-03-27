@@ -39,7 +39,7 @@ const StatusBadge = ({ status }) => {
   return <span className={`badge ${cls}`}>{status}</span>;
 };
 
-function StockGrid({ data, currency, capLabel }) {
+function StockGrid({ data, currency, capLabel, onLogTrade }) {
   if (!data || data.length === 0) return <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'40px',color:'var(--text-dim)'}}>No active signals at this time.</div>;
   return (
     <>
@@ -47,7 +47,10 @@ function StockGrid({ data, currency, capLabel }) {
         <div className="card" key={stock.symbol}>
           <div className="card-header">
             <h2>{stock.symbol}</h2>
-            <StatusBadge status={stock.action} />
+            <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+              <StatusBadge status={stock.action} />
+              {onLogTrade && <button onClick={() => onLogTrade(stock, stock.entry)} style={{background:'transparent', border:`1px solid var(--accent-color)`, color:'var(--accent-color)', borderRadius:'4px', padding:'4px 8px', fontSize:'0.75rem', cursor:'pointer'}}>+ Log</button>}
+            </div>
           </div>
           <div className="stats-grid">
             <div className="stat"><span>Entry</span><strong>{currency}{stock.entry.toFixed(2)}</strong></div>
@@ -69,9 +72,66 @@ function StockGrid({ data, currency, capLabel }) {
       ))}
     </>
   );
+function PortfolioGrid({ portfolio, setPortfolio }) {
+  if (portfolio.length === 0) return <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'40px',color:'var(--text-dim)'}}>Your portfolio is empty. Click "+ Log" on any signal to add it here.</div>;
+
+  const totalInvested = portfolio.filter(t => t.status==='OPEN').reduce((sum, t) => sum + (t.buyPrice * t.qty), 0);
+  const realizedPnL = portfolio.filter(t => t.status==='CLOSED').reduce((sum, t) => sum + ((t.exitPrice - t.buyPrice) * t.qty), 0);
+
+  const closeTrade = (id) => {
+    const priceStr = prompt("Enter Exit Price:");
+    if (!priceStr) return;
+    const exitPrice = Number(priceStr);
+    if (isNaN(exitPrice)) return alert("Invalid price");
+    setPortfolio(p => p.map(t => t.id === id ? { ...t, status: 'CLOSED', exitPrice } : t));
+  };
+  const deleteTrade = (id) => {
+    if(confirm("Delete this log?")) setPortfolio(p => p.filter(t => t.id !== id));
+  };
+
+  return (
+    <>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:'20px', marginBottom:'24px', padding:'20px', backgroundColor:'#0f172a', borderRadius:'15px', border:'1px solid #1e293b' }}>
+         <div>
+           <div style={{fontSize:'0.85rem', color:'#94a3b8'}}>Active Investment</div>
+           <div style={{fontSize:'1.8rem', fontWeight:'bold', color:'#38bdf8'}}>₹{totalInvested.toLocaleString('en-IN', {minimumFractionDigits: 2})}</div>
+         </div>
+         <div>
+           <div style={{fontSize:'0.85rem', color:'#94a3b8'}}>Realized P&L</div>
+           <div style={{fontSize:'1.8rem', fontWeight:'bold', color: realizedPnL >= 0 ? '#4ade80' : '#f87171'}}>{realizedPnL >= 0 ? '+' : ''}₹{realizedPnL.toLocaleString('en-IN', {minimumFractionDigits: 2})}</div>
+         </div>
+      </div>
+      <div className="grid">
+        {portfolio.map(trade => (
+          <div className="card" key={trade.id} style={{ borderColor: trade.status==='CLOSED' ? '#334155' : '#38bdf844' }}>
+            <div className="card-header">
+              <h2>{trade.symbol} <span style={{fontSize:'0.9rem', color:'#94a3b8', fontWeight:'normal'}}>({trade.qty} Qty)</span></h2>
+              <StatusBadge status={trade.status} />
+            </div>
+            <div className="stats-grid">
+              <div className="stat"><span>Buy Price</span><strong>₹{trade.buyPrice.toFixed(2)}</strong></div>
+              <div className="stat"><span>Invested</span><strong>₹{(trade.buyPrice * trade.qty).toFixed(2)}</strong></div>
+              {trade.status === 'CLOSED' ? (
+                <>
+                  <div className="stat"><span>Exit Price</span><strong>₹{trade.exitPrice.toFixed(2)}</strong></div>
+                  <div className="stat"><span>P&L</span><strong className={trade.exitPrice >= trade.buyPrice ? 'up' : 'down'}>{trade.exitPrice >= trade.buyPrice ? '+' : ''}₹{((trade.exitPrice - trade.buyPrice) * trade.qty).toFixed(2)}</strong></div>
+                </>
+              ) : (
+                <div className="stat"><span>Date Logged</span><strong style={{fontSize:'0.9rem'}}>{trade.date}</strong></div>
+              )}
+            </div>
+            <div style={{display:'flex', gap:'10px', marginTop:'15px'}}>
+              {trade.status === 'OPEN' && <button onClick={() => closeTrade(trade.id)} style={{flex:1, padding:'8px', background:'rgba(56, 189, 248, 0.15)', color:'#38bdf8', border:'1px solid rgba(56,189,248,0.3)', borderRadius:'8px', cursor:'pointer'}}>Close Trade</button>}
+              <button onClick={() => deleteTrade(trade.id)} style={{flex: trade.status==='OPEN' ? 0.3 : 1, padding:'8px', background:'rgba(248, 113, 113, 0.1)', color:'#f87171', border:'1px solid rgba(248,113,113,0.3)', borderRadius:'8px', cursor:'pointer'}}>{trade.status==='OPEN' ? '✕' : 'Remove Log'}</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
 }
 
-function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accentColor, TooltipComponent, bannerTheme }) {
+function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accentColor, TooltipComponent, bannerTheme, onLogTrade }) {
   const [selectedMonth, setSelectedMonth] = useState('All');
   const months = [...new Set(histData.map(d => d.date.substring(0, 7)))].sort().reverse();
   const filteredHistData = selectedMonth === 'All' ? histData : histData.filter(d => d.date.startsWith(selectedMonth));
@@ -164,7 +224,10 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
               <div className="card" key={`${stock.symbol}-${i}`} style={{ borderColor: stock.status === 'TARGET HIT' ? '#22c55e44' : stock.status === 'SL HIT' ? '#ef444444' : '#3b82f644' }}>
                 <div className="card-header">
                   <h2>{stock.symbol}</h2>
-                  <StatusBadge status={stock.status} />
+                  <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+                    <StatusBadge status={stock.status} />
+                    {onLogTrade && <button onClick={() => onLogTrade(stock, stock.entry)} style={{background:'transparent', border:`1px solid ${accentColor}`, color:accentColor, borderRadius:'4px', padding:'4px 8px', fontSize:'0.75rem', cursor:'pointer'}}>+ Log</button>}
+                  </div>
                 </div>
                 <div className="stats-grid">
                   <div className="stat"><span>Entry</span><strong>₹{stock.entry.toFixed(2)}</strong></div>
@@ -196,6 +259,27 @@ function App() {
   const [loading, setLoading]             = useState(true)
   const [market, setMarket]               = useState("HC")
   const [isScanningBackground, setIsScanningBackground] = useState(false)
+  const [portfolio, setPortfolio]         = useState(() => {
+    try { return JSON.parse(localStorage.getItem('swing_portfolio')) || []; }
+    catch { return []; }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('swing_portfolio', JSON.stringify(portfolio));
+  }, [portfolio]);
+
+  const logTrade = (stock, defaultPrice) => {
+    const qtyStr = prompt(`Enter quantity of ${stock.symbol} bought:`, "1");
+    if (!qtyStr) return;
+    const priceStr = prompt(`Enter exact buy price for ${stock.symbol}:`, defaultPrice || stock.entry);
+    if (!priceStr) return;
+    const qty = Number(qtyStr);
+    const buyPrice = Number(priceStr);
+    if (isNaN(qty) || isNaN(buyPrice)) return alert("Invalid numbers entered.");
+    const trade = { id: Date.now(), symbol: stock.symbol, buyPrice, qty, status: 'OPEN', exitPrice: null, date: new Date().toISOString().split('T')[0] };
+    setPortfolio(p => [...p, trade]);
+    alert(`${qty} shares of ${stock.symbol} successfully added to your Portfolio!`);
+  };
 
   useEffect(() => {
     let ignore = false;
@@ -244,6 +328,7 @@ function App() {
           <button className={`tab ${market === "US"       ? "active" : ""}`} onClick={() => setMarket("US")}>🇺🇸 USA (NYSE)</button>
           <button className={`tab ${market === "NSE_BUYS" ? "active" : ""}`} onClick={() => setMarket("NSE_BUYS")}>🚀 All NSE (Buy Only)</button>
           <button className={`tab ${market === "HC"       ? "active" : ""}`} onClick={() => setMarket("HC")} style={{ borderColor: market === "HC" ? "#fbbf24" : undefined, color: market === "HC" ? "#fbbf24" : undefined }}>🎯 High Conviction</button>
+          <button className={`tab ${market === "PORTFOLIO" ? "active" : ""}`} onClick={() => setMarket("PORTFOLIO")}>💼 My Portfolio</button>
         </div>
       </header>
 
@@ -265,6 +350,7 @@ function App() {
                 accentColor="#fbbf24"
                 bannerTheme="amber"
                 TooltipComponent={HCTooltip}
+                onLogTrade={logTrade}
               />
 
               {!selectedHcDate && (
@@ -274,7 +360,10 @@ function App() {
                     <div className="card" key={stock.symbol} style={{ borderColor:'#fbbf2444', boxShadow:'0 0 20px #fbbf2411' }}>
                       <div className="card-header">
                         <h2>{stock.symbol}</h2>
-                        <StatusBadge status={stock.action} />
+                        <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+                          <StatusBadge status={stock.action} />
+                          <button onClick={() => logTrade(stock, stock.entry)} style={{background:'transparent', border:'1px solid #fbbf24', color:'#fbbf24', borderRadius:'4px', padding:'4px 8px', fontSize:'0.75rem', cursor:'pointer'}}>+ Log</button>
+                        </div>
                       </div>
                       <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
                         <div style={{ height:'6px', flex:1, background:'#334155', borderRadius:'3px' }}>
@@ -316,11 +405,12 @@ function App() {
                 accentColor="#66fcf1"
                 bannerTheme="teal"
                 TooltipComponent={CustomTooltip}
+                onLogTrade={logTrade}
               />
               {!selectedHistDate && (
                 <div className="grid">
                   {data.length === 0 && <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center'}}>No active BUY signals found today.</div>}
-                  <StockGrid data={data} currency="₹" capLabel="₹1L Cap" />
+                  <StockGrid data={data} currency="₹" capLabel="₹1L Cap" onLogTrade={logTrade} />
                 </div>
               )}
             </>
@@ -329,8 +419,13 @@ function App() {
           {/* IN / US VIEWS */}
           {(market === "IN" || market === "US") && (
             <div className="grid">
-              <StockGrid data={data} currency={currency} capLabel={capLabel} />
+              <StockGrid data={data} currency={currency} capLabel={capLabel} onLogTrade={logTrade} />
             </div>
+          )}
+
+          {/* PORTFOLIO VIEW */}
+          {market === "PORTFOLIO" && (
+            <PortfolioGrid portfolio={portfolio} setPortfolio={setPortfolio} />
           )}
         </>
       )}
