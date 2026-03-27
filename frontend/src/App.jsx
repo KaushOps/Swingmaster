@@ -180,9 +180,10 @@ function App() {
 
     const isNSEBuys = market === "NSE_BUYS";
     const isHC      = market === "HC";
-    let url = isHC ? 'http://localhost:8000/api/high_conviction'
-            : isNSEBuys ? 'http://localhost:8000/api/scan_universe_buys'
-            : `http://localhost:8000/api/scan?market=${market}`;
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    let url = isHC ? `${baseUrl}/api/high_conviction`
+            : isNSEBuys ? `${baseUrl}/api/scan_universe_buys`
+            : `${baseUrl}/api/scan?market=${market}`;
 
     fetch(url)
       .then(r => r.json())
