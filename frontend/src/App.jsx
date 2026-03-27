@@ -344,6 +344,7 @@ function App() {
           {market === "HC" && (
             <>
               <HistoryPanel
+                key="hc-panel"
                 histData={hcHistorical}
                 stats={hcStats}
                 selectedDate={selectedHcDate}
@@ -399,6 +400,7 @@ function App() {
           {market === "NSE_BUYS" && (
             <>
               <HistoryPanel
+                key="nse-panel"
                 histData={historicalData}
                 stats={nseStats}
                 selectedDate={selectedHistDate}
