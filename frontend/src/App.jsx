@@ -170,7 +170,7 @@ function App() {
   const [selectedHistDate, setSelectedHistDate] = useState(null)
   const [selectedHcDate, setSelectedHcDate]     = useState(null)
   const [loading, setLoading]             = useState(true)
-  const [market, setMarket]               = useState("IN")
+  const [market, setMarket]               = useState("HC")
   const [isScanningBackground, setIsScanningBackground] = useState(false)
 
   useEffect(() => {
