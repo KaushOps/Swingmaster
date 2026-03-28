@@ -291,8 +291,12 @@ function App() {
     }
 
     let ignore = false;
-    setData([]); setHistoricalData([]); setNseStats(null); setHcData([]); setHcHistorical([]); setHcStats(null);
+    // Only reset data for the current tab — preserve opposing historical so Active Signals stays accurate
+    setData([]);
     setSelectedHistDate(null); setSelectedHcDate(null); setLoading(true);
+    if (market === 'NSE_BUYS') { setHistoricalData([]); setNseStats(null); }
+    else if (market === 'HC')   { setHcHistorical([]); setHcStats(null); }
+    else                        { setHistoricalData([]); setHcHistorical([]); setNseStats(null); setHcStats(null); }
 
     const isNSEBuys = market === "NSE_BUYS";
     const isHC      = market === "HC";
