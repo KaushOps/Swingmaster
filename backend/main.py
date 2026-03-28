@@ -64,6 +64,33 @@ HC_ATR_FILTER = 0.015  # require at least 1.5% ATR (avoid noise)
 
 _nifty_bullish = True  # global cache for regime; updated with each scan
 
+# Yahoo Finance authenticated session (crumb required for quoteSummary v10)
+_yf_session = None
+_yf_crumb   = None
+
+def get_yf_session():
+    """Returns a requests.Session with Yahoo Finance cookies + crumb."""
+    global _yf_session, _yf_crumb
+    try:
+        if _yf_session and _yf_crumb:
+            return _yf_session, _yf_crumb
+        s = requests.Session()
+        s.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "application/json",
+        })
+        # Yahoo Finance requires visiting the cookie consent page first
+        s.get("https://fc.yahoo.com", timeout=8)
+        r = s.get("https://query1.finance.yahoo.com/v1/test/getcrumb", timeout=8)
+        if r.status_code == 200 and r.text.strip():
+            _yf_session = s
+            _yf_crumb   = r.text.strip()
+            print(f"Yahoo Finance crumb obtained: {_yf_crumb[:6]}...")
+        return _yf_session, _yf_crumb
+    except Exception as e:
+        print(f"YF session error: {e}")
+        return None, None
+
 def is_nifty_bullish() -> bool:
     """Returns True if Nifty 50 is above its 50-day EMA (broad market regime filter)."""
     try:
@@ -394,14 +421,15 @@ async def stock_detail(symbol: str):
     except Exception as e:
         print(f"fast_info error for {symbol}: {e}")
 
-    # --- Strategy 2: Yahoo Finance quoteSummary API directly (works on Render) ---
+    # --- Strategy 2: Yahoo Finance quoteSummary API with crumb auth ---
     info = {}
     try:
-        modules = "summaryProfile,defaultKeyStatistics,financialData,summaryDetail,price"
-        url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ns_symbol}?modules={modules}"
-        headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
-        resp = requests.get(url, headers=headers, timeout=12)
-        if resp.status_code == 200:
+        sess, crumb = get_yf_session()
+        if sess and crumb:
+            modules = "summaryProfile,defaultKeyStatistics,financialData,summaryDetail,price"
+            url = f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{ns_symbol}?modules={modules}&crumb={crumb}"
+            resp = sess.get(url, timeout=12)
+            if resp.status_code == 200:
             result = resp.json().get("quoteSummary", {}).get("result", [{}])
             if result:
                 r = result[0]

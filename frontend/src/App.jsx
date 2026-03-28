@@ -78,7 +78,7 @@ function StockDetailDrawer({ symbol, onClose }) {
 
           {/* Summary */}
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'20px' }}>
-            {[['Sector', detail.sector], ['Industry', detail.industry], ['Market Cap', detail.market_cap], ['Current Price', detail.current_price ? `₹${detail.current_price}` : 'N/A']].map(([k,v]) => (
+            {[['Sector', detail.sector], ['Industry', detail.industry], ['Market Cap', detail.market_cap], ['Current Price', detail.current_price ? `₹${Number(detail.current_price).toFixed(2)}` : 'N/A']].map(([k,v]) => (
               <div key={k} style={{ background:'#1e293b', borderRadius:'10px', padding:'12px' }}>
                 <div style={{ fontSize:'0.75rem', color:'#64748b', marginBottom:'4px' }}>{k}</div>
                 <div style={{ fontWeight:'bold', color:'#e2e8f0', wordBreak:'break-word' }}>{v || 'N/A'}</div>
