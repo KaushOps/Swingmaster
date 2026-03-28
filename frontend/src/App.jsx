@@ -320,6 +320,13 @@ function App() {
   const currency = market === "US" ? "$" : "₹";
   const capLabel = market === "US" ? "$1.2K Cap" : "₹1L Cap";
 
+  // Collect all ACTIVE signals from both NSE and HC historical data
+  const activeSignals = [...historicalData, ...hcHistorical]
+    .flatMap(day => (day.signals || []).map(s => ({ ...s, signalDate: day.date })))
+    .filter(s => s.status === 'ACTIVE')
+    .filter((s, i, arr) => arr.findIndex(x => x.symbol === s.symbol && x.signalDate === s.signalDate) === i)
+    .sort((a, b) => b.growth_pct - a.growth_pct);
+
   return (
     <div className="container">
       <header className="header">
@@ -330,6 +337,7 @@ function App() {
           <button className={`tab ${market === "US"       ? "active" : ""}`} onClick={() => setMarket("US")}>🇺🇸 USA (NYSE)</button>
           <button className={`tab ${market === "NSE_BUYS" ? "active" : ""}`} onClick={() => setMarket("NSE_BUYS")}>🚀 All NSE (Buy Only)</button>
           <button className={`tab ${market === "HC"       ? "active" : ""}`} onClick={() => setMarket("HC")} style={{ borderColor: market === "HC" ? "#fbbf24" : undefined, color: market === "HC" ? "#fbbf24" : undefined }}>🎯 High Conviction</button>
+          <button className={`tab ${market === "ACTIVE_SIGNALS" ? "active" : ""}`} onClick={() => setMarket("ACTIVE_SIGNALS")} style={{ borderColor: market === "ACTIVE_SIGNALS" ? "#4ade80" : undefined, color: market === "ACTIVE_SIGNALS" ? "#4ade80" : undefined }}>🟢 Active Signals</button>
           <button className={`tab ${market === "PORTFOLIO" ? "active" : ""}`} onClick={() => setMarket("PORTFOLIO")}>💼 My Portfolio</button>
         </div>
       </header>
@@ -430,6 +438,51 @@ function App() {
           {/* PORTFOLIO VIEW */}
           {market === "PORTFOLIO" && (
             <PortfolioGrid portfolio={portfolio} setPortfolio={setPortfolio} />
+          )}
+
+          {/* ACTIVE SIGNALS VIEW */}
+          {market === "ACTIVE_SIGNALS" && (
+            <>
+              <div style={{ marginBottom:'24px', padding:'20px', backgroundColor:'#0d1f12', borderRadius:'15px', border:'1px solid #166534', display:'flex', flexWrap:'wrap', gap:'20px', alignItems:'center' }}>
+                <div style={{textAlign:'center'}}>
+                  <div style={{fontSize:'2rem', fontWeight:'800', color:'#4ade80'}}>{activeSignals.length}</div>
+                  <div style={{fontSize:'0.8rem', color:'#86efac', opacity:0.8}}>Open Positions</div>
+                </div>
+                <div style={{textAlign:'center'}}>
+                  <div style={{fontSize:'2rem', fontWeight:'800', color:'#4ade80'}}>{activeSignals.filter(s=>s.growth_pct>=0).length}</div>
+                  <div style={{fontSize:'0.8rem', color:'#86efac', opacity:0.8}}>In Profit</div>
+                </div>
+                <div style={{textAlign:'center'}}>
+                  <div style={{fontSize:'2rem', fontWeight:'800', color:'#f87171'}}>{activeSignals.filter(s=>s.growth_pct<0).length}</div>
+                  <div style={{fontSize:'0.8rem', color:'#fca5a5', opacity:0.8}}>Below Entry</div>
+                </div>
+                <div style={{fontSize:'0.85rem', color:'#86efac', marginLeft:'auto', opacity:0.7}}>Signals still open (no TP/SL hit). Sorted best to worst.</div>
+              </div>
+              {activeSignals.length === 0 ? (
+                <div className="no-data" style={{textAlign:'center', padding:'60px'}}>Loading active signals... Switch to All NSE or HC tab first so data can load.</div>
+              ) : (
+                <div className="grid">
+                  {activeSignals.map((stock, i) => (
+                    <div className="card" key={`${stock.symbol}-${stock.signalDate}-${i}`} style={{ borderColor:'#4ade8044' }}>
+                      <div className="card-header">
+                        <h2>{stock.symbol}</h2>
+                        <div style={{display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'4px'}}>
+                          <span className={`badge ${stock.growth_pct >= 0 ? 'target-hit' : 'sl-hit'}`}>{stock.growth_pct >= 0 ? '▲' : '▼'} {stock.growth_pct > 0 ? '+' : ''}{stock.growth_pct.toFixed(1)}%</span>
+                          <span style={{fontSize:'0.7rem', color:'#94a3b8'}}>Signal: {stock.signalDate}</span>
+                        </div>
+                      </div>
+                      <div className="stats-grid">
+                        <div className="stat"><span>Entry</span><strong>₹{stock.entry.toFixed(2)}</strong></div>
+                        <div className="stat"><span>Target</span><strong className="up">₹{stock.target.toFixed(2)}</strong></div>
+                        <div className="stat"><span>Stoploss</span><strong className="down">₹{stock.stoploss.toFixed(2)}</strong></div>
+                        <div className="stat"><span>Confidence</span><strong>{stock.confidence ? stock.confidence.toFixed(1) : 'N/A'}%</strong></div>
+                      </div>
+                      <button onClick={() => logTrade(stock, stock.entry)} style={{width:'100%', marginTop:'12px', padding:'8px', background:'rgba(74,222,128,0.1)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'8px', cursor:'pointer', fontSize:'0.85rem'}}>+ Log This Trade</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </>
       )}
