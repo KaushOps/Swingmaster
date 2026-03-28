@@ -327,11 +327,18 @@ function App() {
   const capLabel = market === "US" ? "$1.2K Cap" : "₹1L Cap";
 
   // Collect all ACTIVE signals from both NSE and HC historical data
-  const activeSignals = [...historicalData, ...hcHistorical]
-    .flatMap(day => (day.signals || []).map(s => ({ ...s, signalDate: day.date })))
-    .filter(s => s.status === 'ACTIVE')
-    .filter((s, i, arr) => arr.findIndex(x => x.symbol === s.symbol && x.signalDate === s.signalDate) === i)
-    .sort((a, b) => b.growth_pct - a.growth_pct);
+  // Deduplicate by symbol — keep only the most recent signal date per stock
+  const activeSignals = Object.values(
+    [...historicalData, ...hcHistorical]
+      .flatMap(day => (day.signals || []).map(s => ({ ...s, signalDate: day.date })))
+      .filter(s => s.status === 'ACTIVE')
+      .reduce((acc, s) => {
+        if (!acc[s.symbol] || s.signalDate > acc[s.symbol].signalDate) {
+          acc[s.symbol] = s;
+        }
+        return acc;
+      }, {})
+  ).sort((a, b) => b.growth_pct - a.growth_pct);
 
   return (
     <div className="container">
