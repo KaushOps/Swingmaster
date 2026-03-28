@@ -284,6 +284,12 @@ function App() {
   };
 
   useEffect(() => {
+    // View-only tabs: don't fetch — rely on data loaded from other tabs
+    if (market === 'ACTIVE_SIGNALS' || market === 'PORTFOLIO') {
+      setLoading(false);
+      return;
+    }
+
     let ignore = false;
     setData([]); setHistoricalData([]); setNseStats(null); setHcData([]); setHcHistorical([]); setHcStats(null);
     setSelectedHistDate(null); setSelectedHcDate(null); setLoading(true);
