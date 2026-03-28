@@ -396,42 +396,51 @@ async def stock_detail(symbol: str):
     except Exception as e:
         print(f"fast_info error for {symbol}: {e}")
 
-    # --- Strategy 2: yahooquery properties (proven robust in cloud environments) ---
+    # --- Strategy 2: Tickertape API (Extremely robust for Indian stocks, not IP blocked) ---
     info = {}
     try:
-        from yahooquery import Ticker as YQTicker
-        yqt = YQTicker(ns_symbol)
-
-        sp = yqt.summary_profile.get(ns_symbol, {}) if isinstance(yqt.summary_profile, dict) else {}
-        fd = yqt.financial_data.get(ns_symbol, {}) if isinstance(yqt.financial_data, dict) else {}
-        ks = yqt.key_stats.get(ns_symbol, {}) if isinstance(yqt.key_stats, dict) else {}
-        sd = yqt.summary_detail.get(ns_symbol, {}) if isinstance(yqt.summary_detail, dict) else {}
-        pr = yqt.price.get(ns_symbol, {}) if isinstance(yqt.price, dict) else {}
-
-        info = {
-            "longName":          pr.get("longName") or pr.get("shortName", symbol),
-            "sector":            sp.get("sector", "N/A") if isinstance(sp, dict) else "N/A",
-            "industry":          sp.get("industry", "N/A") if isinstance(sp, dict) else "N/A",
-            "longBusinessSummary": sp.get("longBusinessSummary", "") if isinstance(sp, dict) else "",
-            "trailingPE":        sd.get("trailingPE") if isinstance(sd, dict) else None,
-            "priceToBook":       ks.get("priceToBook") if isinstance(ks, dict) else None,
-            "returnOnEquity":    fd.get("returnOnEquity") if isinstance(fd, dict) else None,
-            "debtToEquity":      fd.get("debtToEquity") if isinstance(fd, dict) else None,
-            "revenueGrowth":     fd.get("revenueGrowth") if isinstance(fd, dict) else None,
-            "earningsGrowth":    fd.get("earningsGrowth") if isinstance(fd, dict) else None,
-            "dividendYield":     sd.get("dividendYield") if isinstance(sd, dict) else None,
-            "beta":              sd.get("beta") if isinstance(sd, dict) else (ks.get("beta") if isinstance(ks, dict) else None),
-            "recommendationKey": fd.get("recommendationKey", "N/A") if isinstance(fd, dict) else "N/A",
-            "targetMeanPrice":   fd.get("targetMeanPrice") if isinstance(fd, dict) else None,
-            "marketCap":         pr.get("marketCap") if isinstance(pr, dict) else None,
-            "currentPrice":      pr.get("regularMarketPrice") if isinstance(pr, dict) else None,
-            "fiftyTwoWeekHigh":  sd.get("fiftyTwoWeekHigh") if isinstance(sd, dict) else None,
-            "fiftyTwoWeekLow":   sd.get("fiftyTwoWeekLow") if isinstance(sd, dict) else None,
-        }
+        import requests
+        # Step 1: Search Tickertape to find the internal SID for this ticker
+        search_req = requests.get(f"https://api.tickertape.in/search?text={symbol}", timeout=5).json()
+        sid = None
+        if "data" in search_req and "stocks" in search_req["data"]:
+            for stock in search_req["data"]["stocks"]:
+                if stock.get("ticker") == symbol:
+                    sid = stock.get("sid")
+                    break
+        
+        # Step 2: Fetch fundamentals using SID
+        if sid:
+            tt_res = requests.get(f"https://api.tickertape.in/stocks/info/{sid}", timeout=5).json()
+            if tt_res.get("success") and "data" in tt_res:
+                tt_data = tt_res["data"]
+                tt_info = tt_data.get("info", {})
+                tt_ratios = tt_data.get("ratios", {})
+                
+                info = {
+                    "longName":          tt_info.get("name", symbol),
+                    "sector":            tt_info.get("sector", "N/A"),
+                    "industry":          tt_info.get("tags", [{}])[0].get("name", "N/A") if tt_info.get("tags") else "N/A",
+                    "longBusinessSummary": tt_info.get("description", ""),
+                    "trailingPE":        tt_ratios.get("pe"),
+                    "priceToBook":       tt_ratios.get("pb"),
+                    "returnOnEquity":    tt_ratios.get("roe"),
+                    "debtToEquity":      tt_ratios.get("debtToEq"),  # sometimes empty in TT, but we try
+                    "revenueGrowth":     None,  # Not directly in summary
+                    "earningsGrowth":    None,
+                    "dividendYield":     tt_ratios.get("divYield"),
+                    "beta":              tt_ratios.get("beta"),
+                    "recommendationKey": "N/A",
+                    "targetMeanPrice":   None,
+                    "marketCap":         tt_ratios.get("marketCap") * 1e7 if tt_ratios.get("marketCap") else None, # TT marketCap is in Crores
+                    "currentPrice":      tt_ratios.get("lastPrice") or fi.get("current_price"),
+                    "fiftyTwoWeekHigh":  tt_ratios.get("52wHigh")   or fi.get("week_52_high"),
+                    "fiftyTwoWeekLow":   tt_ratios.get("52wLow")    or fi.get("week_52_low"),
+                }
     except Exception as e:
-        print(f"yahooquery error for {symbol}: {e}")
+        print(f"Tickertape fetch error for {symbol}: {e}")
 
-    # Merge: prefer quoteSummary data, fallback to fast_info
+    # Merge: prefer Tickertape data, fallback to fast_info
     def safe(key, default=None):
         val = info.get(key, default)
         if val is None or (isinstance(val, float) and (val != val)):

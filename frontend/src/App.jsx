@@ -106,8 +106,8 @@ function StockDetailDrawer({ symbol, onClose }) {
             <div style={{ marginBottom:'20px', background:'#1e293b', borderRadius:'10px', padding:'14px' }}>
               <div style={{ fontSize:'0.75rem', color:'#64748b', marginBottom:'8px' }}>52-Week Range</div>
               <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.9rem' }}>
-                <span style={{ color:'#f87171' }}>₹{detail.week_52_low}</span>
-                <span style={{ color:'#4ade80' }}>₹{detail.week_52_high}</span>
+                <span style={{ color:'#f87171' }}>₹{Number(detail.week_52_low).toFixed(2)}</span>
+                <span style={{ color:'#4ade80' }}>₹{Number(detail.week_52_high).toFixed(2)}</span>
               </div>
               <div style={{ height:'6px', background:'#334155', borderRadius:'3px', marginTop:'6px', position:'relative' }}>
                 {detail.week_52_low && detail.week_52_high && detail.current_price && (
