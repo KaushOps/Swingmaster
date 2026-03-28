@@ -583,8 +583,9 @@ async def multibagger_live():
     from multibagger_model import scan_multibaggers
     from symbols import NSE_200
     # Strip .NS suffix for the model (it adds it back internally)
-    symbols = [s.replace(".NS", "") for s in NSE_200]
-    results = scan_multibaggers(symbols, target_date=None, max_workers=15, top_n=20)
+    # Memory Cap: 80 symbols and 8 workers to prevent 512MB RAM OOM crashes on Render Free
+    symbols = [s.replace(".NS", "") for s in NSE_200[:80]]
+    results = scan_multibaggers(symbols, target_date=None, max_workers=8, top_n=20)
     return {"status": "success", "data": results}
 
 
@@ -601,10 +602,10 @@ async def multibagger_backtest(years_ago: int = 1):
 
     target_date = (datetime.now() - timedelta(days=years_ago * 365)).strftime("%Y-%m-%d")
     
-    # Cap historical backtests at 100 symbols to prevent 502 Gateway Timeouts.
-    # Fetching 5 years of history across more than 100 symbols reliably hits Render's 100s timeout.
-    symbols = [s.replace(".NS", "") for s in NSE_200[:100]]
-    result = run_backtest_with_benchmark(symbols, target_date=target_date, max_workers=20, top_n=10)
+    # Cap historical backtests at 60 symbols and 5 workers to prevent OOM Memory Crashes
+    # Free tier instances freeze when 20 workers load 5-Year Dataframes into RAM simultaneously
+    symbols = [s.replace(".NS", "") for s in NSE_200[:60]]
+    result = run_backtest_with_benchmark(symbols, target_date=target_date, max_workers=5, top_n=10)
     return {"status": "success", **result}
 
 
