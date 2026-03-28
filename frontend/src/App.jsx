@@ -39,6 +39,134 @@ const StatusBadge = ({ status }) => {
   return <span className={`badge ${cls}`}>{status}</span>;
 };
 
+function StockDetailDrawer({ symbol, onClose }) {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${baseUrl}/api/stock_detail/${symbol}`)
+      .then(r => r.json())
+      .then(d => { setDetail(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [symbol]);
+
+  const gate = (label, pass, value) => (
+    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', background: pass ? 'rgba(74,222,128,0.08)' : 'rgba(248,113,113,0.08)', borderRadius:'8px', marginBottom:'6px', border:`1px solid ${pass ? '#4ade8033' : '#f8717133'}` }}>
+      <span style={{fontSize:'0.85rem', color:'#94a3b8'}}>{label}</span>
+      <span style={{fontWeight:'bold', color: pass ? '#4ade80' : '#f87171'}}>{value} {pass ? '✅' : '❌'}</span>
+    </div>
+  );
+
+  return (
+    <div style={{ position:'fixed', top:0, right:0, width:'min(480px, 100vw)', height:'100vh', background:'#0f172a', borderLeft:'1px solid #1e293b', zIndex:1000, overflowY:'auto', boxShadow:'-4px 0 30px rgba(0,0,0,0.5)' }}>
+      <div style={{ padding:'20px', borderBottom:'1px solid #1e293b', display:'flex', justifyContent:'space-between', alignItems:'center', position:'sticky', top:0, background:'#0f172a', zIndex:1 }}>
+        <div>
+          <h2 style={{ margin:0, color:'#f8fafc', fontSize:'1.4rem' }}>{symbol}</h2>
+          {detail && <div style={{ color:'#64748b', fontSize:'0.85rem', marginTop:'2px' }}>{detail.company_name}</div>}
+        </div>
+        <button onClick={onClose} style={{ background:'transparent', border:'none', color:'#94a3b8', cursor:'pointer', fontSize:'1.6rem', lineHeight:1 }}>×</button>
+      </div>
+
+      {loading ? (
+        <div style={{ padding:'40px', textAlign:'center', color:'#64748b' }}>Loading data...</div>
+      ) : !detail ? (
+        <div style={{ padding:'40px', textAlign:'center', color:'#f87171' }}>Failed to load data.</div>
+      ) : (
+        <div style={{ padding:'20px' }}>
+
+          {/* Summary */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'20px' }}>
+            {[['Sector', detail.sector], ['Industry', detail.industry], ['Market Cap', detail.market_cap], ['Current Price', detail.current_price ? `₹${detail.current_price}` : 'N/A']].map(([k,v]) => (
+              <div key={k} style={{ background:'#1e293b', borderRadius:'10px', padding:'12px' }}>
+                <div style={{ fontSize:'0.75rem', color:'#64748b', marginBottom:'4px' }}>{k}</div>
+                <div style={{ fontWeight:'bold', color:'#e2e8f0', wordBreak:'break-word' }}>{v || 'N/A'}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Signal Logic */}
+          <h3 style={{ color:'#e2e8f0', marginBottom:'12px', fontSize:'1rem' }}>🧠 Why This Signal Triggered</h3>
+          {detail.signal_logic && Object.keys(detail.signal_logic).length > 0 ? (
+            <div style={{ marginBottom:'20px' }}>
+              {gate('MACD Bullish', detail.signal_logic.macd_hist > 0, `Hist: ${detail.signal_logic.macd_hist}`)}
+              {gate('RSI Sweet Spot (45-78)', detail.signal_logic.rsi >= 45 && detail.signal_logic.rsi <= 78, `RSI: ${detail.signal_logic.rsi}`)}
+              {gate('Above 20-day EMA', detail.signal_logic.above_ema20, detail.signal_logic.above_ema20 ? 'Yes' : 'No')}
+              {gate('Above 50-day EMA', detail.signal_logic.above_ema50, detail.signal_logic.above_ema50 ? 'Yes' : 'No')}
+              {gate('Trending Market (ADX ≥ 18)', detail.signal_logic.adx >= 18, `ADX: ${detail.signal_logic.adx}`)}
+              {gate('52W High Proximity (≥40%)', detail.signal_logic.pct_from_52w_high >= 60, `At ${detail.signal_logic.pct_from_52w_high}% of high`)}
+              {gate('Volume Spike', detail.signal_logic.volume_ratio >= 1.5, `${detail.signal_logic.volume_ratio}x avg`)}
+              {gate('Momentum (ROC 10d)', detail.signal_logic.roc10 > 0, `${detail.signal_logic.roc10}%`)}
+            </div>
+          ) : <div style={{ color:'#475569', fontSize:'0.85rem', marginBottom:'20px' }}>Indicator data unavailable.</div>}
+
+          {/* 52W Range */}
+          {(detail.week_52_high || detail.week_52_low) && (
+            <div style={{ marginBottom:'20px', background:'#1e293b', borderRadius:'10px', padding:'14px' }}>
+              <div style={{ fontSize:'0.75rem', color:'#64748b', marginBottom:'8px' }}>52-Week Range</div>
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.9rem' }}>
+                <span style={{ color:'#f87171' }}>₹{detail.week_52_low}</span>
+                <span style={{ color:'#4ade80' }}>₹{detail.week_52_high}</span>
+              </div>
+              <div style={{ height:'6px', background:'#334155', borderRadius:'3px', marginTop:'6px', position:'relative' }}>
+                {detail.week_52_low && detail.week_52_high && detail.current_price && (
+                  <div style={{ position:'absolute', left:`${Math.min(100, Math.max(0, ((detail.current_price - detail.week_52_low)/(detail.week_52_high - detail.week_52_low))*100))}%`, top: '-3px', width:'12px', height:'12px', background:'#38bdf8', borderRadius:'50%', transform:'translateX(-50%)' }} />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Fundamentals */}
+          <h3 style={{ color:'#e2e8f0', marginBottom:'12px', fontSize:'1rem' }}>📊 Fundamentals</h3>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'20px' }}>
+            {[
+              ['P/E Ratio', detail.pe_ratio],
+              ['P/B Ratio', detail.pb_ratio],
+              ['ROE', detail.roe != null ? `${detail.roe}%` : null],
+              ['Debt/Equity', detail.debt_to_equity],
+              ['Revenue Growth', detail.revenue_growth != null ? `${detail.revenue_growth}%` : null],
+              ['Earnings Growth', detail.earnings_growth != null ? `${detail.earnings_growth}%` : null],
+              ['Dividend Yield', detail.dividend_yield != null ? `${detail.dividend_yield}%` : null],
+              ['Beta', detail.beta],
+              ['Analyst Rating', detail.analyst_rating],
+              ['Analyst Target', detail.target_mean_price ? `₹${detail.target_mean_price}` : null],
+            ].map(([k, v]) => (
+              <div key={k} style={{ background:'#1e293b', borderRadius:'8px', padding:'10px' }}>
+                <div style={{ fontSize:'0.72rem', color:'#64748b' }}>{k}</div>
+                <div style={{ fontWeight:'bold', color: v ? '#e2e8f0' : '#334155', fontSize:'0.95rem' }}>{v || 'N/A'}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Business Description */}
+          {detail.description && detail.description !== 'No description available.' && (
+            <div style={{ marginBottom:'20px' }}>
+              <h3 style={{ color:'#e2e8f0', marginBottom:'8px', fontSize:'1rem' }}>🏢 About</h3>
+              <p style={{ color:'#94a3b8', fontSize:'0.83rem', lineHeight:'1.6', margin:0 }}>{detail.description.slice(0, 500)}{detail.description.length > 500 ? '...' : ''}</p>
+            </div>
+          )}
+
+          {/* News */}
+          {detail.news && detail.news.length > 0 && (
+            <div>
+              <h3 style={{ color:'#e2e8f0', marginBottom:'12px', fontSize:'1rem' }}>📰 Latest News</h3>
+              {detail.news.map((n, i) => (
+                <a key={i} href={n.url} target="_blank" rel="noreferrer" style={{ display:'block', textDecoration:'none', marginBottom:'10px', padding:'12px', background:'#1e293b', borderRadius:'8px', border:'1px solid #334155', transition:'border-color 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor='#38bdf8'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor='#334155'}>
+                  <div style={{ color:'#e2e8f0', fontSize:'0.85rem', fontWeight:'500', marginBottom:'4px', lineHeight:'1.4' }}>{n.title}</div>
+                  <div style={{ color:'#475569', fontSize:'0.75rem' }}>{n.source} · {n.published?.slice(0, 10)}</div>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StockGrid({ data, currency, capLabel, onLogTrade }) {
   if (!data || data.length === 0) return <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'40px',color:'var(--text-dim)'}}>No active signals at this time.</div>;
   return (
@@ -133,7 +261,7 @@ function PortfolioGrid({ portfolio, setPortfolio }) {
   );
 }
 
-function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accentColor, TooltipComponent, bannerTheme, onLogTrade }) {
+function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accentColor, TooltipComponent, bannerTheme, onLogTrade, onDetail }) {
   const [selectedMonth, setSelectedMonth] = useState('All');
   const months = [...new Set(histData.map(d => d.date.substring(0, 7)))].sort().reverse();
   const filteredHistData = selectedMonth === 'All' ? histData : histData.filter(d => d.date.startsWith(selectedMonth));
@@ -223,7 +351,7 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
           </div>
           <div className="grid">
             {selectedDate.signals.map((stock, i) => (
-              <div className="card" key={`${stock.symbol}-${i}`} style={{ borderColor: stock.status === 'TARGET HIT' ? '#22c55e44' : stock.status === 'SL HIT' ? '#ef444444' : '#3b82f644' }}>
+              <div className="card" key={`${stock.symbol}-${i}`} style={{ borderColor: stock.status === 'TARGET HIT' ? '#22c55e44' : stock.status === 'SL HIT' ? '#ef444444' : '#3b82f644', cursor:'pointer' }} onClick={() => onDetail && onDetail(stock.symbol)}>
                 <div className="card-header">
                   <h2>{stock.symbol}</h2>
                   <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
@@ -261,6 +389,7 @@ function App() {
   const [loading, setLoading]             = useState(true)
   const [market, setMarket]               = useState("HC")
   const [isScanningBackground, setIsScanningBackground] = useState(false)
+  const [selectedDetail, setSelectedDetail] = useState(null);
   const [portfolio, setPortfolio]         = useState(() => {
     try { return JSON.parse(localStorage.getItem('swing_portfolio')) || []; }
     catch { return []; }
@@ -379,13 +508,14 @@ function App() {
                 bannerTheme="amber"
                 TooltipComponent={HCTooltip}
                 onLogTrade={logTrade}
+                onDetail={setSelectedDetail}
               />
 
               {!selectedHcDate && (
                 <div className="grid">
                   {data.length === 0 && <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'40px',color:'var(--text-dim)'}}>No High Conviction signals today. Thresholds are intentionally strict — quality over quantity.</div>}
                   {data.map(stock => (
-                    <div className="card" key={stock.symbol} style={{ borderColor:'#fbbf2444', boxShadow:'0 0 20px #fbbf2411' }}>
+                    <div className="card" key={stock.symbol} style={{ borderColor:'#fbbf2444', boxShadow:'0 0 20px #fbbf2411', cursor:'pointer' }} onClick={() => setSelectedDetail(stock.symbol)}>
                       <div className="card-header">
                         <h2>{stock.symbol}</h2>
                         <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
@@ -435,6 +565,7 @@ function App() {
                 bannerTheme="teal"
                 TooltipComponent={CustomTooltip}
                 onLogTrade={logTrade}
+                onDetail={setSelectedDetail}
               />
               {!selectedHistDate && (
                 <div className="grid">
@@ -480,7 +611,7 @@ function App() {
               ) : (
                 <div className="grid">
                   {activeSignals.map((stock, i) => (
-                    <div className="card" key={`${stock.symbol}-${stock.signalDate}-${i}`} style={{ borderColor:'#4ade8044' }}>
+                    <div className="card" key={`${stock.symbol}-${stock.signalDate}-${i}`} style={{ borderColor:'#4ade8044', cursor:'pointer' }} onClick={() => setSelectedDetail(stock.symbol)}>
                       <div className="card-header">
                         <h2>{stock.symbol}</h2>
                         <div style={{display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'4px'}}>

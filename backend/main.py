@@ -369,6 +369,107 @@ def scan_markets(market: str = "IN") -> Dict[str, Any]:
             
     return {"status": "success", "timestamp": datetime.now().isoformat(), "market": market, "data": results}
 
+
+@app.get("/api/stock_detail/{symbol}")
+async def stock_detail(symbol: str):
+    """
+    Returns a deep-dive view for a stock: signal logic, fundamentals, news, and market data.
+    Symbol should be the base name without .NS (e.g. 'RELIANCE').
+    """
+    import yfinance as yf
+    import numpy as np
+
+    ns_symbol = f"{symbol.upper()}.NS"
+    ticker = yf.Ticker(ns_symbol)
+
+    # --- yfinance .info (fundamentals + metadata) ---
+    try:
+        info = ticker.info or {}
+    except Exception:
+        info = {}
+
+    def safe(key, default=None):
+        val = info.get(key, default)
+        if val is None or (isinstance(val, float) and (val != val)):  # NaN check
+            return default
+        return val
+
+    # --- Recent OHLCV + indicators for signal logic ---
+    signal_logic = {}
+    try:
+        df = fetch_daily_data(ns_symbol, years=1)
+        if not df.empty:
+            from ml_model import add_features
+            df = add_features(df)
+            if not df.empty:
+                last = df.iloc[-1]
+                signal_logic = {
+                    "rsi": round(float(last.get("rsi", 0)), 1),
+                    "macd_hist": round(float(last.get("macd_hist", 0)), 3),
+                    "adx": round(float(last.get("adx", 0)), 1),
+                    "bb_pct": round(float(last.get("bb_pct", 0)), 2),
+                    "volume_ratio": round(float(last.get("volume_ratio", 0)), 2),
+                    "above_ema20": bool(last.get("above_ema20", 0)),
+                    "above_ema50": bool(last.get("above_ema50", 0)),
+                    "pct_from_52w_high": round(float(last.get("pct_from_high", 0)) * 100, 1),
+                    "roc10": round(float(last.get("roc10", 0)), 2),
+                    "stoch_k": round(float(last.get("stoch_k", 0)), 1),
+                }
+    except Exception as e:
+        print(f"Signal logic error for {symbol}: {e}")
+
+    # --- News ---
+    news_items = []
+    try:
+        raw_news = ticker.news or []
+        for n in raw_news[:6]:
+            content = n.get("content", {})
+            title = content.get("title", "") if isinstance(content, dict) else n.get("title", "")
+            url   = content.get("canonicalUrl", {}).get("url", "") if isinstance(content, dict) else n.get("link", "")
+            pub   = content.get("pubDate", "") if isinstance(content, dict) else n.get("providerPublishTime", "")
+            source = content.get("provider", {}).get("displayName", "") if isinstance(content, dict) else n.get("publisher", "")
+            if title:
+                news_items.append({"title": title, "url": url, "published": str(pub), "source": source})
+    except Exception as e:
+        print(f"News fetch error for {symbol}: {e}")
+
+    # --- Financials summary ---
+    market_cap = safe("marketCap")
+    if market_cap:
+        if market_cap >= 1e12:
+            market_cap_str = f"₹{market_cap/1e12:.2f}T"
+        elif market_cap >= 1e9:
+            market_cap_str = f"₹{market_cap/1e9:.2f}B"
+        else:
+            market_cap_str = f"₹{market_cap/1e7:.2f}Cr"
+    else:
+        market_cap_str = "N/A"
+
+    return {
+        "symbol": symbol.upper(),
+        "company_name": safe("longName", symbol),
+        "sector": safe("sector", "N/A"),
+        "industry": safe("industry", "N/A"),
+        "market_cap": market_cap_str,
+        "current_price": safe("currentPrice") or safe("regularMarketPrice"),
+        "week_52_high": safe("fiftyTwoWeekHigh"),
+        "week_52_low": safe("fiftyTwoWeekLow"),
+        "pe_ratio": safe("trailingPE"),
+        "pb_ratio": safe("priceToBook"),
+        "roe": round(safe("returnOnEquity", 0) * 100, 1) if safe("returnOnEquity") else None,
+        "debt_to_equity": safe("debtToEquity"),
+        "revenue_growth": round(safe("revenueGrowth", 0) * 100, 1) if safe("revenueGrowth") else None,
+        "earnings_growth": round(safe("earningsGrowth", 0) * 100, 1) if safe("earningsGrowth") else None,
+        "dividend_yield": round(safe("dividendYield", 0) * 100, 2) if safe("dividendYield") else None,
+        "beta": safe("beta"),
+        "analyst_rating": safe("recommendationKey", "N/A").upper(),
+        "target_mean_price": safe("targetMeanPrice"),
+        "description": safe("longBusinessSummary", "No description available."),
+        "signal_logic": signal_logic,
+        "news": news_items,
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
