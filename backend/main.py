@@ -9,7 +9,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import pytz
 import threading
 
-from data_fetcher import fetch_daily_data
+from data_fetcher import fetch_daily_data, is_weekly_bullish, get_delivery_pct
 from ml_model import add_features, create_labels, IntradayModel, passes_quality_gates
 from backtest import run_backtest
 
@@ -112,6 +112,10 @@ def update_universe_cache():
     # Regime filter — check Nifty stance once before scanning all stocks
     market_bullish = is_nifty_bullish()
     print(f"Nifty 50 regime: {'BULLISH ✅' if market_bullish else 'BEARISH ⚠️'}")
+
+    # Pre-fetch NSE Bhavcopy delivery % data once (cached per day)
+    from data_fetcher import _fetch_nse_delivery_pct
+    _fetch_nse_delivery_pct()  # warms up the cache for all symbols
     
     for symbol in NSE_UNIVERSE:
         try:
@@ -188,7 +192,13 @@ def update_universe_cache():
             target = entry_price + (5.0 * atr)
             stoploss = entry_price - (2.0 * atr)
             
-            if prob_up > 0.55 and vol_ratio > 0.5 and market_bullish and passes_quality_gates(latest):
+            # --- Extra gates for live signals: weekly trend + delivery % ---
+            weekly_ok = is_weekly_bullish(symbol)
+            delivery_pct = get_delivery_pct(symbol)
+            # delivery gate: >35% OR unavailable (fail open)
+            delivery_ok = (delivery_pct is None) or (delivery_pct >= 35.0)
+
+            if prob_up > 0.55 and vol_ratio > 0.5 and market_bullish and passes_quality_gates(latest) and weekly_ok and delivery_ok:
                 buys.append({
                     "symbol": sym,
                     "action": "BUY",
@@ -197,10 +207,11 @@ def update_universe_cache():
                     "target": round(target, 2),
                     "stoploss": round(stoploss, 2),
                     "volume_ratio": round(vol_ratio, 2),
+                    "delivery_pct": round(delivery_pct, 1) if delivery_pct is not None else None,
                     "backtest": bt_stats
                 })
             
-            if prob_up > HC_PROB_UP and vol_ratio > HC_VOL_RATIO and atr_pct > HC_ATR_FILTER and market_bullish and passes_quality_gates(latest):
+            if prob_up > HC_PROB_UP and vol_ratio > HC_VOL_RATIO and atr_pct > HC_ATR_FILTER and market_bullish and passes_quality_gates(latest) and weekly_ok and delivery_ok:
                 hc_buys.append({
                     "symbol": sym,
                     "action": "STRONG BUY",
