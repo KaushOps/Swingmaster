@@ -440,15 +440,19 @@ function App() {
     const isNSEBuys = market === "NSE_BUYS";
     const isHC      = market === "HC";
     const isIN      = market === "IN";
+    const isUS      = market === "US";
     
+    // Custom caching check without wiping everything
     if (isHC && hcData.length > 0) { setLoading(false); return; }
     if (isNSEBuys && nseStats !== null) { setLoading(false); return; }
-    if (isIN && data.length > 0 && nseStats === null && hcStats === null) { setLoading(false); return; } // IN tab data check
-
+    
+    // To separate IN vs US which both share 'data' var, wipe 'data' ONLY if switching between IN and US
+    // We already do setData([]) below to force loading state
+    
     // Only reset data for the current tab
     if (isHC) { setHcData([]); setHcHistorical([]); setHcStats(null); }
     else if (isNSEBuys) { setHistoricalData([]); setNseStats(null); }
-    else { setData([]); setHistoricalData([]); setHcHistorical([]); setNseStats(null); setHcStats(null); }
+    else if (isIN || isUS) { setData([]); setHistoricalData([]); setHcHistorical([]); setNseStats(null); setHcStats(null); }
     
     setSelectedHistDate(null); setSelectedHcDate(null); setLoading(true);
 

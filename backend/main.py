@@ -581,9 +581,11 @@ async def multibagger_live():
     the Renaissance-style quantitative algorithm.
     """
     from multibagger_model import scan_multibaggers
+    from data_fetcher import TOP_500_SYMBOLS
     # Strip .NS suffix for the model (it adds it back internally)
-    symbols = [s.replace(".NS", "") for s in NSE_UNIVERSE]
-    results = scan_multibaggers(symbols, target_date=None, max_workers=12, top_n=20)
+    # We scan the top 250 to ensure we find real multibaggers but don't hit the 100s Render timeout
+    symbols = [s.replace(".NS", "") for s in TOP_500_SYMBOLS[:250]]
+    results = scan_multibaggers(symbols, target_date=None, max_workers=15, top_n=20)
     return {"status": "success", "data": results}
 
 
@@ -595,11 +597,12 @@ async def multibagger_backtest(years_ago: int = 1):
     Compares against the Nifty 50 benchmark.
     """
     from multibagger_model import run_backtest_with_benchmark
+    from data_fetcher import TOP_500_SYMBOLS
     from datetime import datetime, timedelta
 
     target_date = (datetime.now() - timedelta(days=years_ago * 365)).strftime("%Y-%m-%d")
-    symbols = [s.replace(".NS", "") for s in NSE_UNIVERSE]
-    result = run_backtest_with_benchmark(symbols, target_date=target_date, max_workers=12, top_n=10)
+    symbols = [s.replace(".NS", "") for s in TOP_500_SYMBOLS[:250]]
+    result = run_backtest_with_benchmark(symbols, target_date=target_date, max_workers=15, top_n=10)
     return {"status": "success", **result}
 
 
