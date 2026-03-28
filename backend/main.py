@@ -600,8 +600,11 @@ async def multibagger_backtest(years_ago: int = 1):
     from datetime import datetime, timedelta
 
     target_date = (datetime.now() - timedelta(days=years_ago * 365)).strftime("%Y-%m-%d")
-    symbols = [s.replace(".NS", "") for s in NSE_200]
-    result = run_backtest_with_benchmark(symbols, target_date=target_date, max_workers=15, top_n=10)
+    
+    # Cap historical backtests at 100 symbols to prevent 502 Gateway Timeouts.
+    # Fetching 5 years of history across more than 100 symbols reliably hits Render's 100s timeout.
+    symbols = [s.replace(".NS", "") for s in NSE_200[:100]]
+    result = run_backtest_with_benchmark(symbols, target_date=target_date, max_workers=20, top_n=10)
     return {"status": "success", **result}
 
 
