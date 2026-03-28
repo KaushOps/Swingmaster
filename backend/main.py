@@ -573,6 +573,36 @@ async def stock_detail(symbol: str):
     }
 
 
+
+@app.get("/api/multibagger/live")
+async def multibagger_live():
+    """
+    Returns the top 20 current multibagger candidates scored by
+    the Renaissance-style quantitative algorithm.
+    """
+    from multibagger_model import scan_multibaggers
+    # Strip .NS suffix for the model (it adds it back internally)
+    symbols = [s.replace(".NS", "") for s in NSE_UNIVERSE]
+    results = scan_multibaggers(symbols, target_date=None, max_workers=12, top_n=20)
+    return {"status": "success", "data": results}
+
+
+@app.get("/api/multibagger/backtest")
+async def multibagger_backtest(years_ago: int = 1):
+    """
+    Time-machine backtest: scores all stocks as-of N years ago,
+    picks the top 10, and measures their actual forward return to today.
+    Compares against the Nifty 50 benchmark.
+    """
+    from multibagger_model import run_backtest_with_benchmark
+    from datetime import datetime, timedelta
+
+    target_date = (datetime.now() - timedelta(days=years_ago * 365)).strftime("%Y-%m-%d")
+    symbols = [s.replace(".NS", "") for s in NSE_UNIVERSE]
+    result = run_backtest_with_benchmark(symbols, target_date=target_date, max_workers=12, top_n=10)
+    return {"status": "success", **result}
+
+
 @app.get("/api/trending_sectors")
 async def trending_sectors():
     """

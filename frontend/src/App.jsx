@@ -395,6 +395,11 @@ function App() {
     catch { return []; }
   });
   const [trendingSectors, setTrendingSectors] = useState([]);
+  const [mbData, setMbData] = useState([]);
+  const [mbBacktest, setMbBacktest] = useState(null);
+  const [mbView, setMbView] = useState('live'); // 'live' | 'backtest'
+  const [mbYearsAgo, setMbYearsAgo] = useState(1);
+  const [mbLoading, setMbLoading] = useState(false);
 
   useEffect(() => {
     // Fetch trending sectors once on load
@@ -424,7 +429,7 @@ function App() {
 
   useEffect(() => {
     // View-only tabs: don't fetch — rely on data loaded from other tabs
-    if (market === 'ACTIVE_SIGNALS' || market === 'PORTFOLIO') {
+    if (market === 'ACTIVE_SIGNALS' || market === 'PORTFOLIO' || market === 'MULTIBAGGER') {
       setLoading(false);
       return;
     }
@@ -496,6 +501,7 @@ function App() {
           <button className={`tab ${market === "HC"       ? "active" : ""}`} onClick={() => setMarket("HC")} style={{ borderColor: market === "HC" ? "#fbbf24" : undefined, color: market === "HC" ? "#fbbf24" : undefined }}>🎯 High Conviction</button>
           <button className={`tab ${market === "ACTIVE_SIGNALS" ? "active" : ""}`} onClick={() => setMarket("ACTIVE_SIGNALS")} style={{ borderColor: market === "ACTIVE_SIGNALS" ? "#4ade80" : undefined, color: market === "ACTIVE_SIGNALS" ? "#4ade80" : undefined }}>🟢 Active Signals</button>
           <button className={`tab ${market === "PORTFOLIO" ? "active" : ""}`} onClick={() => setMarket("PORTFOLIO")}>💼 My Portfolio</button>
+          <button className={`tab ${market === "MULTIBAGGER" ? "active" : ""}`} onClick={() => { setMarket("MULTIBAGGER"); if (mbData.length === 0 && !mbLoading) { setMbLoading(true); const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'; fetch(`${baseUrl}/api/multibagger/live`).then(r=>r.json()).then(res=>{setMbData(res.data||[]);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }} style={{ borderColor: market === "MULTIBAGGER" ? "#a855f7" : undefined, color: market === "MULTIBAGGER" ? "#a855f7" : undefined }}>🚀 Multibaggers</button>
         </div>
 
         {trendingSectors.length > 0 && (
@@ -609,6 +615,88 @@ function App() {
           {/* PORTFOLIO VIEW */}
           {market === "PORTFOLIO" && (
             <PortfolioGrid portfolio={portfolio} setPortfolio={setPortfolio} />
+          )}
+
+          {/* MULTIBAGGER VIEW */}
+          {market === "MULTIBAGGER" && (
+            <>
+              <div style={{ marginBottom:'24px', padding:'24px', background:'linear-gradient(135deg, #1a0533 0%, #0f172a 100%)', borderRadius:'15px', border:'1px solid #7c3aed44' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px', flexWrap:'wrap', gap:'12px' }}>
+                  <div>
+                    <h2 style={{ color:'#e2e8f0', margin:0, fontSize:'1.3rem' }}>🧠 Renaissance Multibagger Engine</h2>
+                    <p style={{ color:'#94a3b8', margin:'4px 0 0', fontSize:'0.85rem' }}>Quantitative anomaly detection · R² trend analysis · Volume accumulation scoring</p>
+                  </div>
+                  <div style={{ display:'flex', gap:'8px' }}>
+                    <button onClick={() => setMbView('live')} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='live' ? '1px solid #a855f7' : '1px solid #334155', background: mbView==='live' ? 'rgba(168,85,247,0.15)' : 'transparent', color: mbView==='live' ? '#c084fc' : '#94a3b8', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600' }}>📡 Live Predictions</button>
+                    <button onClick={() => { setMbView('backtest'); if (!mbBacktest) { setMbLoading(true); const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${mbYearsAgo}`).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='backtest' ? '1px solid #a855f7' : '1px solid #334155', background: mbView==='backtest' ? 'rgba(168,85,247,0.15)' : 'transparent', color: mbView==='backtest' ? '#c084fc' : '#94a3b8', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600' }}>⏳ Historical Proof</button>
+                  </div>
+                </div>
+
+                {mbView === 'backtest' && (
+                  <div style={{ display:'flex', gap:'8px', marginBottom:'16px' }}>
+                    {[1, 2, 3].map(y => (
+                      <button key={y} onClick={() => { setMbYearsAgo(y); setMbBacktest(null); setMbLoading(true); const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${y}`).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); }} style={{ padding:'6px 14px', borderRadius:'8px', border: mbYearsAgo===y ? '1px solid #a855f7' : '1px solid #334155', background: mbYearsAgo===y ? 'rgba(168,85,247,0.2)' : 'transparent', color: mbYearsAgo===y ? '#c084fc' : '#64748b', cursor:'pointer', fontSize:'0.8rem' }}>{y} Year{y>1?'s':''} Ago</button>
+                    ))}
+                  </div>
+                )}
+
+                {mbView === 'backtest' && mbBacktest && !mbLoading && (
+                  <div style={{ display:'flex', gap:'20px', flexWrap:'wrap' }}>
+                    <div style={{ textAlign:'center' }}>
+                      <div style={{ fontSize:'2rem', fontWeight:'800', color: mbBacktest.avg_return >= 0 ? '#4ade80' : '#f87171' }}>{mbBacktest.avg_return > 0 ? '+' : ''}{mbBacktest.avg_return}%</div>
+                      <div style={{ fontSize:'0.8rem', color:'#94a3b8' }}>AI Portfolio Return</div>
+                    </div>
+                    <div style={{ textAlign:'center' }}>
+                      <div style={{ fontSize:'2rem', fontWeight:'800', color: mbBacktest.nifty_return >= 0 ? '#4ade80' : '#f87171' }}>{mbBacktest.nifty_return > 0 ? '+' : ''}{mbBacktest.nifty_return}%</div>
+                      <div style={{ fontSize:'0.8rem', color:'#94a3b8' }}>Nifty 50 Benchmark</div>
+                    </div>
+                    <div style={{ textAlign:'center' }}>
+                      <div style={{ fontSize:'2rem', fontWeight:'800', color:'#c084fc' }}>{mbBacktest.num_picks}</div>
+                      <div style={{ fontSize:'0.8rem', color:'#94a3b8' }}>Stocks Picked</div>
+                    </div>
+                    <div style={{ textAlign:'center' }}>
+                      <div style={{ fontSize:'2rem', fontWeight:'800', color: (mbBacktest.avg_return - mbBacktest.nifty_return) >= 0 ? '#4ade80' : '#f87171' }}>{(mbBacktest.avg_return - mbBacktest.nifty_return) > 0 ? '+' : ''}{(mbBacktest.avg_return - mbBacktest.nifty_return).toFixed(1)}%</div>
+                      <div style={{ fontSize:'0.8rem', color:'#94a3b8' }}>Alpha vs Nifty</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {mbLoading ? (
+                <div className="loader">🧠 Renaissance engine scanning {mbView === 'backtest' ? 'historical data' : '60+ NSE stocks'}...<br/><span style={{fontSize:'0.9rem',opacity:0.6}}>This may take 30-60 seconds.</span></div>
+              ) : (
+                <div className="grid">
+                  {(mbView === 'live' ? mbData : (mbBacktest?.picks || [])).map((stock, i) => (
+                    <div className="card" key={stock.symbol} style={{ borderColor:'#7c3aed44', cursor:'pointer' }} onClick={() => setSelectedDetail(stock.symbol)}>
+                      <div className="card-header">
+                        <h2 style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                          <span style={{ color:'#c084fc', fontSize:'0.75rem' }}>#{i+1}</span>
+                          {stock.symbol}
+                        </h2>
+                        <div style={{ background:'linear-gradient(135deg,#7c3aed,#a855f7)', padding:'4px 12px', borderRadius:'20px', fontSize:'0.85rem', fontWeight:'bold', color:'#fff' }}>{stock.score}</div>
+                      </div>
+                      <div style={{ display:'flex', gap:'6px', marginBottom:'12px', flexWrap:'wrap' }}>
+                        <span style={{ background:'rgba(168,85,247,0.1)', border:'1px solid #7c3aed44', borderRadius:'6px', padding:'3px 8px', fontSize:'0.7rem', color:'#c084fc' }}>R² {stock.r_squared}</span>
+                        <span style={{ background:'rgba(74,222,128,0.1)', border:'1px solid #16653444', borderRadius:'6px', padding:'3px 8px', fontSize:'0.7rem', color:'#4ade80' }}>+{stock.return_1y}% 1Y</span>
+                        <span style={{ background:'rgba(56,189,248,0.1)', border:'1px solid #0284c744', borderRadius:'6px', padding:'3px 8px', fontSize:'0.7rem', color:'#38bdf8' }}>Acc {stock.accumulation_ratio}x</span>
+                        <span style={{ background:'rgba(251,191,36,0.1)', border:'1px solid #92400e44', borderRadius:'6px', padding:'3px 8px', fontSize:'0.7rem', color:'#fbbf24' }}>DD {stock.max_drawdown}%</span>
+                      </div>
+                      <div className="stats-grid">
+                        <div className="stat"><span>Price</span><strong>₹{stock.current_price}</strong></div>
+                        <div className="stat"><span>1Y Return</span><strong className="up">+{stock.return_1y}%</strong></div>
+                        {stock.forward_return !== undefined && (
+                          <div className="stat"><span>Fwd Return</span><strong className={stock.forward_return >= 0 ? 'up' : 'down'}>{stock.forward_return > 0 ? '+' : ''}{stock.forward_return}%</strong></div>
+                        )}
+                        <div className="stat"><span>Score</span><strong style={{color:'#c084fc'}}>{stock.score}/100</strong></div>
+                      </div>
+                    </div>
+                  ))}
+                  {(mbView === 'live' ? mbData : (mbBacktest?.picks || [])).length === 0 && (
+                    <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'60px'}}>No multibagger candidates found matching the strict criteria.</div>
+                  )}
+                </div>
+              )}
+            </>
           )}
 
           {/* ACTIVE SIGNALS VIEW */}

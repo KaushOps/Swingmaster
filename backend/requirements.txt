@@ -11,3 +11,4 @@ vectorbt
 ta
 xgboost
 yahooquery
+scipy
