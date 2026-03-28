@@ -430,41 +430,41 @@ async def stock_detail(symbol: str):
             url = f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{ns_symbol}?modules={modules}&crumb={crumb}"
             resp = sess.get(url, timeout=12)
             if resp.status_code == 200:
-            result = resp.json().get("quoteSummary", {}).get("result", [{}])
-            if result:
-                r = result[0]
-                sp = r.get("summaryProfile", {})
-                fd = r.get("financialData", {})
-                ks = r.get("defaultKeyStatistics", {})
-                sd = r.get("summaryDetail", {})
-                pr = r.get("price", {})
+                result = resp.json().get("quoteSummary", {}).get("result", [{}])
+                if result:
+                    r = result[0]
+                    sp = r.get("summaryProfile", {})
+                    fd = r.get("financialData", {})
+                    ks = r.get("defaultKeyStatistics", {})
+                    sd = r.get("summaryDetail", {})
+                    pr = r.get("price", {})
 
-                def raw(d, key):
-                    val = d.get(key, {})
-                    if isinstance(val, dict):
-                        return val.get("raw")
-                    return val if val not in ("", None) else None
+                    def raw(d, key):
+                        val = d.get(key, {})
+                        if isinstance(val, dict):
+                            return val.get("raw")
+                        return val if val not in ("", None) else None
 
-                info = {
-                    "longName":          pr.get("longName") or pr.get("shortName", symbol),
-                    "sector":            sp.get("sector", "N/A"),
-                    "industry":          sp.get("industry", "N/A"),
-                    "longBusinessSummary": sp.get("longBusinessSummary", ""),
-                    "trailingPE":        raw(sd, "trailingPE"),
-                    "priceToBook":       raw(ks, "priceToBook"),
-                    "returnOnEquity":    raw(fd, "returnOnEquity"),
-                    "debtToEquity":      raw(fd, "debtToEquity"),
-                    "revenueGrowth":     raw(fd, "revenueGrowth"),
-                    "earningsGrowth":    raw(fd, "earningsGrowth"),
-                    "dividendYield":     raw(sd, "dividendYield"),
-                    "beta":              raw(sd, "beta"),
-                    "recommendationKey": fd.get("recommendationKey", "N/A"),
-                    "targetMeanPrice":   raw(fd, "targetMeanPrice"),
-                    "marketCap":         raw(pr, "marketCap"),
-                    "currentPrice":      raw(pr, "regularMarketPrice") or fi.get("current_price"),
-                    "fiftyTwoWeekHigh":  raw(sd, "fiftyTwoWeekHigh") or fi.get("week_52_high"),
-                    "fiftyTwoWeekLow":   raw(sd, "fiftyTwoWeekLow") or fi.get("week_52_low"),
-                }
+                    info = {
+                        "longName":          pr.get("longName") or pr.get("shortName", symbol),
+                        "sector":            sp.get("sector", "N/A"),
+                        "industry":          sp.get("industry", "N/A"),
+                        "longBusinessSummary": sp.get("longBusinessSummary", ""),
+                        "trailingPE":        raw(sd, "trailingPE"),
+                        "priceToBook":       raw(ks, "priceToBook"),
+                        "returnOnEquity":    raw(fd, "returnOnEquity"),
+                        "debtToEquity":      raw(fd, "debtToEquity"),
+                        "revenueGrowth":     raw(fd, "revenueGrowth"),
+                        "earningsGrowth":    raw(fd, "earningsGrowth"),
+                        "dividendYield":     raw(sd, "dividendYield"),
+                        "beta":              raw(sd, "beta"),
+                        "recommendationKey": fd.get("recommendationKey", "N/A"),
+                        "targetMeanPrice":   raw(fd, "targetMeanPrice"),
+                        "marketCap":         raw(pr, "marketCap"),
+                        "currentPrice":      raw(pr, "regularMarketPrice") or fi.get("current_price"),
+                        "fiftyTwoWeekHigh":  raw(sd, "fiftyTwoWeekHigh") or fi.get("week_52_high"),
+                        "fiftyTwoWeekLow":   raw(sd, "fiftyTwoWeekLow") or fi.get("week_52_low"),
+                    }
     except Exception as e:
         print(f"Yahoo quoteSummary error for {symbol}: {e}")
 
