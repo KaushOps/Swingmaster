@@ -64,32 +64,7 @@ HC_ATR_FILTER = 0.015  # require at least 1.5% ATR (avoid noise)
 
 _nifty_bullish = True  # global cache for regime; updated with each scan
 
-# Yahoo Finance authenticated session (crumb required for quoteSummary v10)
-_yf_session = None
-_yf_crumb   = None
 
-def get_yf_session():
-    """Returns a requests.Session with Yahoo Finance cookies + crumb."""
-    global _yf_session, _yf_crumb
-    try:
-        if _yf_session and _yf_crumb:
-            return _yf_session, _yf_crumb
-        s = requests.Session()
-        s.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "application/json",
-        })
-        # Yahoo Finance requires visiting the cookie consent page first
-        s.get("https://fc.yahoo.com", timeout=8)
-        r = s.get("https://query1.finance.yahoo.com/v1/test/getcrumb", timeout=8)
-        if r.status_code == 200 and r.text.strip():
-            _yf_session = s
-            _yf_crumb   = r.text.strip()
-            print(f"Yahoo Finance crumb obtained: {_yf_crumb[:6]}...")
-        return _yf_session, _yf_crumb
-    except Exception as e:
-        print(f"YF session error: {e}")
-        return None, None
 
 def is_nifty_bullish() -> bool:
     """Returns True if Nifty 50 is above its 50-day EMA (broad market regime filter)."""
@@ -421,52 +396,40 @@ async def stock_detail(symbol: str):
     except Exception as e:
         print(f"fast_info error for {symbol}: {e}")
 
-    # --- Strategy 2: Yahoo Finance quoteSummary API with crumb auth ---
+    # --- Strategy 2: yahooquery properties (proven robust in cloud environments) ---
     info = {}
     try:
-        sess, crumb = get_yf_session()
-        if sess and crumb:
-            modules = "summaryProfile,defaultKeyStatistics,financialData,summaryDetail,price"
-            url = f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{ns_symbol}?modules={modules}&crumb={crumb}"
-            resp = sess.get(url, timeout=12)
-            if resp.status_code == 200:
-                result = resp.json().get("quoteSummary", {}).get("result", [{}])
-                if result:
-                    r = result[0]
-                    sp = r.get("summaryProfile", {})
-                    fd = r.get("financialData", {})
-                    ks = r.get("defaultKeyStatistics", {})
-                    sd = r.get("summaryDetail", {})
-                    pr = r.get("price", {})
+        from yahooquery import Ticker as YQTicker
+        yqt = YQTicker(ns_symbol)
 
-                    def raw(d, key):
-                        val = d.get(key, {})
-                        if isinstance(val, dict):
-                            return val.get("raw")
-                        return val if val not in ("", None) else None
+        sp = yqt.summary_profile.get(ns_symbol, {}) if isinstance(yqt.summary_profile, dict) else {}
+        fd = yqt.financial_data.get(ns_symbol, {}) if isinstance(yqt.financial_data, dict) else {}
+        ks = yqt.key_stats.get(ns_symbol, {}) if isinstance(yqt.key_stats, dict) else {}
+        sd = yqt.summary_detail.get(ns_symbol, {}) if isinstance(yqt.summary_detail, dict) else {}
+        pr = yqt.price.get(ns_symbol, {}) if isinstance(yqt.price, dict) else {}
 
-                    info = {
-                        "longName":          pr.get("longName") or pr.get("shortName", symbol),
-                        "sector":            sp.get("sector", "N/A"),
-                        "industry":          sp.get("industry", "N/A"),
-                        "longBusinessSummary": sp.get("longBusinessSummary", ""),
-                        "trailingPE":        raw(sd, "trailingPE"),
-                        "priceToBook":       raw(ks, "priceToBook"),
-                        "returnOnEquity":    raw(fd, "returnOnEquity"),
-                        "debtToEquity":      raw(fd, "debtToEquity"),
-                        "revenueGrowth":     raw(fd, "revenueGrowth"),
-                        "earningsGrowth":    raw(fd, "earningsGrowth"),
-                        "dividendYield":     raw(sd, "dividendYield"),
-                        "beta":              raw(sd, "beta"),
-                        "recommendationKey": fd.get("recommendationKey", "N/A"),
-                        "targetMeanPrice":   raw(fd, "targetMeanPrice"),
-                        "marketCap":         raw(pr, "marketCap"),
-                        "currentPrice":      raw(pr, "regularMarketPrice") or fi.get("current_price"),
-                        "fiftyTwoWeekHigh":  raw(sd, "fiftyTwoWeekHigh") or fi.get("week_52_high"),
-                        "fiftyTwoWeekLow":   raw(sd, "fiftyTwoWeekLow") or fi.get("week_52_low"),
-                    }
+        info = {
+            "longName":          pr.get("longName") or pr.get("shortName", symbol),
+            "sector":            sp.get("sector", "N/A") if isinstance(sp, dict) else "N/A",
+            "industry":          sp.get("industry", "N/A") if isinstance(sp, dict) else "N/A",
+            "longBusinessSummary": sp.get("longBusinessSummary", "") if isinstance(sp, dict) else "",
+            "trailingPE":        sd.get("trailingPE") if isinstance(sd, dict) else None,
+            "priceToBook":       ks.get("priceToBook") if isinstance(ks, dict) else None,
+            "returnOnEquity":    fd.get("returnOnEquity") if isinstance(fd, dict) else None,
+            "debtToEquity":      fd.get("debtToEquity") if isinstance(fd, dict) else None,
+            "revenueGrowth":     fd.get("revenueGrowth") if isinstance(fd, dict) else None,
+            "earningsGrowth":    fd.get("earningsGrowth") if isinstance(fd, dict) else None,
+            "dividendYield":     sd.get("dividendYield") if isinstance(sd, dict) else None,
+            "beta":              sd.get("beta") if isinstance(sd, dict) else (ks.get("beta") if isinstance(ks, dict) else None),
+            "recommendationKey": fd.get("recommendationKey", "N/A") if isinstance(fd, dict) else "N/A",
+            "targetMeanPrice":   fd.get("targetMeanPrice") if isinstance(fd, dict) else None,
+            "marketCap":         pr.get("marketCap") if isinstance(pr, dict) else None,
+            "currentPrice":      pr.get("regularMarketPrice") if isinstance(pr, dict) else None,
+            "fiftyTwoWeekHigh":  sd.get("fiftyTwoWeekHigh") if isinstance(sd, dict) else None,
+            "fiftyTwoWeekLow":   sd.get("fiftyTwoWeekLow") if isinstance(sd, dict) else None,
+        }
     except Exception as e:
-        print(f"Yahoo quoteSummary error for {symbol}: {e}")
+        print(f"yahooquery error for {symbol}: {e}")
 
     # Merge: prefer quoteSummary data, fallback to fast_info
     def safe(key, default=None):
