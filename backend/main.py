@@ -374,7 +374,6 @@ def scan_markets(market: str = "IN") -> Dict[str, Any]:
 async def stock_detail(symbol: str):
     """
     Returns a deep-dive view for a stock: signal logic, fundamentals, news, and market data.
-    Symbol should be the base name without .NS (e.g. 'RELIANCE').
     """
     import yfinance as yf
     import numpy as np
@@ -382,19 +381,73 @@ async def stock_detail(symbol: str):
     ns_symbol = f"{symbol.upper()}.NS"
     ticker = yf.Ticker(ns_symbol)
 
-    # --- yfinance .info (fundamentals + metadata) ---
+    # --- Strategy 1: ticker.fast_info (very reliable, lightweight endpoint) ---
+    fi = {}
     try:
-        info = ticker.info or {}
-    except Exception:
-        info = {}
+        fast = ticker.fast_info
+        fi = {
+            "market_cap":   getattr(fast, "market_cap",  None),
+            "current_price": getattr(fast, "last_price",  None),
+            "week_52_high": getattr(fast, "year_high",   None),
+            "week_52_low":  getattr(fast, "year_low",    None),
+        }
+    except Exception as e:
+        print(f"fast_info error for {symbol}: {e}")
 
+    # --- Strategy 2: Yahoo Finance quoteSummary API directly (works on Render) ---
+    info = {}
+    try:
+        modules = "summaryProfile,defaultKeyStatistics,financialData,summaryDetail,price"
+        url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ns_symbol}?modules={modules}"
+        headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+        resp = requests.get(url, headers=headers, timeout=12)
+        if resp.status_code == 200:
+            result = resp.json().get("quoteSummary", {}).get("result", [{}])
+            if result:
+                r = result[0]
+                sp = r.get("summaryProfile", {})
+                fd = r.get("financialData", {})
+                ks = r.get("defaultKeyStatistics", {})
+                sd = r.get("summaryDetail", {})
+                pr = r.get("price", {})
+
+                def raw(d, key):
+                    val = d.get(key, {})
+                    if isinstance(val, dict):
+                        return val.get("raw")
+                    return val if val not in ("", None) else None
+
+                info = {
+                    "longName":          pr.get("longName") or pr.get("shortName", symbol),
+                    "sector":            sp.get("sector", "N/A"),
+                    "industry":          sp.get("industry", "N/A"),
+                    "longBusinessSummary": sp.get("longBusinessSummary", ""),
+                    "trailingPE":        raw(sd, "trailingPE"),
+                    "priceToBook":       raw(ks, "priceToBook"),
+                    "returnOnEquity":    raw(fd, "returnOnEquity"),
+                    "debtToEquity":      raw(fd, "debtToEquity"),
+                    "revenueGrowth":     raw(fd, "revenueGrowth"),
+                    "earningsGrowth":    raw(fd, "earningsGrowth"),
+                    "dividendYield":     raw(sd, "dividendYield"),
+                    "beta":              raw(sd, "beta"),
+                    "recommendationKey": fd.get("recommendationKey", "N/A"),
+                    "targetMeanPrice":   raw(fd, "targetMeanPrice"),
+                    "marketCap":         raw(pr, "marketCap"),
+                    "currentPrice":      raw(pr, "regularMarketPrice") or fi.get("current_price"),
+                    "fiftyTwoWeekHigh":  raw(sd, "fiftyTwoWeekHigh") or fi.get("week_52_high"),
+                    "fiftyTwoWeekLow":   raw(sd, "fiftyTwoWeekLow") or fi.get("week_52_low"),
+                }
+    except Exception as e:
+        print(f"Yahoo quoteSummary error for {symbol}: {e}")
+
+    # Merge: prefer quoteSummary data, fallback to fast_info
     def safe(key, default=None):
         val = info.get(key, default)
-        if val is None or (isinstance(val, float) and (val != val)):  # NaN check
+        if val is None or (isinstance(val, float) and (val != val)):
             return default
         return val
 
-    # --- Recent OHLCV + indicators for signal logic ---
+    # --- Signal logic from price history + indicators ---
     signal_logic = {}
     try:
         df = fetch_daily_data(ns_symbol, years=1)
@@ -403,17 +456,18 @@ async def stock_detail(symbol: str):
             df = add_features(df)
             if not df.empty:
                 last = df.iloc[-1]
+                def sv(col): return round(float(last[col]), 2) if col in last.index and not (last[col] != last[col]) else 0
                 signal_logic = {
-                    "rsi": round(float(last.get("rsi", 0)), 1),
-                    "macd_hist": round(float(last.get("macd_hist", 0)), 3),
-                    "adx": round(float(last.get("adx", 0)), 1),
-                    "bb_pct": round(float(last.get("bb_pct", 0)), 2),
-                    "volume_ratio": round(float(last.get("volume_ratio", 0)), 2),
-                    "above_ema20": bool(last.get("above_ema20", 0)),
-                    "above_ema50": bool(last.get("above_ema50", 0)),
+                    "rsi":              round(sv("rsi"), 1),
+                    "macd_hist":        round(sv("macd_hist"), 3),
+                    "adx":              round(sv("adx"), 1),
+                    "bb_pct":           round(sv("bb_pct"), 2),
+                    "volume_ratio":     round(sv("volume_ratio"), 2),
+                    "above_ema20":      bool(last.get("above_ema20", 0)),
+                    "above_ema50":      bool(last.get("above_ema50", 0)),
                     "pct_from_52w_high": round(float(last.get("pct_from_high", 0)) * 100, 1),
-                    "roc10": round(float(last.get("roc10", 0)), 2),
-                    "stoch_k": round(float(last.get("stoch_k", 0)), 1),
+                    "roc10":            round(sv("roc10"), 2),
+                    "stoch_k":          round(sv("stoch_k"), 1),
                 }
     except Exception as e:
         print(f"Signal logic error for {symbol}: {e}")
@@ -424,49 +478,46 @@ async def stock_detail(symbol: str):
         raw_news = ticker.news or []
         for n in raw_news[:6]:
             content = n.get("content", {})
-            title = content.get("title", "") if isinstance(content, dict) else n.get("title", "")
-            url   = content.get("canonicalUrl", {}).get("url", "") if isinstance(content, dict) else n.get("link", "")
-            pub   = content.get("pubDate", "") if isinstance(content, dict) else n.get("providerPublishTime", "")
+            title  = content.get("title", "")  if isinstance(content, dict) else n.get("title", "")
+            url2   = content.get("canonicalUrl", {}).get("url", "") if isinstance(content, dict) else n.get("link", "")
+            pub    = content.get("pubDate", "") if isinstance(content, dict) else n.get("providerPublishTime", "")
             source = content.get("provider", {}).get("displayName", "") if isinstance(content, dict) else n.get("publisher", "")
             if title:
-                news_items.append({"title": title, "url": url, "published": str(pub), "source": source})
+                news_items.append({"title": title, "url": url2, "published": str(pub), "source": source})
     except Exception as e:
         print(f"News fetch error for {symbol}: {e}")
 
-    # --- Financials summary ---
-    market_cap = safe("marketCap")
+    # --- Market Cap formatting ---
+    market_cap = safe("marketCap") or fi.get("market_cap")
     if market_cap:
-        if market_cap >= 1e12:
-            market_cap_str = f"₹{market_cap/1e12:.2f}T"
-        elif market_cap >= 1e9:
-            market_cap_str = f"₹{market_cap/1e9:.2f}B"
-        else:
-            market_cap_str = f"₹{market_cap/1e7:.2f}Cr"
+        if market_cap >= 1e12:    market_cap_str = f"₹{market_cap/1e12:.2f}T"
+        elif market_cap >= 1e9:   market_cap_str = f"₹{market_cap/1e9:.2f}B"
+        else:                     market_cap_str = f"₹{market_cap/1e7:.2f}Cr"
     else:
         market_cap_str = "N/A"
 
     return {
-        "symbol": symbol.upper(),
-        "company_name": safe("longName", symbol),
-        "sector": safe("sector", "N/A"),
-        "industry": safe("industry", "N/A"),
-        "market_cap": market_cap_str,
-        "current_price": safe("currentPrice") or safe("regularMarketPrice"),
-        "week_52_high": safe("fiftyTwoWeekHigh"),
-        "week_52_low": safe("fiftyTwoWeekLow"),
-        "pe_ratio": safe("trailingPE"),
-        "pb_ratio": safe("priceToBook"),
-        "roe": round(safe("returnOnEquity", 0) * 100, 1) if safe("returnOnEquity") else None,
-        "debt_to_equity": safe("debtToEquity"),
-        "revenue_growth": round(safe("revenueGrowth", 0) * 100, 1) if safe("revenueGrowth") else None,
-        "earnings_growth": round(safe("earningsGrowth", 0) * 100, 1) if safe("earningsGrowth") else None,
-        "dividend_yield": round(safe("dividendYield", 0) * 100, 2) if safe("dividendYield") else None,
-        "beta": safe("beta"),
-        "analyst_rating": safe("recommendationKey", "N/A").upper(),
+        "symbol":          symbol.upper(),
+        "company_name":    safe("longName", symbol),
+        "sector":          safe("sector", "N/A"),
+        "industry":        safe("industry", "N/A"),
+        "market_cap":      market_cap_str,
+        "current_price":   safe("currentPrice") or fi.get("current_price"),
+        "week_52_high":    safe("fiftyTwoWeekHigh") or fi.get("week_52_high"),
+        "week_52_low":     safe("fiftyTwoWeekLow") or fi.get("week_52_low"),
+        "pe_ratio":        safe("trailingPE"),
+        "pb_ratio":        safe("priceToBook"),
+        "roe":             round(safe("returnOnEquity") * 100, 1) if safe("returnOnEquity") else None,
+        "debt_to_equity":  safe("debtToEquity"),
+        "revenue_growth":  round(safe("revenueGrowth") * 100, 1) if safe("revenueGrowth") else None,
+        "earnings_growth": round(safe("earningsGrowth") * 100, 1) if safe("earningsGrowth") else None,
+        "dividend_yield":  round(safe("dividendYield") * 100, 2) if safe("dividendYield") else None,
+        "beta":            safe("beta"),
+        "analyst_rating":  (safe("recommendationKey") or "N/A").upper(),
         "target_mean_price": safe("targetMeanPrice"),
-        "description": safe("longBusinessSummary", "No description available."),
-        "signal_logic": signal_logic,
-        "news": news_items,
+        "description":     safe("longBusinessSummary", "No description available."),
+        "signal_logic":    signal_logic,
+        "news":            news_items,
     }
 
 
