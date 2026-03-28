@@ -474,6 +474,7 @@ function App() {
   ).sort((a, b) => b.growth_pct - a.growth_pct);
 
   return (
+    <>
     <div className="container">
       <header className="header">
         <h1>Global Swing <span className="highlight">Scanner</span></h1>
@@ -635,6 +636,14 @@ function App() {
         </>
       )}
     </div>
+
+    {selectedDetail && (
+      <>
+        <div onClick={() => setSelectedDetail(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:999 }} />
+        <StockDetailDrawer symbol={selectedDetail} onClose={() => setSelectedDetail(null)} />
+      </>
+    )}
+    </>
   );
 }
 
