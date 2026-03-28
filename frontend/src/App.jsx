@@ -394,6 +394,16 @@ function App() {
     try { return JSON.parse(localStorage.getItem('swing_portfolio')) || []; }
     catch { return []; }
   });
+  const [trendingSectors, setTrendingSectors] = useState([]);
+
+  useEffect(() => {
+    // Fetch trending sectors once on load
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    fetch(`${baseUrl}/api/trending_sectors`)
+      .then(r => r.json())
+      .then(res => { if (res.status === 'success') setTrendingSectors(res.data) })
+      .catch(console.error);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('swing_portfolio', JSON.stringify(portfolio));
@@ -487,6 +497,18 @@ function App() {
           <button className={`tab ${market === "ACTIVE_SIGNALS" ? "active" : ""}`} onClick={() => setMarket("ACTIVE_SIGNALS")} style={{ borderColor: market === "ACTIVE_SIGNALS" ? "#4ade80" : undefined, color: market === "ACTIVE_SIGNALS" ? "#4ade80" : undefined }}>🟢 Active Signals</button>
           <button className={`tab ${market === "PORTFOLIO" ? "active" : ""}`} onClick={() => setMarket("PORTFOLIO")}>💼 My Portfolio</button>
         </div>
+
+        {trendingSectors.length > 0 && (
+          <div style={{ marginTop:'20px', display:'flex', gap:'10px', overflowX:'auto', paddingBottom:'10px', scrollbarWidth:'none', msOverflowStyle:'none' }}>
+            <span style={{color:'#94a3b8', fontSize:'0.85rem', display:'flex', alignItems:'center', whiteSpace:'nowrap', letterSpacing:'1px', textTransform:'uppercase'}}>🔥 Trending Sectors</span>
+            {trendingSectors.map(s => (
+              <div key={s.sector} style={{ background: 'rgba(255,255,255,0.05)', borderRadius:'12px', padding:'6px 14px', fontSize:'0.8rem', display:'flex', alignItems:'center', gap:'8px', whiteSpace:'nowrap', border:`1px solid ${s.change_pct >= 0 ? '#166534' : '#7f1d1d'}` }}>
+                <span style={{fontWeight:'bold', color:'#e2e8f0'}}>{s.sector.replace('NIFTY ','')}</span>
+                <span style={{color: s.change_pct >= 0 ? '#4ade80' : '#f87171', fontWeight:'600'}}>{s.change_pct > 0 ? '+' : ''}{s.change_pct}%</span>
+              </div>
+            ))}
+          </div>
+        )}
       </header>
 
       {loading ? (

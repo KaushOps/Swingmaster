@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 from datetime import datetime, timedelta
 import io
+from typing import Dict, Optional
 
 def fetch_daily_data(symbol: str, years: int = 2) -> pd.DataFrame:
     """
@@ -107,7 +108,7 @@ def _fetch_nse_delivery_pct() -> dict:
     return {}
 
 
-def get_delivery_pct(symbol: str) -> float | None:
+def get_delivery_pct(symbol: str) -> Optional[float]:
     """
     Returns the delivery percentage for a given symbol from the latest NSE Bhavcopy.
     Returns None if unavailable (delivery filter is skipped).

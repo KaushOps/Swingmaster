@@ -64,7 +64,54 @@ HC_ATR_FILTER = 0.015  # require at least 1.5% ATR (avoid noise)
 
 _nifty_bullish = True  # global cache for regime; updated with each scan
 
+NIFTY_SECTOR_MAP = {
+    "Information Technology": "NIFTY IT",
+    "IT Services & Consulting": "NIFTY IT",
+    "Software": "NIFTY IT",
+    "Computers - Software & Consulting": "NIFTY IT",
+    "Banking": "NIFTY BANK",
+    "Private Banks": "NIFTY PRIVATE BANK",
+    "Public Banks": "NIFTY PSU BANK",
+    "Financials": "NIFTY FIN SERVICE",
+    "NBFC": "NIFTY FIN SERVICE",
+    "Financial Services": "NIFTY FIN SERVICE",
+    "Automobile": "NIFTY AUTO",
+    "Auto Components": "NIFTY AUTO",
+    "Trucks and Buses": "NIFTY AUTO",
+    "Two Wheelers": "NIFTY AUTO",
+    "Cars & Utility Vehicles": "NIFTY AUTO",
+    "FMCG": "NIFTY FMCG",
+    "Consumer Staples": "NIFTY FMCG",
+    "Packaged Foods": "NIFTY FMCG",
+    "Personal Care": "NIFTY FMCG",
+    "Pharmaceuticals & Drugs": "NIFTY PHARMA",
+    "Health Care": "NIFTY HEALTHCARE",
+    "Healthcare": "NIFTY HEALTHCARE",
+    "Hospitals & Healthcare Services": "NIFTY HEALTHCARE",
+    "Metals & Mining": "NIFTY METAL",
+    "Materials": "NIFTY METAL",
+    "Iron & Steel": "NIFTY METAL",
+    "Real Estate": "NIFTY REALTY",
+    "Energy": "NIFTY OIL & GAS",
+    "Oil & Gas": "NIFTY OIL & GAS",
+    "Exploration & Production": "NIFTY OIL & GAS",
+    "Media & Entertainment": "NIFTY MEDIA",
+    "Consumer Durables": "NIFTY CONSUMER DURABLES",
+    "Consumer Discretionary": "NIFTY CONSUMER DURABLES",
+    "Telecom": "NIFTY MEDIA",
+    "Industrials": "NIFTY INFRA",
+    "Utilities": "NIFTY INFRA",
+    "Construction": "NIFTY INFRA",
+    "Cement": "NIFTY INFRA"
+}
 
+def map_to_nifty_sector(tt_sector: str, tt_industry: str) -> str:
+    """Map the specific Tickertape sector/industry to the broad Nifty Sectoral Index name."""
+    res = NIFTY_SECTOR_MAP.get(tt_industry) or NIFTY_SECTOR_MAP.get(tt_sector)
+    if not res:
+        # fallback to original if unknown
+        return tt_sector if tt_sector != "N/A" else "Other"
+    return res
 
 def is_nifty_bullish() -> bool:
     """Returns True if Nifty 50 is above its 50-day EMA (broad market regime filter)."""
@@ -417,10 +464,14 @@ async def stock_detail(symbol: str):
                 tt_info = tt_data.get("info", {})
                 tt_ratios = tt_data.get("ratios", {})
                 
+                sector = tt_info.get("sector", "N/A")
+                industry = tt_info.get("tags", [{}])[0].get("name", "N/A") if tt_info.get("tags") else "N/A"
+                nifty_sector = map_to_nifty_sector(sector, industry)
+
                 info = {
                     "longName":          tt_info.get("name", symbol),
-                    "sector":            tt_info.get("sector", "N/A"),
-                    "industry":          tt_info.get("tags", [{}])[0].get("name", "N/A") if tt_info.get("tags") else "N/A",
+                    "sector":            nifty_sector,
+                    "industry":          industry,
                     "longBusinessSummary": tt_info.get("description", ""),
                     "trailingPE":        tt_ratios.get("pe"),
                     "priceToBook":       tt_ratios.get("pb"),
@@ -450,7 +501,8 @@ async def stock_detail(symbol: str):
     # --- Signal logic from price history + indicators ---
     signal_logic = {}
     try:
-        df = fetch_daily_data(ns_symbol, years=1)
+        from data_fetcher import fetch_daily_data
+        df = fetch_daily_data(ns_symbol, years=2)
         if not df.empty:
             from ml_model import add_features
             df = add_features(df)
@@ -520,6 +572,44 @@ async def stock_detail(symbol: str):
         "news":            news_items,
     }
 
+
+@app.get("/api/trending_sectors")
+async def trending_sectors():
+    """
+    Fetches the 1-day percentage change for Nifty Sectoral Indices to show which are trending.
+    """
+    sectors = {
+        "NIFTY IT": "^CNXIT",
+        "NIFTY BANK": "^NSEBANK",
+        "NIFTY AUTO": "^CNXAUTO",
+        "NIFTY FMCG": "^CNXFMCG",
+        "NIFTY PHARMA": "^CNXPHARMA",
+        "NIFTY METAL": "^CNXMETAL",
+        "NIFTY REALTY": "^CNXREALTY",
+        "NIFTY ENERGY": "^CNXENERGY",
+        "NIFTY INFRA": "^CNXINFRA"
+    }
+    
+    trending = []
+    import yfinance as yf
+    try:
+        tickers = yf.Tickers(" ".join(sectors.values()))
+        for name, ticker_sym in sectors.items():
+            try:
+                fi = tickers.tickers[ticker_sym].fast_info
+                prev = getattr(fi, "previous_close", None)
+                cur = getattr(fi, "last_price", None)
+                if prev and cur and prev > 0:
+                    change_pct = ((cur - prev) / prev) * 100
+                    trending.append({"sector": name, "change_pct": round(change_pct, 2)})
+            except Exception:
+                pass
+        
+        # Sort descending by change
+        trending.sort(key=lambda x: x["change_pct"], reverse=True)
+        return {"status": "success", "data": trending}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
