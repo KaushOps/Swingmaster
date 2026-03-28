@@ -435,15 +435,23 @@ function App() {
     }
 
     let ignore = false;
-    // Only reset data for the current tab — preserve opposing historical so Active Signals stays accurate
-    setData([]);
-    setSelectedHistDate(null); setSelectedHcDate(null); setLoading(true);
-    if (market === 'NSE_BUYS') { setHistoricalData([]); setNseStats(null); }
-    else if (market === 'HC')   { setHcHistorical([]); setHcStats(null); }
-    else                        { setHistoricalData([]); setHcHistorical([]); setNseStats(null); setHcStats(null); }
-
+    
+    // Check if we already have data for this market to avoid refetching on every tab click
     const isNSEBuys = market === "NSE_BUYS";
     const isHC      = market === "HC";
+    const isIN      = market === "IN";
+    
+    if (isHC && hcData.length > 0) { setLoading(false); return; }
+    if (isNSEBuys && nseStats !== null) { setLoading(false); return; }
+    if (isIN && data.length > 0 && nseStats === null && hcStats === null) { setLoading(false); return; } // IN tab data check
+
+    // Only reset data for the current tab
+    if (isHC) { setHcData([]); setHcHistorical([]); setHcStats(null); }
+    else if (isNSEBuys) { setHistoricalData([]); setNseStats(null); }
+    else { setData([]); setHistoricalData([]); setHcHistorical([]); setNseStats(null); setHcStats(null); }
+    
+    setSelectedHistDate(null); setSelectedHcDate(null); setLoading(true);
+
     const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     let url = isHC ? `${baseUrl}/api/high_conviction`
             : isNSEBuys ? `${baseUrl}/api/scan_universe_buys`

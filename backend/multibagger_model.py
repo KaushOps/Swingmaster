@@ -25,7 +25,7 @@ def calculate_multibagger_score(df: pd.DataFrame) -> Optional[Dict]:
     Computes a Renaissance-style quantitative score (0-100) for a stock.
     Returns None if the stock does not meet minimum criteria.
     """
-    if len(df) < 200:
+    if len(df) < 120:
         return None
 
     # Use the last 252 trading days (~1 year)
@@ -115,7 +115,7 @@ def process_symbol(symbol: str, target_date: Optional[str] = None) -> Optional[D
             df_hist = df[df.index <= target_dt]
             df_fwd = df[df.index > target_dt]
 
-            if len(df_hist) < 200 or df_fwd.empty:
+            if len(df_hist) < 120 or df_fwd.empty:
                 return None
 
             entry_price = df_fwd.iloc[0]['open']
@@ -124,7 +124,11 @@ def process_symbol(symbol: str, target_date: Optional[str] = None) -> Optional[D
             df = df_hist
 
         metrics = calculate_multibagger_score(df)
-        if not metrics or metrics["score"] < 55:
+        
+        # Lower threshold for backtests to accommodate varying market conditions
+        min_score = 40 if target_date else 55
+        
+        if not metrics or metrics["score"] < min_score:
             return None
 
         result = {
