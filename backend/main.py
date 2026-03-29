@@ -581,11 +581,11 @@ async def multibagger_live():
     the Renaissance-style quantitative algorithm.
     """
     from multibagger_model import scan_multibaggers
-    from symbols import NSE_200
+    from symbols import NSE_200, NIFTY_50, NSE_UNIVERSE
     # Strip .NS suffix for the model (it adds it back internally)
-    # Memory Cap: 80 symbols and 8 workers to prevent 512MB RAM OOM crashes on Render Free
-    symbols = [s.replace(".NS", "") for s in NSE_200[:80]]
-    results = scan_multibaggers(symbols, target_date=None, max_workers=8, top_n=20)
+    # Memory Cap removed, Oracle Server 24GB active. Processing up to 500 liquid stocks with 30 threads.
+    symbols = [s.replace(".NS", "") for s in NSE_UNIVERSE[:500]]
+    results = scan_multibaggers(symbols, target_date=None, max_workers=30, top_n=20)
     return {"status": "success", "data": results}
 
 
@@ -602,10 +602,9 @@ async def multibagger_backtest(years_ago: int = 1):
 
     target_date = (datetime.now() - timedelta(days=years_ago * 365)).strftime("%Y-%m-%d")
     
-    # Cap historical backtests at 60 symbols and 5 workers to prevent OOM Memory Crashes
-    # Free tier instances freeze when 20 workers load 5-Year Dataframes into RAM simultaneously
-    symbols = [s.replace(".NS", "") for s in NSE_200[:60]]
-    result = run_backtest_with_benchmark(symbols, target_date=target_date, max_workers=5, top_n=10)
+    # Free Tier Memory Cap un-shackled. Scanning deep historical multi-year records for 500 large, mid and small cap assets via Oracle 24GB.
+    symbols = [s.replace(".NS", "") for s in NSE_UNIVERSE[:500]]
+    result = run_backtest_with_benchmark(symbols, target_date=target_date, max_workers=30, top_n=10)
     return {"status": "success", **result}
 
 

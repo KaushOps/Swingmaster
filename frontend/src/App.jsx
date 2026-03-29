@@ -504,8 +504,8 @@ function App() {
     <>
     <div className="container">
       <header className="header">
-        <h1>Global Swing <span className="highlight">Scanner</span></h1>
-        <p className="subtitle">AI-Powered Equity Prediction</p>
+        <h1>OmniQuant <span className="highlight">AI</span></h1>
+        <p className="subtitle">Algorithmic Equity Prediction Matrix</p>
         <div className="tabs">
           <button className={`tab ${market === "IN"       ? "active" : ""}`} onClick={() => setMarket("IN")}>🇮🇳 India (NSE)</button>
           <button className={`tab ${market === "US"       ? "active" : ""}`} onClick={() => setMarket("US")}>🇺🇸 USA (NYSE)</button>
