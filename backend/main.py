@@ -101,8 +101,19 @@ NIFTY_SECTOR_MAP = {
     "Telecom": "NIFTY MEDIA",
     "Industrials": "NIFTY INFRA",
     "Utilities": "NIFTY INFRA",
-    "Construction": "NIFTY INFRA",
     "Cement": "NIFTY INFRA"
+}
+
+SECTOR_CONSTITUENTS = {
+    "NIFTY IT": ["INFY.NS", "TCS.NS", "HCLTECH.NS", "WIPRO.NS", "TECHM.NS"],
+    "NIFTY BANK": ["HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "AXISBANK.NS", "KOTAKBANK.NS", "INDUSINDBK.NS", "PNB.NS", "BANKBARODA.NS", "FEDERALBNK.NS", "IDFCFIRSTB.NS"],
+    "NIFTY AUTO": ["M&M.NS", "TATAMOTORS.NS", "MARUTI.NS", "BAJAJ-AUTO.NS", "HEROMOTOCO.NS", "EICHERMOT.NS", "TVSMOTOR.NS"],
+    "NIFTY FMCG": ["ITC.NS", "HUL.NS", "NESTLEIND.NS", "BRITANNIA.NS", "TATACONSUM.NS", "GODREJCP.NS", "DABUR.NS", "UBL.NS", "VBL.NS", "MARICO.NS"],
+    "NIFTY PHARMA": ["SUNPHARMA.NS", "DIVISLAB.NS", "CIPLA.NS", "DRREDDY.NS", "APOLLOHOSP.NS", "LUPIN.NS", "AUROPHARMA.NS", "TORNTPHARM.NS", "ZYDUSLIFE.NS", "MANKIND.NS"],
+    "NIFTY METAL": ["TATASTEEL.NS", "JSWSTEEL.NS", "HINDALCO.NS", "COALINDIA.NS", "VEDL.NS", "JINDALSTEL.NS", "NMDC.NS", "SAIL.NS", "NATIONALUM.NS"],
+    "NIFTY REALTY": ["DLF.NS", "MACROTECH.NS", "GODREJPROP.NS", "PRESTIGE.NS", "OBEROIRLTY.NS", "PHOENIXLTD.NS", "BRIGADE.NS"],
+    "NIFTY ENERGY": ["RELIANCE.NS", "NTPC.NS", "ONGC.NS", "POWERGRID.NS", "COALINDIA.NS", "TATAPOWER.NS", "IOC.NS", "BPCL.NS", "ADANIGREEN.NS", "ADANIENSOL.NS", "GAIL.NS"],
+    "NIFTY INFRA": ["LT.NS", "RELIANCE.NS", "BHARTIARTL.NS", "ADANIPORTS.NS", "ULTRACEMCO.NS", "GRASIM.NS", "NTPC.NS", "INDIGO.NS", "SHREECEM.NS", "AMBUJACEM.NS", "ACC.NS"]
 }
 
 def map_to_nifty_sector(tt_sector: str, tt_industry: str) -> str:
@@ -443,6 +454,13 @@ async def stock_detail(symbol: str):
     except Exception as e:
         print(f"fast_info error for {symbol}: {e}")
 
+    # --- Strategy 1.5: yf.info fallback if Tickertape gets blocked ---
+    yi = {}
+    try:
+        yi = ticker.info or {}
+    except Exception as e:
+        print(f"yfinance info error for {symbol}: {e}")
+
     # --- Strategy 2: Tickertape API (Extremely robust for Indian stocks, not IP blocked) ---
     info = {}
     try:
@@ -491,10 +509,12 @@ async def stock_detail(symbol: str):
     except Exception as e:
         print(f"Tickertape fetch error for {symbol}: {e}")
 
-    # Merge: prefer Tickertape data, fallback to fast_info
-    def safe(key, default=None):
-        val = info.get(key, default)
+    # Merge: prefer Tickertape data, fallback to yf.info then fast_info
+    def safe(key, yf_key=None, default=None):
+        val = info.get(key)
         if val is None or (isinstance(val, float) and (val != val)):
+            if yf_key and yf_key in yi:
+                return yi[yf_key]
             return default
         return val
 
@@ -540,7 +560,7 @@ async def stock_detail(symbol: str):
         print(f"News fetch error for {symbol}: {e}")
 
     # --- Market Cap formatting ---
-    market_cap = safe("marketCap") or fi.get("market_cap")
+    market_cap = safe("marketCap", "marketCap") or fi.get("market_cap")
     if market_cap:
         if market_cap >= 1e12:    market_cap_str = f"₹{market_cap/1e12:.2f}T"
         elif market_cap >= 1e9:   market_cap_str = f"₹{market_cap/1e9:.2f}B"
@@ -550,24 +570,24 @@ async def stock_detail(symbol: str):
 
     return {
         "symbol":          symbol.upper(),
-        "company_name":    safe("longName", symbol),
-        "sector":          safe("sector", "N/A"),
-        "industry":        safe("industry", "N/A"),
+        "company_name":    safe("longName", "longName", symbol),
+        "sector":          safe("sector", "sector", "N/A"),
+        "industry":        safe("industry", "industry", "N/A"),
         "market_cap":      market_cap_str,
-        "current_price":   safe("currentPrice") or fi.get("current_price"),
-        "week_52_high":    safe("fiftyTwoWeekHigh") or fi.get("week_52_high"),
-        "week_52_low":     safe("fiftyTwoWeekLow") or fi.get("week_52_low"),
-        "pe_ratio":        safe("trailingPE"),
-        "pb_ratio":        safe("priceToBook"),
-        "roe":             round(safe("returnOnEquity") * 100, 1) if safe("returnOnEquity") else None,
-        "debt_to_equity":  safe("debtToEquity"),
-        "revenue_growth":  round(safe("revenueGrowth") * 100, 1) if safe("revenueGrowth") else None,
-        "earnings_growth": round(safe("earningsGrowth") * 100, 1) if safe("earningsGrowth") else None,
-        "dividend_yield":  round(safe("dividendYield") * 100, 2) if safe("dividendYield") else None,
-        "beta":            safe("beta"),
-        "analyst_rating":  (safe("recommendationKey") or "N/A").upper(),
-        "target_mean_price": safe("targetMeanPrice"),
-        "description":     safe("longBusinessSummary", "No description available."),
+        "current_price":   safe("currentPrice", "currentPrice") or fi.get("current_price"),
+        "week_52_high":    safe("fiftyTwoWeekHigh", "fiftyTwoWeekHigh") or fi.get("week_52_high"),
+        "week_52_low":     safe("fiftyTwoWeekLow", "fiftyTwoWeekLow") or fi.get("week_52_low"),
+        "pe_ratio":        safe("trailingPE", "trailingPE"),
+        "pb_ratio":        safe("priceToBook", "priceToBook"),
+        "roe":             round(safe("returnOnEquity", "returnOnEquity") * 100, 1) if safe("returnOnEquity", "returnOnEquity") else None,
+        "debt_to_equity":  safe("debtToEquity", "debtToEquity"),
+        "revenue_growth":  round(safe("revenueGrowth", "revenueGrowth") * 100, 1) if safe("revenueGrowth", "revenueGrowth") else None,
+        "earnings_growth": round(safe("earningsGrowth", "earningsGrowth") * 100, 1) if safe("earningsGrowth", "earningsGrowth") else None,
+        "dividend_yield":  round(safe("dividendYield", "dividendYield") * 100, 2) if safe("dividendYield", "dividendYield") else None,
+        "beta":            safe("beta", "beta"),
+        "analyst_rating":  (safe("recommendationKey", "recommendationKey") or "N/A").upper(),
+        "target_mean_price": safe("targetMeanPrice", "targetMeanPrice"),
+        "description":     safe("longBusinessSummary", "longBusinessSummary", "No description available."),
         "signal_logic":    signal_logic,
         "news":            news_items,
     }
@@ -643,6 +663,42 @@ async def trending_sectors():
         # Sort descending by change
         trending.sort(key=lambda x: x["change_pct"], reverse=True)
         return {"status": "success", "data": trending}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/sector_leader")
+async def sector_leader(sector: str):
+    """
+    Returns the top-gaining constituent of a particular Nifty Sectoral Index today.
+    """
+    if sector not in SECTOR_CONSTITUENTS:
+        return {"status": "error", "message": f"Sector {sector} constituents not mapped."}
+        
+    import yfinance as yf
+    
+    leaders = []
+    try:
+        tickers = yf.Tickers(" ".join(SECTOR_CONSTITUENTS[sector]))
+        for symbol in SECTOR_CONSTITUENTS[sector]:
+            try:
+                fi = tickers.tickers[symbol].fast_info
+                prev = getattr(fi, "previous_close", None)
+                cur = getattr(fi, "last_price", None)
+                if prev and cur and prev > 0:
+                    change_pct = ((cur - prev) / prev) * 100
+                    leaders.append({
+                        "symbol": symbol.replace(".NS", ""),
+                        "change_pct": round(change_pct, 2),
+                        "current_price": round(cur, 2)
+                    })
+            except Exception:
+                pass
+                
+        if not leaders:
+            return {"status": "error", "message": "Failed to fetch constituents."}
+            
+        leaders.sort(key=lambda x: x["change_pct"], reverse=True)
+        return {"status": "success", "leader": leaders[0]}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 

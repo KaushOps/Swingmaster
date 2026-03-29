@@ -396,6 +396,7 @@ function App() {
   });
   const [trendingSectors, setTrendingSectors] = useState([]);
   const [mbData, setMbData] = useState([]);
+  const [sectorInsight, setSectorInsight] = useState(null);
   const [mbBacktest, setMbBacktest] = useState(null);
   const [mbView, setMbView] = useState('live'); // 'live' | 'backtest'
   const [mbYearsAgo, setMbYearsAgo] = useState(1);
@@ -425,6 +426,21 @@ function App() {
     const trade = { id: Date.now(), symbol: stock.symbol, buyPrice, qty, status: 'OPEN', exitPrice: null, date: new Date().toISOString().split('T')[0] };
     setPortfolio(p => [...p, trade]);
     alert(`${qty} shares of ${stock.symbol} successfully added to your Portfolio!`);
+  };
+
+  const loadSectorInsight = (sector) => {
+    setSectorInsight({ sector, loading: true, data: null, error: null });
+    const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
+    fetch(`${baseUrl}/api/sector_leader?sector=${encodeURIComponent(sector)}`)
+      .then(r => r.json())
+      .then(res => {
+        if (res.status === 'success') {
+          setSectorInsight({ sector, loading: false, data: res.leader, error: null });
+        } else {
+          setSectorInsight({ sector, loading: false, data: null, error: res.message });
+        }
+      })
+      .catch((e) => setSectorInsight({ sector, loading: false, data: null, error: "Failed to connect to backend." }));
   };
 
   useEffect(() => {
@@ -520,10 +536,10 @@ function App() {
           <div style={{ marginTop:'20px', display:'flex', gap:'10px', overflowX:'auto', paddingBottom:'10px', scrollbarWidth:'none', msOverflowStyle:'none' }}>
             <span style={{color:'#94a3b8', fontSize:'0.85rem', display:'flex', alignItems:'center', whiteSpace:'nowrap', letterSpacing:'1px', textTransform:'uppercase'}}>🔥 Trending Sectors</span>
             {trendingSectors.map(s => (
-              <div key={s.sector} style={{ background: 'rgba(255,255,255,0.05)', borderRadius:'12px', padding:'6px 14px', fontSize:'0.8rem', display:'flex', alignItems:'center', gap:'8px', whiteSpace:'nowrap', border:`1px solid ${s.change_pct >= 0 ? '#166534' : '#7f1d1d'}` }}>
+              <button key={s.sector} onClick={() => loadSectorInsight(s.sector)} style={{ background: 'rgba(255,255,255,0.05)', borderRadius:'12px', padding:'6px 14px', fontSize:'0.8rem', display:'flex', alignItems:'center', gap:'8px', whiteSpace:'nowrap', border:`1px solid ${s.change_pct >= 0 ? '#166534' : '#7f1d1d'}`, cursor:'pointer', color:'inherit', transition:'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.1)'} onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.05)'}>
                 <span style={{fontWeight:'bold', color:'#e2e8f0'}}>{s.sector.replace('NIFTY ','')}</span>
                 <span style={{color: s.change_pct >= 0 ? '#4ade80' : '#f87171', fontWeight:'600'}}>{s.change_pct > 0 ? '+' : ''}{s.change_pct}%</span>
-              </div>
+              </button>
             ))}
           </div>
         )}
@@ -770,8 +786,49 @@ function App() {
 
     {selectedDetail && (
       <>
-        <div onClick={() => setSelectedDetail(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:999 }} />
+        <div onClick={() => setSelectedDetail(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:999, backdropFilter:'blur(2px)' }} />
         <StockDetailDrawer symbol={selectedDetail} onClose={() => setSelectedDetail(null)} />
+      </>
+    )}
+
+    {sectorInsight && (
+      <>
+        <div onClick={() => setSectorInsight(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:999, backdropFilter:'blur(2px)' }} />
+        <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%, -50%)', background:'linear-gradient(135deg, #0f172a, #020617)', border:'1px solid #334155', borderRadius:'16px', padding:'24px', zIndex:1000, minWidth:'320px', boxShadow:'0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.2)' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
+            <h3 style={{ margin:0, color:'#f8fafc', fontSize:'1.2rem', display:'flex', alignItems:'center', gap:'8px' }}>
+              <span style={{ fontSize:'1.4rem' }}>🏆</span>
+              {sectorInsight.sector} Leader
+            </h3>
+            <button onClick={() => setSectorInsight(null)} style={{ background:'transparent', border:'none', color:'#94a3b8', cursor:'pointer', fontSize:'1.2rem' }}>✕</button>
+          </div>
+          
+          {sectorInsight.loading ? (
+            <div style={{ padding:'30px', textAlign:'center', color:'#94a3b8' }}>
+              <div style={{ marginBottom:'12px' }}>Hunting for the top gainer...</div>
+              <div className="loader" style={{ fontSize:'0.8rem', padding:0 }}></div>
+            </div>
+          ) : sectorInsight.error ? (
+            <div style={{ padding:'20px', textAlign:'center', color:'#f87171' }}>{sectorInsight.error}</div>
+          ) : sectorInsight.data ? (
+            <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'12px', padding:'20px', cursor:'pointer', transition:'transform 0.2s', boxShadow:'0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} 
+                 onMouseEnter={e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.borderColor='rgba(56, 189, 248, 0.4)'; }}
+                 onMouseLeave={e => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.borderColor='rgba(255,255,255,0.05)'; }}
+                 onClick={() => { setSectorInsight(null); setSelectedDetail(sectorInsight.data.symbol); }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'16px' }}>
+                <h2 style={{ margin:0, fontSize:'1.6rem', color:'#38bdf8' }}>{sectorInsight.data.symbol}</h2>
+                <div style={{ background: sectorInsight.data.change_pct >= 0 ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.15)', color: sectorInsight.data.change_pct >= 0 ? '#4ade80' : '#f87171', padding:'6px 12px', borderRadius:'8px', fontWeight:'bold', fontSize:'1.1rem' }}>
+                  {sectorInsight.data.change_pct > 0 ? '+' : ''}{sectorInsight.data.change_pct}%
+                </div>
+              </div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid rgba(255,255,255,0.05)', paddingTop:'16px' }}>
+                <span style={{ color:'#94a3b8', fontSize:'0.9rem' }}>Current Price</span>
+                <strong style={{ color:'#f8fafc', fontSize:'1.1rem' }}>₹{sectorInsight.data.current_price}</strong>
+              </div>
+              <div style={{ marginTop:'16px', fontSize:'0.8rem', color:'#64748b', textAlign:'center' }}>Click to analyze fundamentals</div>
+            </div>
+          ) : null}
+        </div>
       </>
     )}
     </>
