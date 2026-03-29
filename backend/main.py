@@ -584,7 +584,7 @@ async def multibagger_live():
     from symbols import NSE_200
     # Strip .NS suffix for the model (it adds it back internally)
     # Memory Cap removed, Oracle Server 24GB active. Processing up to 500 liquid stocks with 30 threads.
-    symbols = [s.replace(".NS", "") for s in NSE_UNIVERSE[:500]]
+    symbols = [s.replace(".NS", "") for s in NSE_200]
     results = scan_multibaggers(symbols, target_date=None, max_workers=30, top_n=20)
     return {"status": "success", "data": results}
 
@@ -603,7 +603,7 @@ async def multibagger_backtest(years_ago: int = 1):
     target_date = (datetime.now() - timedelta(days=years_ago * 365)).strftime("%Y-%m-%d")
     
     # Free Tier Memory Cap un-shackled. Scanning deep historical multi-year records for 500 large, mid and small cap assets via Oracle 24GB.
-    symbols = [s.replace(".NS", "") for s in NSE_UNIVERSE[:500]]
+    symbols = [s.replace(".NS", "") for s in NSE_200]
     result = run_backtest_with_benchmark(symbols, target_date=target_date, max_workers=30, top_n=10)
     return {"status": "success", **result}
 
