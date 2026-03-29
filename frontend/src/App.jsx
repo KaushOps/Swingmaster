@@ -269,28 +269,48 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
   const monthlySignals = filteredHistData.reduce((sum, day) => sum + day.count, 0);
   const monthlyCost = filteredHistData.reduce((sum, day) => sum + day.signals.reduce((s, stock) => s + stock.entry, 0), 0);
 
+  // Calculate Dynamic Stats based on the active month
+  let d_total = 0, d_wins = 0, d_loss = 0, d_days = 0;
+  filteredHistData.forEach(day => {
+    (day.signals || []).forEach(s => {
+      d_total++;
+      if (s.status === 'TARGET HIT') { d_wins++; d_days += (s.days_in_trade || 0); }
+      else if (s.status === 'SL HIT') { d_loss++; d_days += (s.days_in_trade || 0); }
+    });
+  });
+  const d_closed = d_wins + d_loss;
+  const dynWinRate = d_closed > 0 ? (d_wins / d_closed * 100).toFixed(1) : 0;
+  const dynAvgDays = d_closed > 0 ? Math.round(d_days / d_closed) : 0;
+  
+  const isMonth = selectedMonth !== 'All';
+  const showWinRate = isMonth ? dynWinRate : stats.win_rate_pct;
+  const showWins = isMonth ? d_wins : stats.target_hit;
+  const showLoss = isMonth ? d_loss : stats.sl_hit;
+  const showTotal = isMonth ? d_total : stats.total_signals;
+  const showAvgDays = isMonth ? dynAvgDays : stats.avg_days_to_close;
+
   return (
     <>
       {stats && stats.total_signals > 0 && (
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:'12px', marginBottom:'24px', padding:'20px', backgroundColor: bannerTheme === 'amber' ? '#1c1410' : '#0f1e1c', borderRadius:'15px', border:`1px solid ${bannerTheme === 'amber' ? '#78350f' : '#0d4038'}` }}>
           <div style={{ textAlign:'center' }}>
-            <div style={{ fontSize:'2rem', fontWeight:'800', color: bannerTheme === 'amber' ? '#fbbf24' : '#66fcf1' }}>{stats.win_rate_pct}%</div>
-            <div style={{ fontSize:'0.8rem', color: bannerTheme === 'amber' ? '#fde68a' : '#a7f3d0', opacity:0.8 }}>Historical Win Rate</div>
+            <div style={{ fontSize:'2rem', fontWeight:'800', color: bannerTheme === 'amber' ? '#fbbf24' : '#66fcf1' }}>{showWinRate}%</div>
+            <div style={{ fontSize:'0.8rem', color: bannerTheme === 'amber' ? '#fde68a' : '#a7f3d0', opacity:0.8 }}>{isMonth ? `Win Rate (${selectedMonth})` : 'Historical Win Rate'}</div>
           </div>
           <div style={{ textAlign:'center' }}>
-            <div style={{ fontSize:'2rem', fontWeight:'800', color:'#4ade80' }}>{stats.target_hit}</div>
+            <div style={{ fontSize:'2rem', fontWeight:'800', color:'#4ade80' }}>{showWins}</div>
             <div style={{ fontSize:'0.8rem', color:'#86efac', opacity:0.8 }}>Targets Hit</div>
           </div>
           <div style={{ textAlign:'center' }}>
-            <div style={{ fontSize:'2rem', fontWeight:'800', color:'#f87171' }}>{stats.sl_hit}</div>
+            <div style={{ fontSize:'2rem', fontWeight:'800', color:'#f87171' }}>{showLoss}</div>
             <div style={{ fontSize:'0.8rem', color:'#fca5a5', opacity:0.8 }}>Stop Losses Hit</div>
           </div>
           <div style={{ textAlign:'center' }}>
-            <div style={{ fontSize:'2rem', fontWeight:'800', color:'#60a5fa' }}>{stats.total_signals}</div>
-            <div style={{ fontSize:'0.8rem', color:'#93c5fd', opacity:0.8 }}>Total Signals (2yr)</div>
+            <div style={{ fontSize:'2rem', fontWeight:'800', color:'#60a5fa' }}>{showTotal}</div>
+            <div style={{ fontSize:'0.8rem', color:'#93c5fd', opacity:0.8 }}>{isMonth ? `Signals (${selectedMonth})` : 'Total Signals (2yr)'}</div>
           </div>
           <div style={{ textAlign:'center' }}>
-            <div style={{ fontSize:'2rem', fontWeight:'800', color:'#c084fc' }}>{stats.avg_days_to_close || 0}d</div>
+            <div style={{ fontSize:'2rem', fontWeight:'800', color:'#c084fc' }}>{showAvgDays || 0}d</div>
             <div style={{ fontSize:'0.8rem', color:'#d8b4fe', opacity:0.8 }}>Avg Time to TP/SL</div>
           </div>
           {bannerTheme !== 'amber' && (
