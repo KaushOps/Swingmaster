@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: swingmaster-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    networks:
+      - swingmaster-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=/api
+    container_name: swingmaster-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - swingmaster-network
+
+networks:
+  swingmaster-network:
+    driver: bridge
