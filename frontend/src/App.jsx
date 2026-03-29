@@ -42,7 +42,7 @@ const StatusBadge = ({ status }) => {
 function StockDetailDrawer({ symbol, onClose }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
-  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
 
   useEffect(() => {
     setLoading(true);
@@ -403,7 +403,7 @@ function App() {
 
   useEffect(() => {
     // Fetch trending sectors once on load
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
     fetch(`${baseUrl}/api/trending_sectors`)
       .then(r => r.json())
       .then(res => { if (res.status === 'success') setTrendingSectors(res.data) })
@@ -456,7 +456,7 @@ function App() {
     
     setSelectedHistDate(null); setSelectedHcDate(null); setLoading(true);
 
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
     let url = isHC ? `${baseUrl}/api/high_conviction`
             : isNSEBuys ? `${baseUrl}/api/scan_universe_buys`
             : `${baseUrl}/api/scan?market=${market}`;
@@ -513,7 +513,7 @@ function App() {
           <button className={`tab ${market === "HC"       ? "active" : ""}`} onClick={() => setMarket("HC")} style={{ borderColor: market === "HC" ? "#fbbf24" : undefined, color: market === "HC" ? "#fbbf24" : undefined }}>🎯 High Conviction</button>
           <button className={`tab ${market === "ACTIVE_SIGNALS" ? "active" : ""}`} onClick={() => setMarket("ACTIVE_SIGNALS")} style={{ borderColor: market === "ACTIVE_SIGNALS" ? "#4ade80" : undefined, color: market === "ACTIVE_SIGNALS" ? "#4ade80" : undefined }}>🟢 Active Signals</button>
           <button className={`tab ${market === "PORTFOLIO" ? "active" : ""}`} onClick={() => setMarket("PORTFOLIO")}>💼 My Portfolio</button>
-          <button className={`tab ${market === "MULTIBAGGER" ? "active" : ""}`} onClick={() => { setMarket("MULTIBAGGER"); if (mbData.length === 0 && !mbLoading) { setMbLoading(true); const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'; fetch(`${baseUrl}/api/multibagger/live`).then(r=>r.json()).then(res=>{setMbData(res.data||[]);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }} style={{ borderColor: market === "MULTIBAGGER" ? "#a855f7" : undefined, color: market === "MULTIBAGGER" ? "#a855f7" : undefined }}>🚀 Multibaggers</button>
+          <button className={`tab ${market === "MULTIBAGGER" ? "active" : ""}`} onClick={() => { setMarket("MULTIBAGGER"); if (mbData.length === 0 && !mbLoading) { setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/live`).then(r=>r.json()).then(res=>{setMbData(res.data||[]);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }} style={{ borderColor: market === "MULTIBAGGER" ? "#a855f7" : undefined, color: market === "MULTIBAGGER" ? "#a855f7" : undefined }}>🚀 Multibaggers</button>
         </div>
 
         {trendingSectors.length > 0 && (
@@ -640,14 +640,14 @@ function App() {
                   </div>
                   <div style={{ display:'flex', gap:'8px' }}>
                     <button onClick={() => setMbView('live')} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='live' ? '1px solid #a855f7' : '1px solid #334155', background: mbView==='live' ? 'rgba(168,85,247,0.15)' : 'transparent', color: mbView==='live' ? '#c084fc' : '#94a3b8', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600' }}>📡 Live Predictions</button>
-                    <button onClick={() => { setMbView('backtest'); if (!mbBacktest) { setMbLoading(true); const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${mbYearsAgo}`).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='backtest' ? '1px solid #a855f7' : '1px solid #334155', background: mbView==='backtest' ? 'rgba(168,85,247,0.15)' : 'transparent', color: mbView==='backtest' ? '#c084fc' : '#94a3b8', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600' }}>⏳ Historical Proof</button>
+                    <button onClick={() => { setMbView('backtest'); if (!mbBacktest) { setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${mbYearsAgo}`).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='backtest' ? '1px solid #a855f7' : '1px solid #334155', background: mbView==='backtest' ? 'rgba(168,85,247,0.15)' : 'transparent', color: mbView==='backtest' ? '#c084fc' : '#94a3b8', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600' }}>⏳ Historical Proof</button>
                   </div>
                 </div>
 
                 {mbView === 'backtest' && (
                   <div style={{ display:'flex', gap:'8px', marginBottom:'16px' }}>
                     {[1, 2, 3].map(y => (
-                      <button key={y} onClick={() => { setMbYearsAgo(y); setMbBacktest(null); setMbLoading(true); const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${y}`).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); }} style={{ padding:'6px 14px', borderRadius:'8px', border: mbYearsAgo===y ? '1px solid #a855f7' : '1px solid #334155', background: mbYearsAgo===y ? 'rgba(168,85,247,0.2)' : 'transparent', color: mbYearsAgo===y ? '#c084fc' : '#64748b', cursor:'pointer', fontSize:'0.8rem' }}>{y} Year{y>1?'s':''} Ago</button>
+                      <button key={y} onClick={() => { setMbYearsAgo(y); setMbBacktest(null); setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${y}`).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); }} style={{ padding:'6px 14px', borderRadius:'8px', border: mbYearsAgo===y ? '1px solid #a855f7' : '1px solid #334155', background: mbYearsAgo===y ? 'rgba(168,85,247,0.2)' : 'transparent', color: mbYearsAgo===y ? '#c084fc' : '#64748b', cursor:'pointer', fontSize:'0.8rem' }}>{y} Year{y>1?'s':''} Ago</button>
                     ))}
                   </div>
                 )}
