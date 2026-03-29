@@ -283,11 +283,11 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
   const dynAvgDays = d_closed > 0 ? Math.round(d_days / d_closed) : 0;
   
   const isMonth = selectedMonth !== 'All';
-  const showWinRate = isMonth ? dynWinRate : stats.win_rate_pct;
-  const showWins = isMonth ? d_wins : stats.target_hit;
-  const showLoss = isMonth ? d_loss : stats.sl_hit;
-  const showTotal = isMonth ? d_total : stats.total_signals;
-  const showAvgDays = isMonth ? dynAvgDays : stats.avg_days_to_close;
+  const showWinRate = isMonth ? dynWinRate : (stats?.win_rate_pct || 0);
+  const showWins = isMonth ? d_wins : (stats?.target_hit || 0);
+  const showLoss = isMonth ? d_loss : (stats?.sl_hit || 0);
+  const showTotal = isMonth ? d_total : (stats?.total_signals || 0);
+  const showAvgDays = isMonth ? dynAvgDays : (stats?.avg_days_to_close || 0);
 
   return (
     <>
