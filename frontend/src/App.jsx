@@ -701,6 +701,15 @@ function App() {
                         )}
                         <div className="stat"><span>Score</span><strong style={{color:'#c084fc'}}>{stock.score}/100</strong></div>
                       </div>
+                      
+                      <div style={{ background:'rgba(124, 58, 237, 0.05)', borderRadius:'8px', padding:'12px', marginTop:'14px', border:'1px dashed #7c3aed44' }}>
+                        <div style={{ fontSize:'0.75rem', fontWeight:'bold', color:'#c084fc', marginBottom:'6px', textTransform:'uppercase', letterSpacing:'0.5px' }}>Why it scored {stock.score}/100</div>
+                        <ul style={{ margin:0, paddingLeft:'16px', fontSize:'0.75rem', color:'#94a3b8', lineHeight:'1.5' }}>
+                          <li style={{marginBottom:'4px'}}><strong style={{color:'#cbd5e1'}}>Trend Smoothness (R² {stock.r_squared}):</strong> Highly linear uptrend indicating strong, continuous institutional backing.</li>
+                          <li style={{marginBottom:'4px'}}><strong style={{color:'#cbd5e1'}}>Volume Acc. ({stock.accumulation_ratio}x):</strong> Buying volume heavily outweighs selling volume on up-days vs down-days.</li>
+                          <li style={{marginBottom:'0'}}><strong style={{color:'#cbd5e1'}}>Drawdown Efficiency ({stock.max_drawdown}%):</strong> Generated massive +{stock.return_1y}% return relative to very limited, suppressed drawdowns over the year.</li>
+                        </ul>
+                      </div>
                     </div>
                   ))}
                   {(mbView === 'live' ? mbData : (mbBacktest?.picks || [])).length === 0 && (
