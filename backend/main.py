@@ -139,21 +139,28 @@ def is_nifty_bullish() -> bool:
 
 def compute_hc_historical_stats(historical_map):
     """Given the HC historical signal map, compute aggregate backtest stats."""
-    total = wins = losses = active = 0
+    total = wins = losses = active = total_days = 0
     for d, sigs in historical_map.items():
         for s in sigs:
             total += 1
-            if s['status'] == 'TARGET HIT': wins += 1
-            elif s['status'] == 'SL HIT': losses += 1
-            else: active += 1
+            if s['status'] == 'TARGET HIT': 
+                wins += 1
+                total_days += s.get('days_in_trade', 0)
+            elif s['status'] == 'SL HIT': 
+                losses += 1
+                total_days += s.get('days_in_trade', 0)
+            else: 
+                active += 1
     closed = wins + losses
     win_rate = round(wins / closed * 100, 1) if closed > 0 else 0
+    avg_days = round(total_days / closed) if closed > 0 else 0
     return {
         "total_signals": total,
         "target_hit": wins,
         "sl_hit": losses,
         "active": active,
         "win_rate_pct": win_rate,
+        "avg_days_to_close": avg_days,
         "closed_trades": closed
     }
 
@@ -206,13 +213,16 @@ def update_universe_cache():
                 stoploss = entry_price - (sl_mult * atr)
                 future_df = df.loc[date:]
                 status = "ACTIVE"
+                days_in_trade = 0
                 if len(future_df) > 1:
                     for f_date, f_row in future_df.iloc[1:].iterrows():
                         if f_row['low'] <= stoploss:
                             status = "SL HIT"
+                            days_in_trade = (f_date - date).days
                             break
                         elif f_row['high'] >= target:
                             status = "TARGET HIT"
+                            days_in_trade = (f_date - date).days
                             break
                 growth_pct = ((latest_close - entry_price) / entry_price) * 100
                 return {
@@ -222,6 +232,7 @@ def update_universe_cache():
                     "stoploss": round(stoploss, 2),
                     "status": status,
                     "growth_pct": round(growth_pct, 2),
+                    "days_in_trade": int(days_in_trade),
                     "confidence": round(float(row['prob_up']) * 100, 1),
                     "volume_ratio": round(float(row['volume_ratio']), 2)
                 }

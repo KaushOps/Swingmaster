@@ -289,6 +289,10 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
             <div style={{ fontSize:'2rem', fontWeight:'800', color:'#60a5fa' }}>{stats.total_signals}</div>
             <div style={{ fontSize:'0.8rem', color:'#93c5fd', opacity:0.8 }}>Total Signals (2yr)</div>
           </div>
+          <div style={{ textAlign:'center' }}>
+            <div style={{ fontSize:'2rem', fontWeight:'800', color:'#c084fc' }}>{stats.avg_days_to_close || 0}d</div>
+            <div style={{ fontSize:'0.8rem', color:'#d8b4fe', opacity:0.8 }}>Avg Time to TP/SL</div>
+          </div>
           {bannerTheme !== 'amber' && (
             <div style={{ textAlign:'center' }}>
               <div style={{ fontSize:'1rem', fontWeight:'700', color:'#d1fae5', marginTop:'6px' }}>Filters: AI &gt; 55% • Vol &gt; 0.5x</div>
