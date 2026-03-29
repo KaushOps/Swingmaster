@@ -581,7 +581,7 @@ async def multibagger_live():
     the Renaissance-style quantitative algorithm.
     """
     from multibagger_model import scan_multibaggers
-    from symbols import NSE_200, NIFTY_50, NSE_UNIVERSE
+    from symbols import NSE_200
     # Strip .NS suffix for the model (it adds it back internally)
     # Memory Cap removed, Oracle Server 24GB active. Processing up to 500 liquid stocks with 30 threads.
     symbols = [s.replace(".NS", "") for s in NSE_UNIVERSE[:500]]
