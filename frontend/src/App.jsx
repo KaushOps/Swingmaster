@@ -268,6 +268,13 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
   const chartWidth = Math.max(1200, filteredHistData.length * 22);
   const monthlySignals = filteredHistData.reduce((sum, day) => sum + day.count, 0);
   const monthlyCost = filteredHistData.reduce((sum, day) => sum + day.signals.reduce((s, stock) => s + stock.entry, 0), 0);
+  const monthlyPnL = filteredHistData.reduce((sum, day) => {
+    return sum + day.signals.reduce((s, stock) => {
+      if (stock.status === 'TARGET HIT') return s + (stock.target - stock.entry);
+      if (stock.status === 'SL HIT') return s + (stock.stoploss - stock.entry);
+      return s;
+    }, 0);
+  }, 0);
 
   // Calculate Dynamic Stats based on the active month
   let d_total = 0, d_wins = 0, d_loss = 0, d_days = 0;
@@ -344,9 +351,10 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
               </select>
               
               {selectedMonth !== 'All' && (
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-bright)', display: 'flex', gap: '15px' }}>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-bright)', display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
                   <span>Signals: <strong style={{color:accentColor}}>{monthlySignals}</strong></span>
                   <span>Cost (1x Qty): <strong style={{color:accentColor}}>₹{monthlyCost.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></span>
+                  <span>Est. P&L (1x Qty): <strong style={{color: monthlyPnL >= 0 ? '#4ade80' : '#f87171'}}>{monthlyPnL >= 0 ? '+' : ''}₹{monthlyPnL.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></span>
                 </div>
               )}
               <span style={{ fontSize:'0.85rem', color:accentColor }}>← Scroll → • Click bar</span>
