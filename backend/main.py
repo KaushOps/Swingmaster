@@ -12,6 +12,62 @@ import threading
 from data_fetcher import fetch_daily_data, is_weekly_bullish, get_delivery_pct
 from ml_model import add_features, create_labels, IntradayModel, passes_quality_gates
 from backtest import run_backtest
+import json
+import os
+
+LEDGER_FILE = "signals_ledger.json"
+
+def load_ledger():
+    if os.path.exists(LEDGER_FILE):
+        with open(LEDGER_FILE, "r") as f:
+            return json.load(f)
+    return {"NSE_BUYS": {}, "HIGH_CONVICTION": {}}
+
+def save_ledger(ledger):
+    with open(LEDGER_FILE, "w") as f:
+        json.dump(ledger, f, indent=2)
+
+def build_signal_frozen(frozen_sig, date_str, df, sym, latest_close):
+    entry_price = frozen_sig['entry']
+    target = frozen_sig['target']
+    stoploss = frozen_sig['stoploss']
+    
+    try:
+        future_df = df.loc[date_str:]
+    except Exception:
+        future_df = df[df.index >= date_str]
+        
+    status = "ACTIVE"
+    days_in_trade = 0
+    
+    if len(future_df) > 1:
+        for f_date, f_row in future_df.iloc[1:].iterrows():
+            if f_row['low'] <= stoploss:
+                status = "SL HIT"
+                days_in_trade = (f_date - future_df.index[0]).days
+                break
+            elif f_row['high'] >= target:
+                status = "TARGET HIT"
+                days_in_trade = (f_date - future_df.index[0]).days
+                break
+                
+    growth_pct = ((latest_close - entry_price) / entry_price) * 100
+    
+    # Handle confidence display based on if it's stored as >1.0 or <1.0
+    conf = frozen_sig['confidence']
+    display_conf = conf * 100 if conf <= 1.0 else conf
+    
+    return {
+        "symbol": sym,
+        "entry": round(entry_price, 2),
+        "target": round(target, 2),
+        "stoploss": round(stoploss, 2),
+        "status": status,
+        "growth_pct": round(growth_pct, 2),
+        "days_in_trade": int(days_in_trade),
+        "confidence": round(display_conf, 1),
+        "volume_ratio": round(frozen_sig['volume_ratio'], 2)
+    }
 
 app = FastAPI()
 
@@ -184,6 +240,11 @@ def update_universe_cache():
     from data_fetcher import _fetch_nse_delivery_pct
     _fetch_nse_delivery_pct()  # warms up the cache for all symbols
     
+    ledger = load_ledger()
+    needs_save = False
+    is_seed_run = (len(ledger["NSE_BUYS"]) == 0)
+    today_date_str = datetime.now().strftime("%Y-%m-%d")
+    
     for symbol in NSE_UNIVERSE:
         try:
             df = fetch_daily_data(symbol, years=2)
@@ -206,52 +267,6 @@ def update_universe_cache():
                 (df['atr'] / df['close'] > HC_ATR_FILTER)
             ]
             
-            def build_signal(row, date, df, sym, latest_close, sl_mult=2.0, tp_mult=5.0):
-                entry_price = float(row['close'])
-                atr = float(row['atr'])
-                target = entry_price + (tp_mult * atr)
-                stoploss = entry_price - (sl_mult * atr)
-                future_df = df.loc[date:]
-                status = "ACTIVE"
-                days_in_trade = 0
-                if len(future_df) > 1:
-                    for f_date, f_row in future_df.iloc[1:].iterrows():
-                        if f_row['low'] <= stoploss:
-                            status = "SL HIT"
-                            days_in_trade = (f_date - date).days
-                            break
-                        elif f_row['high'] >= target:
-                            status = "TARGET HIT"
-                            days_in_trade = (f_date - date).days
-                            break
-                growth_pct = ((latest_close - entry_price) / entry_price) * 100
-                return {
-                    "symbol": sym,
-                    "entry": round(entry_price, 2),
-                    "target": round(target, 2),
-                    "stoploss": round(stoploss, 2),
-                    "status": status,
-                    "growth_pct": round(growth_pct, 2),
-                    "days_in_trade": int(days_in_trade),
-                    "confidence": round(float(row['prob_up']) * 100, 1),
-                    "volume_ratio": round(float(row['volume_ratio']), 2)
-                }
-            
-            sym = symbol.replace('.NS', '')
-            for date, row in entries.iterrows():
-                date_str = date.strftime("%Y-%m-%d")
-                if date_str not in historical_map:
-                    historical_map[date_str] = []
-                # No quality gate on historical data — full unfiltered backtest accuracy
-                historical_map[date_str].append(build_signal(row, date, df, sym, latest_close))
-            
-            for date, row in hc_entries.iterrows():
-                date_str = date.strftime("%Y-%m-%d")
-                if date_str not in hc_historical_map:
-                    hc_historical_map[date_str] = []
-                # No quality gate on historical data — full unfiltered backtest accuracy
-                hc_historical_map[date_str].append(build_signal(row, date, df, sym, latest_close, sl_mult=2.0, tp_mult=5.0))
-            
             latest = df.iloc[-1]
             entry_price = float(latest['close'])
             atr = float(latest['atr'])
@@ -262,6 +277,54 @@ def update_universe_cache():
             sym = symbol.replace(".NS", "")
             target = entry_price + (5.0 * atr)
             stoploss = entry_price - (2.0 * atr)
+            
+            # Update Immutable Ledger
+            for date, row in entries.iterrows():
+                date_str = date.strftime("%Y-%m-%d")
+                if is_seed_run or date_str == today_date_str:
+                    if date_str not in ledger["NSE_BUYS"]:
+                        ledger["NSE_BUYS"][date_str] = {}
+                        
+                    e_price = float(row['close'])
+                    e_atr = float(row['atr'])
+                    
+                    ledger["NSE_BUYS"][date_str][sym] = {
+                        "entry": e_price,
+                        "target": e_price + (5.0 * e_atr),
+                        "stoploss": e_price - (2.0 * e_atr),
+                        "confidence": float(row['prob_up']),
+                        "volume_ratio": float(row['volume_ratio'])
+                    }
+                    needs_save = True
+
+            for date, row in hc_entries.iterrows():
+                date_str = date.strftime("%Y-%m-%d")
+                if is_seed_run or date_str == today_date_str:
+                    if date_str not in ledger["HIGH_CONVICTION"]:
+                        ledger["HIGH_CONVICTION"][date_str] = {}
+                        
+                    e_price = float(row['close'])
+                    e_atr = float(row['atr'])
+                    
+                    ledger["HIGH_CONVICTION"][date_str][sym] = {
+                        "entry": e_price,
+                        "target": e_price + (5.0 * e_atr),
+                        "stoploss": e_price - (2.0 * e_atr),
+                        "confidence": float(row['prob_up']),
+                        "volume_ratio": float(row['volume_ratio'])
+                    }
+                    needs_save = True
+
+            # Populate maps for UI specifically from the immutable ledger
+            for date_str, sigs in ledger["NSE_BUYS"].items():
+                if sym in sigs:
+                    if date_str not in historical_map: historical_map[date_str] = []
+                    historical_map[date_str].append(build_signal_frozen(sigs[sym], date_str, df, sym, latest_close))
+                    
+            for date_str, sigs in ledger["HIGH_CONVICTION"].items():
+                if sym in sigs:
+                    if date_str not in hc_historical_map: hc_historical_map[date_str] = []
+                    hc_historical_map[date_str].append(build_signal_frozen(sigs[sym], date_str, df, sym, latest_close))
             
             # --- Extra gates for live signals: weekly trend + delivery % ---
             weekly_ok = is_weekly_bullish(symbol)
@@ -322,6 +385,10 @@ def update_universe_cache():
     HC_CACHE["backtest_summary"] = hc_stats
     HC_CACHE["last_updated"] = datetime.now().isoformat()
     HC_CACHE["is_scanning"] = False
+    if needs_save:
+        save_ledger(ledger)
+        print("Updated immutable signals ledger!")
+        
     print(f"Background scan complete! Found {len(buys)} BUY signals | {len(hc_buys)} HIGH CONVICTION signals.")
 
 # Kick off initial scan on boot
