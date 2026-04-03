@@ -93,7 +93,19 @@ NSE_UNIVERSE = [
     "COALINDIA.NS", "UPL.NS", "TATAMOTORS.NS", "TATACONSUM.NS",
     "ZOMATO.NS", "JIOFIN.NS", "IRFC.NS", "TRENT.NS", "HAL.NS", "DIXON.NS",
     "BEL.NS", "BHEL.NS", "RVNL.NS", "IREDA.NS", "PFC.NS", "RECLTD.NS",
-    "MAZDOCK.NS", "SUZLON.NS", "NHPC.NS", "SJVN.NS", "KALYANKJIL.NS"
+    "MAZDOCK.NS", "SUZLON.NS", "NHPC.NS", "SJVN.NS", "KALYANKJIL.NS",
+    "FEDERALBNK.NS", "IDFCFIRSTB.NS", "BANKBARODA.NS", "PNB.NS", "CANBK.NS",
+    "UNIONBANK.NS", "IOB.NS", "UCOBANK.NS", "IDBI.NS", "BANKINDIA.NS",
+    "TVSMOTOR.NS", "ASHOKLEY.NS", "BOSCHLTD.NS", "MOTHERSON.NS", "MRF.NS",
+    "BALKRISIND.NS", "APOLLOTYRE.NS", "EXIDEIND.NS", "AMARAJA.NS",
+    "LUPIN.NS", "AUROPHARMA.NS", "TORNTPHARM.NS", "ZYDUSLIFE.NS", "MANKIND.NS",
+    "GLENMARK.NS", "ALKEM.NS", "BIOCON.NS", "IPCALAB.NS", "ABB.NS",
+    "SIEMENS.NS", "CUMMINSIND.NS", "THERMAX.NS", "SKFINDIA.NS", "TIMKEN.NS",
+    "KEI.NS", "POLYCAB.NS", "FINCABLES.NS", "TORNTPOWER.NS", "CESC.NS",
+    "JSWENERGY.NS", "TATAPOWER.NS", "ADANIGREEN.NS", "ADANIENSOL.NS",
+    "NMDC.NS", "SAIL.NS", "NATIONALUM.NS", "HINDZINC.NS", "VEDL.NS",
+    "DLF.NS", "MACROTECH.NS", "GODREJPROP.NS", "PRESTIGE.NS", "OBEROIRLTY.NS",
+    "PHOENIXLTD.NS", "BRIGADE.NS", "SOBHA.NS", "SUNTECK.NS", "MAHLIFE.NS"
 ]
 
 GLOBAL_BUY_CACHE = {
@@ -268,6 +280,7 @@ def update_universe_cache():
             ]
             
             latest = df.iloc[-1]
+            latest_date_str = df.index[-1].strftime("%Y-%m-%d")
             entry_price = float(latest['close'])
             atr = float(latest['atr'])
             prob_up = float(latest['prob_up'])
@@ -281,39 +294,41 @@ def update_universe_cache():
             # Update Immutable Ledger
             for date, row in entries.iterrows():
                 date_str = date.strftime("%Y-%m-%d")
-                if is_seed_run or date_str == today_date_str:
+                if is_seed_run or date_str == latest_date_str:
                     if date_str not in ledger["NSE_BUYS"]:
                         ledger["NSE_BUYS"][date_str] = {}
                         
-                    e_price = float(row['close'])
-                    e_atr = float(row['atr'])
-                    
-                    ledger["NSE_BUYS"][date_str][sym] = {
-                        "entry": e_price,
-                        "target": e_price + (5.0 * e_atr),
-                        "stoploss": e_price - (2.0 * e_atr),
-                        "confidence": float(row['prob_up']),
-                        "volume_ratio": float(row['volume_ratio'])
-                    }
-                    needs_save = True
+                    if sym not in ledger["NSE_BUYS"][date_str]:
+                        e_price = float(row['close'])
+                        e_atr = float(row['atr'])
+                        
+                        ledger["NSE_BUYS"][date_str][sym] = {
+                            "entry": e_price,
+                            "target": e_price + (5.0 * e_atr),
+                            "stoploss": e_price - (2.0 * e_atr),
+                            "confidence": float(row['prob_up']),
+                            "volume_ratio": float(row['volume_ratio'])
+                        }
+                        needs_save = True
 
             for date, row in hc_entries.iterrows():
                 date_str = date.strftime("%Y-%m-%d")
-                if is_seed_run or date_str == today_date_str:
+                if is_seed_run or date_str == latest_date_str:
                     if date_str not in ledger["HIGH_CONVICTION"]:
                         ledger["HIGH_CONVICTION"][date_str] = {}
                         
-                    e_price = float(row['close'])
-                    e_atr = float(row['atr'])
-                    
-                    ledger["HIGH_CONVICTION"][date_str][sym] = {
-                        "entry": e_price,
-                        "target": e_price + (5.0 * e_atr),
-                        "stoploss": e_price - (2.0 * e_atr),
-                        "confidence": float(row['prob_up']),
-                        "volume_ratio": float(row['volume_ratio'])
-                    }
-                    needs_save = True
+                    if sym not in ledger["HIGH_CONVICTION"][date_str]:
+                        e_price = float(row['close'])
+                        e_atr = float(row['atr'])
+                        
+                        ledger["HIGH_CONVICTION"][date_str][sym] = {
+                            "entry": e_price,
+                            "target": e_price + (5.0 * e_atr),
+                            "stoploss": e_price - (2.0 * e_atr),
+                            "confidence": float(row['prob_up']),
+                            "volume_ratio": float(row['volume_ratio'])
+                        }
+                        needs_save = True
 
             # Populate maps for UI specifically from the immutable ledger
             for date_str, sigs in ledger["NSE_BUYS"].items():
@@ -779,6 +794,34 @@ async def sector_leader(sector: str):
         return {"status": "success", "leader": leaders[0]}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@app.get("/api/search")
+def search_stock(q: str):
+    """Search for Indian stocks using Yahoo Finance autocomplete API."""
+    import requests
+    url = f"https://query2.finance.yahoo.com/v1/finance/search?q={q}&quotesCount=8&newsCount=0"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        resp = requests.get(url, headers=headers, timeout=5)
+        if resp.status_code == 200:
+            quotes = resp.json().get("quotes", [])
+            results = []
+            seen = set()
+            for quote in quotes:
+                sym = quote.get("symbol", "").upper()
+                if quote.get("quoteType") == "EQUITY" and (sym.endswith(".NS") or sym.endswith(".BO")):
+                    clean_sym = sym.replace(".NS", "").replace(".BO", "")
+                    # Filter out block deals or secondary listings (e.g., BHEL-BL)
+                    if clean_sym not in seen and "-" not in clean_sym:
+                        seen.add(clean_sym)
+                        results.append({
+                            "symbol": clean_sym,
+                            "name": quote.get("longname", quote.get("shortname", clean_sym))
+                        })
+            return {"results": results}
+    except Exception as e:
+        print(f"Search API error: {e}")
+    return {"results": []}
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts'
 import './App.css'
 
@@ -28,6 +28,25 @@ const HCTooltip = ({ active, payload, label }) => {
         <p style={{ margin: '0 0 5px 0', color: '#fbbf24' }}>🎯 {data.count} HC Signal{data.count > 1 ? 's' : ''}</p>
         <p style={{ margin: 0, fontSize: '0.82rem', opacity: 0.8 }}>{data.stocks.join(', ')}</p>
         <p style={{ margin: '8px 0 0 0', fontSize: '0.75rem', color: '#fde68a', fontStyle: 'italic' }}>Click to view details</p>
+      </div>
+    );
+  }
+  return null;
+};
+
+const StockTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    const wr = data.tp + data.sl > 0 ? (data.tp / (data.tp + data.sl) * 100).toFixed(1) : 0;
+    return (
+      <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', padding: '10px', borderRadius: '8px', color: '#fff' }}>
+        <p style={{ margin: '0 0 5px 0', fontWeight: 'bold', color: '#66fcf1' }}>{label}</p>
+        <p style={{ margin: '0 0 5px 0' }}>Total Signals: {data.total}</p>
+        <p style={{ margin: 0, fontSize: '0.85rem', color: '#4ade80' }}>Targets Hit (TP): {data.tp}</p>
+        <p style={{ margin: 0, fontSize: '0.85rem', color: '#f87171' }}>Stop Loss Hit (SL): {data.sl}</p>
+        <p style={{ margin: 0, fontSize: '0.85rem', color: '#38bdf8' }}>Currently Active: {data.active}</p>
+        <hr style={{ borderColor:'#334155', margin:'8px 0' }} />
+        <p style={{ margin: 0, fontSize: '0.9rem', color: '#fbbf24', fontWeight: 'bold' }}>Historical Win Rate: {wr}%</p>
       </div>
     );
   }
@@ -261,17 +280,103 @@ function PortfolioGrid({ portfolio, setPortfolio }) {
   );
 }
 
-function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accentColor, TooltipComponent, bannerTheme, onLogTrade, onDetail }) {
+function SearchBar({ onSelect }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
+
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setResults([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      setLoading(true);
+      fetch(`${baseUrl}/api/search?q=${query}`)
+        .then(r => r.json())
+        .then(d => { setResults(d.results || []); setLoading(false); })
+        .catch(() => setLoading(false));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  return (
+    <div style={{ position:'relative', width: '320px', marginLeft: 'auto', marginRight: '15px' }}>
+      <input 
+        type="text" 
+        placeholder="🔍 Search NSE stock / company..." 
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        style={{ width:'100%', padding:'10px 15px', borderRadius:'8px', border:'1px solid #334155', background:'#1e293b', color:'#e2e8f0', outline:'none', fontSize:'0.9rem' }}
+      />
+      {results.length > 0 && query.trim().length >= 2 && (
+        <div style={{ position:'absolute', top:'100%', left:0, right:0, background:'#0f172a', border:'1px solid #334155', borderRadius:'8px', marginTop:'5px', zIndex:1000, overflow:'hidden', boxShadow:'0 10px 25px rgba(0,0,0,0.5)' }}>
+          {results.map(r => (
+            <div key={r.symbol} onClick={() => { onSelect(r.symbol); setQuery(''); setResults([]); }} style={{ padding:'12px 15px', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems: 'center', borderBottom:'1px solid #1e293b' }} onMouseEnter={e => e.currentTarget.style.background='#1e293b'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+              <strong style={{color:'#66fcf1', fontSize:'0.9rem'}}>{r.symbol}</strong>
+              <span style={{color:'#94a3b8', fontSize:'0.8rem', maxWidth:'140px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', textAlign:'right'}}>{r.name}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accentColor, bannerTheme, TooltipComponent, onLogTrade, onDetail }) {
   const [selectedMonth, setSelectedMonth] = useState('All');
+  const [groupBy, setGroupBy] = useState('DATE'); // 'DATE' or 'STOCK'
   const months = [...new Set(histData.map(d => d.date.substring(0, 7)))].sort().reverse();
-  const filteredHistData = selectedMonth === 'All' ? histData : histData.filter(d => d.date.startsWith(selectedMonth));
-  const chartWidth = Math.max(1200, filteredHistData.length * 22);
+  
+  const filteredHistData = useMemo(() => {
+    if (groupBy === 'STOCK') return [];
+    let result = [];
+    if (selectedMonth === 'All') {
+      const g = histData.reduce((acc, obj) => {
+        const d = obj.date.slice(0, 7);
+        if (!acc[d]) acc[d] = { date: d, count: 0, signals: [], stocks: [] };
+        acc[d].count += obj.count;
+        acc[d].signals.push(...obj.signals);
+        if (obj.stocks) acc[d].stocks.push(...obj.stocks);
+        return acc;
+      }, {});
+      result = Object.values(g).reverse();
+    } else {
+      result = histData.filter(d => d.date.startsWith(selectedMonth)).reverse();
+    }
+    return result.map(item => ({
+      ...item,
+      stocks: item.stocks && item.stocks.length > 0 ? item.stocks : item.signals.map(s => s.symbol)
+    }));
+  }, [histData, selectedMonth, groupBy]);
+
+  const stockData = useMemo(() => {
+    if (groupBy !== 'STOCK') return [];
+    let d = selectedMonth === 'All' ? histData : histData.filter(h => h.date.startsWith(selectedMonth));
+    const counts = {};
+    d.forEach(day => {
+      day.signals.forEach(s => {
+        if (!counts[s.symbol]) counts[s.symbol] = { symbol: s.symbol, tp: 0, sl: 0, active: 0, total: 0 };
+        counts[s.symbol].total++;
+        if (s.status === 'TARGET HIT') counts[s.symbol].tp++;
+        else if (s.status === 'SL HIT') counts[s.symbol].sl++;
+        else counts[s.symbol].active++;
+      });
+    });
+    return Object.values(counts).sort((a,b) => b.total - a.total).slice(0, 40); // Top 40
+  }, [histData, selectedMonth, groupBy]);
+
+  const chartWidth = Math.max(1200, (groupBy === 'DATE' ? filteredHistData.length : stockData.length) * 22);
   const monthlySignals = filteredHistData.reduce((sum, day) => sum + day.count, 0);
-  const monthlyCost = filteredHistData.reduce((sum, day) => sum + day.signals.reduce((s, stock) => s + stock.entry, 0), 0);
+  const allocPerTrade = 10000; // Simulated constant allocation per trade for realistic P&L
+  const monthlyCost = filteredHistData.reduce((sum, day) => sum + (day.signals.length * allocPerTrade), 0);
   const monthlyPnL = filteredHistData.reduce((sum, day) => {
     return sum + day.signals.reduce((s, stock) => {
-      if (stock.status === 'TARGET HIT') return s + (stock.target - stock.entry);
-      if (stock.status === 'SL HIT') return s + (stock.stoploss - stock.entry);
+      if (!stock.entry || stock.entry === 0) return s;
+      const qty = allocPerTrade / stock.entry;
+      if (stock.status === 'TARGET HIT') return s + ((stock.target - stock.entry) * qty);
+      if (stock.status === 'SL HIT') return s + ((stock.stoploss - stock.entry) * qty);
       return s;
     }, 0);
   }, 0);
@@ -337,8 +442,18 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
 
       {histData.length > 0 && (
         <div style={{ marginBottom:'30px', backgroundColor:'var(--panel-bg)', padding:'20px', borderRadius:'15px', border:'1px solid var(--border-color)', boxSizing:'border-box' }}>
-          <div style={{ display:'flex', flexWrap:'wrap', justifyContent:'space-between', alignItems:'center', gap:'10px', marginBottom:'10px' }}>
-            <h3 style={{ margin:0, color:'var(--text-main)', fontSize:'1.1rem' }}>Historical Signal Frequency</h3>
+          <div style={{ display:'flex', flexWrap:'wrap', justifyContent:'space-between', alignItems:'center', gap:'10px', marginBottom:'15px' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'15px' }}>
+              <h3 style={{ margin:0, color:'var(--text-main)', fontSize:'1.1rem' }}>Historical Summary</h3>
+              <div style={{ display:'flex', background:'#1e293b', borderRadius:'8px', overflow:'hidden', border:'1px solid #334155' }}>
+                <button 
+                  onClick={() => setGroupBy('DATE')} 
+                  style={{ padding:'6px 12px', background: groupBy === 'DATE' ? 'rgba(56,189,248,0.2)' : 'transparent', color: groupBy === 'DATE' ? '#38bdf8' : '#94a3b8', border:'none', cursor:'pointer', fontSize:'0.8rem', fontWeight:'bold' }}>By Date</button>
+                <button 
+                  onClick={() => setGroupBy('STOCK')} 
+                  style={{ padding:'6px 12px', background: groupBy === 'STOCK' ? 'rgba(56,189,248,0.2)' : 'transparent', color: groupBy === 'STOCK' ? '#38bdf8' : '#94a3b8', border:'none', cursor:'pointer', fontSize:'0.8rem', fontWeight:'bold' }}>By Stock</button>
+              </div>
+            </div>
             
             <div style={{ display:'flex', alignItems:'center', gap:'15px', flexWrap:'wrap' }}>
               <select 
@@ -353,25 +468,37 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
               {selectedMonth !== 'All' && (
                 <div style={{ fontSize: '0.85rem', color: 'var(--text-bright)', display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
                   <span>Signals: <strong style={{color:accentColor}}>{monthlySignals}</strong></span>
-                  <span>Cost (1x Qty): <strong style={{color:accentColor}}>₹{monthlyCost.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></span>
-                  <span>Est. P&L (1x Qty): <strong style={{color: monthlyPnL >= 0 ? '#4ade80' : '#f87171'}}>{monthlyPnL >= 0 ? '+' : ''}₹{monthlyPnL.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></span>
+                  <span>Cost (10k/Trade): <strong style={{color:accentColor}}>₹{monthlyCost.toLocaleString('en-IN')}</strong></span>
+                  <span>Est. P&L: <strong style={{color: monthlyPnL >= 0 ? '#4ade80' : '#f87171'}}>{monthlyPnL > 0 ? '+' : ''}₹{monthlyPnL.toLocaleString('en-IN', {minimumFractionDigits:0, maximumFractionDigits:0})}</strong></span>
                 </div>
               )}
               <span style={{ fontSize:'0.85rem', color:accentColor }}>← Scroll → • Click bar</span>
             </div>
           </div>
           <div style={{ overflowX:'auto', paddingBottom:'4px' }}>
-            <BarChart width={chartWidth} height={210} data={filteredHistData} margin={{ top:5, right:10, left:0, bottom:0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-              <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} tickFormatter={(t) => t.slice(5)} tickMargin={8} />
-              <YAxis stroke="#94a3b8" fontSize={11} allowDecimals={false} width={28} />
-              <ChartTooltip content={<TooltipComponent />} cursor={{ fill:'#334155', opacity:0.4 }} />
-              <Bar dataKey="count" radius={[4,4,0,0]} maxBarSize={36} onClick={(d) => onSelect(d.payload)} style={{cursor:'pointer'}}>
-                {filteredHistData.map((entry, i) => (
-                  <Cell key={`cell-${i}`} fill={selectedDate && selectedDate.date === entry.date ? '#fbbf24' : accentColor} />
-                ))}
-              </Bar>
-            </BarChart>
+            {groupBy === 'DATE' ? (
+              <BarChart width={chartWidth} height={210} data={filteredHistData} margin={{ top:5, right:10, left:0, bottom:0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} tickFormatter={(t) => t.slice(5)} tickMargin={8} />
+                <YAxis stroke="#94a3b8" fontSize={11} allowDecimals={false} width={28} />
+                <ChartTooltip content={<TooltipComponent />} cursor={{ fill:'#334155', opacity:0.4 }} />
+                <Bar dataKey="count" radius={[4,4,0,0]} maxBarSize={36} onClick={(d) => onSelect(d.payload)} style={{cursor:'pointer'}}>
+                  {filteredHistData.map((entry, i) => (
+                    <Cell key={`cell-${i}`} fill={selectedDate && selectedDate.date === entry.date ? '#fbbf24' : accentColor} />
+                  ))}
+                </Bar>
+              </BarChart>
+            ) : (
+              <BarChart width={chartWidth} height={210} data={stockData} margin={{ top:5, right:10, left:0, bottom:0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                <XAxis dataKey="symbol" stroke="#94a3b8" fontSize={9} tickFormatter={t => t.replace('.NS','')} tickMargin={8} interval={0} angle={-35} textAnchor="end" height={50} />
+                <YAxis stroke="#94a3b8" fontSize={11} allowDecimals={false} width={28} />
+                <ChartTooltip content={<StockTooltip />} cursor={{ fill:'#334155', opacity:0.4 }} />
+                <Bar dataKey="tp" stackId="a" fill="#4ade80" onClick={d => d && onDetail && onDetail(d.payload.symbol)} style={{cursor:'pointer'}} />
+                <Bar dataKey="active" stackId="a" fill="#38bdf8" onClick={d => d && onDetail && onDetail(d.payload.symbol)} style={{cursor:'pointer'}} />
+                <Bar dataKey="sl" stackId="a" fill="#f87171" radius={[4,4,0,0]} onClick={d => d && onDetail && onDetail(d.payload.symbol)} style={{cursor:'pointer'}} />
+              </BarChart>
+            )}
           </div>
         </div>
       )}
@@ -433,6 +560,8 @@ function App() {
   const [mbView, setMbView] = useState('live'); // 'live' | 'backtest'
   const [mbYearsAgo, setMbYearsAgo] = useState(1);
   const [mbLoading, setMbLoading] = useState(false);
+  const [budgetCapital, setBudgetCapital] = useState(30000);
+  const [budgetRiskPct, setBudgetRiskPct] = useState(2);
 
   useEffect(() => {
     // Fetch trending sectors once on load
@@ -476,7 +605,34 @@ function App() {
   };
 
   useEffect(() => {
-    // View-only tabs: don't fetch — rely on data loaded from other tabs
+    // BUDGET tab: auto-fetch HC + NSE data if not already loaded
+    if (market === 'BUDGET') {
+      setLoading(false);
+      const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
+      if (hcData.length === 0) {
+        fetch(`${baseUrl}/api/high_conviction`)
+          .then(r => r.json())
+          .then(result => {
+            setHcData(result.data || []);
+            if (result.historical) setHcHistorical(result.historical.slice(-120));
+            if (result.backtest_summary) setHcStats(result.backtest_summary);
+          })
+          .catch(console.error);
+      }
+      if (nseStats === null) {
+        fetch(`${baseUrl}/api/scan_universe_buys`)
+          .then(r => r.json())
+          .then(result => {
+            setData(result.data || []);
+            if (result.historical) setHistoricalData(result.historical.slice(-120));
+            if (result.backtest_summary) setNseStats(result.backtest_summary);
+          })
+          .catch(console.error);
+      }
+      return;
+    }
+
+    // Other view-only tabs
     if (market === 'ACTIVE_SIGNALS' || market === 'PORTFOLIO' || market === 'MULTIBAGGER') {
       setLoading(false);
       return;
@@ -551,15 +707,21 @@ function App() {
   return (
     <>
     <div className="container">
-      <header className="header">
-        <h1>OmniQuant <span className="highlight">AI</span></h1>
-        <p className="subtitle">Algorithmic Equity Prediction Matrix</p>
+      <header className="header" style={{ position: 'relative' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '15px' }}>
+          <div>
+            <h1 style={{ margin: 0 }}>OmniQuant <span className="highlight">AI</span></h1>
+            <p className="subtitle" style={{ margin: '5px 0 0 0' }}>Algorithmic Equity Prediction Matrix</p>
+          </div>
+          <SearchBar onSelect={symbol => setSelectedDetail(symbol)} />
+        </div>
         <div className="tabs">
           <button className={`tab ${market === "IN"       ? "active" : ""}`} onClick={() => setMarket("IN")}>🇮🇳 India (NSE)</button>
           <button className={`tab ${market === "US"       ? "active" : ""}`} onClick={() => setMarket("US")}>🇺🇸 USA (NYSE)</button>
           <button className={`tab ${market === "NSE_BUYS" ? "active" : ""}`} onClick={() => setMarket("NSE_BUYS")}>🚀 All NSE (Buy Only)</button>
           <button className={`tab ${market === "HC"       ? "active" : ""}`} onClick={() => setMarket("HC")} style={{ borderColor: market === "HC" ? "#fbbf24" : undefined, color: market === "HC" ? "#fbbf24" : undefined }}>🎯 High Conviction</button>
           <button className={`tab ${market === "ACTIVE_SIGNALS" ? "active" : ""}`} onClick={() => setMarket("ACTIVE_SIGNALS")} style={{ borderColor: market === "ACTIVE_SIGNALS" ? "#4ade80" : undefined, color: market === "ACTIVE_SIGNALS" ? "#4ade80" : undefined }}>🟢 Active Signals</button>
+          <button className={`tab ${market === "BUDGET" ? "active" : ""}`} onClick={() => setMarket("BUDGET")} style={{ borderColor: market === "BUDGET" ? "#34d399" : undefined, color: market === "BUDGET" ? "#34d399" : undefined }}>₹ Budget Friendly</button>
           <button className={`tab ${market === "PORTFOLIO" ? "active" : ""}`} onClick={() => setMarket("PORTFOLIO")}>💼 My Portfolio</button>
           <button className={`tab ${market === "MULTIBAGGER" ? "active" : ""}`} onClick={() => { setMarket("MULTIBAGGER"); if (mbData.length === 0 && !mbLoading) { setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/live`).then(r=>r.json()).then(res=>{setMbData(res.data||[]);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }} style={{ borderColor: market === "MULTIBAGGER" ? "#a855f7" : undefined, color: market === "MULTIBAGGER" ? "#a855f7" : undefined }}>🚀 Multibaggers</button>
         </div>
@@ -812,6 +974,212 @@ function App() {
               )}
             </>
           )}
+
+          {/* BUDGET FRIENDLY VIEW */}
+          {market === "BUDGET" && (() => {
+            const riskPerTrade = budgetCapital * (budgetRiskPct / 100);
+
+            // Gather all signals from both NSE and HC
+            const allSignals = [
+              ...data.map(s => ({ ...s, tier: s.action === 'STRONG BUY' ? 'HC' : 'NSE' })),
+              ...(hcData.length > 0 ? hcData.map(s => ({ ...s, tier: 'HC' })) : [])
+            ];
+
+            // Deduplicate by symbol, prefer HC
+            const deduped = Object.values(
+              allSignals.reduce((acc, s) => {
+                if (!acc[s.symbol] || s.tier === 'HC') acc[s.symbol] = s;
+                return acc;
+              }, {})
+            );
+
+            // Filter: price must allow at least 3 shares within budgetCapital
+            const budgetSignals = deduped
+              .filter(s => s.entry > 0 && s.entry <= budgetCapital / 3)
+              .map(s => {
+                const stopGap = s.entry - s.stoploss;
+                const qty = stopGap > 0 ? Math.max(1, Math.floor(riskPerTrade / stopGap)) : 1;
+                const capitalUsed = qty * s.entry;
+                const canAfford = capitalUsed <= budgetCapital * 0.45; // max 45% per trade
+
+                // Signal score 0-100
+                let score = 0;
+                if (s.confidence >= 72) score += 25;
+                else if (s.confidence >= 60) score += 15;
+                else if (s.confidence >= 55) score += 8;
+                if (s.volume_ratio >= 2.0) score += 20;
+                else if (s.volume_ratio >= 1.5) score += 15;
+                else if (s.volume_ratio >= 1.0) score += 8;
+                if (s.tier === 'HC') score += 20;
+                else score += 10;
+                if (s.entry <= 500) score += 15;
+                else if (s.entry <= 1000) score += 10;
+                else if (s.entry <= 1500) score += 5;
+                if (s.backtest && s.backtest.win_rate >= 60) score += 10;
+                else if (s.backtest && s.backtest.win_rate >= 50) score += 5;
+                if (s.delivery_pct != null && s.delivery_pct >= 45) score += 10;
+                else if (s.delivery_pct != null && s.delivery_pct >= 35) score += 5;
+
+                const tier1 = score >= 80 && canAfford;
+                const tier2 = score >= 65 && score < 80 && canAfford;
+
+                return { ...s, qty, capitalUsed, canAfford, score, stopGap, tier1, tier2 };
+              })
+              .sort((a, b) => b.score - a.score);
+
+            const tier1 = budgetSignals.filter(s => s.score >= 80);
+            const tier2 = budgetSignals.filter(s => s.score >= 65 && s.score < 80);
+            const watchlist = budgetSignals.filter(s => s.score < 65);
+
+            const deployedWk1 = tier1.slice(0, 2).reduce((s, x) => s + x.capitalUsed, 0);
+            const deployedWk2 = tier2.slice(0, 3).reduce((s, x) => s + x.capitalUsed, 0);
+            const reserve = Math.max(0, budgetCapital - deployedWk1 - deployedWk2);
+
+            const SignalCard = ({ s }) => (
+              <div style={{ background:'#0f172a', border:`1px solid ${s.score >= 80 ? '#34d39944' : s.score >= 65 ? '#38bdf844' : '#334155'}`, borderRadius:'14px', padding:'18px', cursor:'pointer', transition:'border-color 0.2s', position:'relative' }}
+                onClick={() => setSelectedDetail(s.symbol)}
+                onMouseEnter={e => e.currentTarget.style.borderColor = s.score >= 80 ? '#34d399aa' : '#38bdf8aa'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = s.score >= 80 ? '#34d39944' : s.score >= 65 ? '#38bdf844' : '#334155'}>
+
+                <div style={{ position: 'absolute', top: '12px', right: '12px', fontSize: '0.65rem', color: '#64748b', fontStyle: 'italic', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '4px' }}>Click for AI details</div>
+
+                {/* Score badge */}
+                <div style={{ position:'absolute', top:'14px', right:'14px', background: s.score >= 80 ? 'linear-gradient(135deg,#059669,#34d399)' : s.score >= 65 ? 'linear-gradient(135deg,#0284c7,#38bdf8)' : '#1e293b', borderRadius:'20px', padding:'4px 10px', fontSize:'0.75rem', fontWeight:'bold', color:'#fff' }}>
+                  {s.score}/100
+                </div>
+
+                <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'12px' }}>
+                  <h2 style={{ margin:0, fontSize:'1.2rem', color:'#f8fafc' }}>{s.symbol}</h2>
+                  <span style={{ background: s.tier === 'HC' ? 'rgba(251,191,36,0.15)' : 'rgba(56,189,248,0.1)', color: s.tier === 'HC' ? '#fbbf24' : '#38bdf8', border:`1px solid ${s.tier === 'HC' ? '#fbbf2444' : '#38bdf844'}`, borderRadius:'6px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'bold' }}>
+                    {s.tier === 'HC' ? '🎯 HC' : '🚀 NSE'}
+                  </span>
+                </div>
+
+                {/* Position sizing */}
+                <div style={{ background:'rgba(52,211,153,0.06)', border:'1px solid #34d39922', borderRadius:'10px', padding:'12px', marginBottom:'12px' }}>
+                  <div style={{ fontSize:'0.72rem', color:'#6ee7b7', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'8px', fontWeight:'600' }}>📐 Position Sizing (2% Rule)</div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+                    <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Entry Price</div><div style={{ fontWeight:'bold', color:'#e2e8f0' }}>₹{s.entry.toFixed(2)}</div></div>
+                    <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Suggested Qty</div><div style={{ fontWeight:'bold', color:'#34d399', fontSize:'1.1rem' }}>{s.qty} shares</div></div>
+                    <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Capital Used</div><div style={{ fontWeight:'bold', color: s.canAfford ? '#4ade80' : '#f87171' }}>₹{s.capitalUsed.toLocaleString('en-IN', {maximumFractionDigits:0})}</div></div>
+                    <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Max Risk</div><div style={{ fontWeight:'bold', color:'#fbbf24' }}>₹{riskPerTrade.toFixed(0)}</div></div>
+                  </div>
+                  {!s.canAfford && <div style={{ marginTop:'8px', fontSize:'0.72rem', color:'#f87171' }}>⚠️ Capital used exceeds 45% limit. Reduce qty.</div>}
+                </div>
+
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px', marginBottom:'10px' }}>
+                  <div style={{ background:'#1e293b', borderRadius:'8px', padding:'8px', textAlign:'center' }}><div style={{ fontSize:'0.65rem', color:'#64748b' }}>Target</div><div style={{ fontWeight:'bold', color:'#4ade80', fontSize:'0.9rem' }}>₹{s.target.toFixed(2)}</div></div>
+                  <div style={{ background:'#1e293b', borderRadius:'8px', padding:'8px', textAlign:'center' }}><div style={{ fontSize:'0.65rem', color:'#64748b' }}>Stoploss</div><div style={{ fontWeight:'bold', color:'#f87171', fontSize:'0.9rem' }}>₹{s.stoploss.toFixed(2)}</div></div>
+                  <div style={{ background:'#1e293b', borderRadius:'8px', padding:'8px', textAlign:'center' }}><div style={{ fontSize:'0.65rem', color:'#64748b' }}>Confidence</div><div style={{ fontWeight:'bold', color:'#e2e8f0', fontSize:'0.9rem' }}>{s.confidence.toFixed(1)}%</div></div>
+                </div>
+
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.78rem', color:'#64748b' }}>
+                  <span>Vol: <strong style={{ color: s.volume_ratio >= 1.5 ? '#fbbf24' : '#94a3b8' }}>{s.volume_ratio.toFixed(2)}x</strong></span>
+                  {s.delivery_pct != null && <span>Delivery: <strong style={{ color: s.delivery_pct >= 45 ? '#4ade80' : '#94a3b8' }}>{s.delivery_pct}%</strong></span>}
+                  {s.backtest && <span>Win Rate: <strong style={{ color: s.backtest.win_rate >= 60 ? '#4ade80' : '#94a3b8' }}>{s.backtest.win_rate.toFixed(0)}%</strong></span>}
+                </div>
+
+                <button onClick={e => { e.stopPropagation(); logTrade(s, s.entry); }} style={{ width:'100%', marginTop:'12px', padding:'8px', background:'rgba(52,211,153,0.1)', color:'#34d399', border:'1px solid rgba(52,211,153,0.3)', borderRadius:'8px', cursor:'pointer', fontSize:'0.82rem', fontWeight:'600' }}>+ Log Trade</button>
+              </div>
+            );
+
+            return (
+              <>
+                {/* Controls */}
+                <div style={{ background:'linear-gradient(135deg,#022c22,#0f172a)', border:'1px solid #059669', borderRadius:'16px', padding:'24px', marginBottom:'28px' }}>
+                  <h2 style={{ margin:'0 0 6px', color:'#34d399', fontSize:'1.3rem' }}>₹ Budget Friendly Swing Planner</h2>
+                  <p style={{ color:'#6ee7b7', margin:'0 0 20px', fontSize:'0.85rem', opacity:0.8 }}>Position sizing & signal filtering calibrated to your monthly capital. Signals pulled from HC + NSE Buy tabs.</p>
+
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', gap:'16px', marginBottom:'20px' }}>
+                    <div>
+                      <label style={{ fontSize:'0.8rem', color:'#6ee7b7', display:'block', marginBottom:'6px' }}>Monthly Capital (₹)</label>
+                      <input type="number" value={budgetCapital} onChange={e => setBudgetCapital(Number(e.target.value))} min={5000} step={1000}
+                        style={{ width:'100%', padding:'10px 14px', background:'#0f172a', border:'1px solid #059669', borderRadius:'8px', color:'#f8fafc', fontSize:'1rem', boxSizing:'border-box', outline:'none' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize:'0.8rem', color:'#6ee7b7', display:'block', marginBottom:'6px' }}>Risk Per Trade (%)</label>
+                      <input type="number" value={budgetRiskPct} onChange={e => setBudgetRiskPct(Math.min(5, Math.max(0.5, Number(e.target.value))))} min={0.5} max={5} step={0.5}
+                        style={{ width:'100%', padding:'10px 14px', background:'#0f172a', border:'1px solid #059669', borderRadius:'8px', color:'#f8fafc', fontSize:'1rem', boxSizing:'border-box', outline:'none' }} />
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', justifyContent:'flex-end' }}>
+                      <div style={{ background:'rgba(52,211,153,0.08)', border:'1px solid #34d39933', borderRadius:'10px', padding:'10px 14px' }}>
+                        <div style={{ fontSize:'0.72rem', color:'#6ee7b7', marginBottom:'2px' }}>Max Risk Per Trade</div>
+                        <div style={{ fontSize:'1.4rem', fontWeight:'bold', color:'#34d399' }}>₹{riskPerTrade.toFixed(0)}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Deployment Plan */}
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:'12px' }}>
+                    {[
+                      ['Week 1 Deploy', `₹${deployedWk1.toLocaleString('en-IN',{maximumFractionDigits:0})}`, '#34d399', 'Tier 1 signals (top 2)'],
+                      ['Week 2 Deploy', `₹${deployedWk2.toLocaleString('en-IN',{maximumFractionDigits:0})}`, '#38bdf8', 'Tier 2 signals (top 3)'],
+                      ['Reserve', `₹${reserve.toLocaleString('en-IN',{maximumFractionDigits:0})}`, '#fbbf24', 'Never fully deploy'],
+                      ['Max Positions', '4', '#c084fc', 'Open at any time'],
+                    ].map(([label, val, color, sub]) => (
+                      <div key={label} style={{ background:'rgba(0,0,0,0.3)', borderRadius:'10px', padding:'12px', borderLeft:`3px solid ${color}` }}>
+                        <div style={{ fontSize:'0.72rem', color:'#64748b', marginBottom:'4px' }}>{label}</div>
+                        <div style={{ fontSize:'1.4rem', fontWeight:'bold', color }}>{val}</div>
+                        <div style={{ fontSize:'0.7rem', color:'#475569', marginTop:'2px' }}>{sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {budgetSignals.length === 0 ? (
+                  <div className="no-data" style={{ textAlign:'center', padding:'60px', color:'#64748b' }}>
+                    <div style={{ fontSize:'2rem', marginBottom:'12px' }}>📊</div>
+                    <div>No budget-friendly signals loaded yet.</div>
+                    <div style={{ fontSize:'0.85rem', marginTop:'8px', color:'#475569' }}>Visit <strong style={{color:'#38bdf8'}}>🚀 All NSE (Buy Only)</strong> or <strong style={{color:'#fbbf24'}}>🎯 High Conviction</strong> tabs first to load signal data, then return here.</div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Tier 1 */}
+                    {tier1.length > 0 && (
+                      <>
+                        <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'14px' }}>
+                          <div style={{ height:'1px', flex:1, background:'#059669' }} />
+                          <span style={{ color:'#34d399', fontWeight:'bold', fontSize:'0.95rem', whiteSpace:'nowrap' }}>🥇 Tier 1 — Enter Week 1 (Score ≥ 80)</span>
+                          <div style={{ height:'1px', flex:1, background:'#059669' }} />
+                        </div>
+                        <div className="grid" style={{ marginBottom:'28px' }}>
+                          {tier1.map(s => <SignalCard key={s.symbol} s={s} />)}
+                        </div>
+                      </>
+                    )}
+
+                    {/* Tier 2 */}
+                    {tier2.length > 0 && (
+                      <>
+                        <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'14px' }}>
+                          <div style={{ height:'1px', flex:1, background:'#0284c7' }} />
+                          <span style={{ color:'#38bdf8', fontWeight:'bold', fontSize:'0.95rem', whiteSpace:'nowrap' }}>🥈 Tier 2 — Enter Week 2 if Wk1 in profit (Score 65–79)</span>
+                          <div style={{ height:'1px', flex:1, background:'#0284c7' }} />
+                        </div>
+                        <div className="grid" style={{ marginBottom:'28px' }}>
+                          {tier2.map(s => <SignalCard key={s.symbol} s={s} />)}
+                        </div>
+                      </>
+                    )}
+
+                    {/* Watchlist */}
+                    {watchlist.length > 0 && (
+                      <>
+                        <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'14px' }}>
+                          <div style={{ height:'1px', flex:1, background:'#334155' }} />
+                          <span style={{ color:'#64748b', fontWeight:'bold', fontSize:'0.95rem', whiteSpace:'nowrap' }}>👁 Watchlist — Hold, wait for better setup (Score &lt; 65)</span>
+                          <div style={{ height:'1px', flex:1, background:'#334155' }} />
+                        </div>
+                        <div className="grid">
+                          {watchlist.map(s => <SignalCard key={s.symbol} s={s} />)}
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+              </>
+            );
+          })()}
         </>
       )}
     </div>
