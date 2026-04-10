@@ -2,6 +2,10 @@
 
 Swingmaster is an AI-powered equity prediction scanner that analyzes 60+ top NSE stocks daily using Machine Learning (Random Forest) to generate high-probability 1-3 month swing trading signals.
 
+**Latest release notes:** [README_v2.3.md](README_v2.3.md) — v2.3-stable (aligned training labels, stride walk-forward probabilities, ledger/live gate consistency, plus how walk-forward and the **multibagger** engine work).
+
+**v2.4-stable:** refreshed dashboard UI (Plus Jakarta Sans, glass header, pill navigation, card and badge polish, search and sector chips, High Conviction win-rate footnote).
+
 ## 📖 Trading Guide: How to Use the Signals
 
 When the dashboard displays a **BUY** or **STRONG BUY** signal for a stock, it means the AI model has calculated a high statistical probability of an upward trend based on momentum, ATR-based volatility, and volume spikes.

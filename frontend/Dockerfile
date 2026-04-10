@@ -25,8 +25,8 @@ COPY nginx-http.tpl /etc/nginx/conf.d/nginx-http.tpl
 COPY nginx-https.tpl /etc/nginx/conf.d/nginx-https.tpl
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-# Make entrypoint executable
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# Normalize line endings and make entrypoint executable
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh && chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Copy the built React app from the builder stage to Nginx's web root
 COPY --from=builder /app/dist /usr/share/nginx/html
@@ -34,5 +34,5 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Expose ports
 EXPOSE 80 443
 
-# Start with our entrypoint
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+# Start with shell-invoked entrypoint (avoids shebang/BOM issues)
+ENTRYPOINT ["sh", "/usr/local/bin/docker-entrypoint.sh"]
