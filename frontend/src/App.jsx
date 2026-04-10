@@ -669,7 +669,40 @@ function App() {
   const [experienceMode, setExperienceMode] = useState(true);
   const [showExperienceIntro, setShowExperienceIntro] = useState(true);
   const [activeChapter, setActiveChapter] = useState("regime");
-  const [pointer, setPointer] = useState({ x: 50, y: 20 });
+
+  // Load adaptive status from backend
+  const [adaptiveStatus, setAdaptiveStatus] = useState(null);
+  useEffect(() => {
+    const baseUrl = import.meta.env.PROD ? '' : 'http://localhost:8000';
+    fetch(`${baseUrl}/api/adaptive_status`)
+      .then(r => r.json())
+      .then(setAdaptiveStatus)
+      .catch(console.error);
+  }, []);
+
+  // Performance optimized interactive background tracker
+  useEffect(() => {
+    if (!experienceMode && !showExperienceIntro) return;
+    const bg = document.querySelector('.interactive-bg');
+    if (!bg) return;
+    
+    let ticking = false;
+    const updatePointer = (e) => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          const x = (e.clientX / window.innerWidth) * 100;
+          const y = (e.clientY / window.innerHeight) * 100;
+          bg.style.setProperty('--px', `${x}%`);
+          bg.style.setProperty('--py', `${y}%`);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+    
+    window.addEventListener('pointermove', updatePointer);
+    return () => window.removeEventListener('pointermove', updatePointer);
+  }, [experienceMode, showExperienceIntro]);
 
   const loadMultibagger = useCallback((refresh = false) => {
     setMbLoading(true);
@@ -848,7 +881,7 @@ function App() {
 
   return (
     <>
-    <div className="interactive-bg" style={{ "--px": `${pointer.x}%`, "--py": `${pointer.y}%` }} />
+    <div className="interactive-bg" />
     {showExperienceIntro && (
       <div className="experience-intro">
         <div className="experience-intro-card">
@@ -897,6 +930,7 @@ function App() {
           <button type="button" className={`tab tab-budget ${market === "BUDGET" ? "active" : ""}`} onClick={() => setMarket("BUDGET")}>Budget friendly</button>
           <button type="button" className={`tab ${market === "PORTFOLIO" ? "active" : ""}`} onClick={() => setMarket("PORTFOLIO")}>My portfolio</button>
           <button type="button" className={`tab tab-multibagger ${market === "MULTIBAGGER" ? "active" : ""}`} onClick={() => { setMarket("MULTIBAGGER"); if (mbData.length === 0 && !mbLoading) loadMultibagger(false); }}>Multibaggers</button>
+          <button type="button" className={`tab tab-adaptive ${market === "ADAPTIVE" ? "active" : ""}`} onClick={() => setMarket("ADAPTIVE")}>🧠 Engine Status</button>
         </nav>
 
         {trendingSectors.length > 0 && (
@@ -1375,6 +1409,123 @@ function App() {
             );
           })()}
         </>
+      )}
+
+      {/* ADAPTIVE ENGINE STATUS VIEW */}
+      {market === "ADAPTIVE" && (
+        <div style={{ animation: 'fade-in 0.4s ease-out', paddingBottom: '30px' }}>
+          
+          <div style={{ marginBottom: '24px', padding: '24px', background: 'linear-gradient(135deg, rgba(30,27,75,0.7) 0%, rgba(15,23,42,0.9) 100%)', borderRadius: '16px', border: '1px solid #6366f144', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px' }}>
+              <div>
+                <h2 style={{ color: '#818cf8', margin: '0 0 6px 0', fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '1.8rem' }}>🧠</span> Adaptive ML Engine
+                  {adaptiveStatus && (
+                    <span style={{ fontSize: '0.75rem', background: 'rgba(99,102,241,0.1)', color: '#a5b4fc', padding: '3px 8px', borderRadius: '12px', border: '1px solid #6366f133', marginLeft: '8px' }}>
+                      v{adaptiveStatus.engine_version || '1.0.0'}
+                    </span>
+                  )}
+                </h2>
+                <p style={{ color: '#94a3b8', margin: '0', fontSize: '0.9rem', maxWidth: '600px' }}>
+                  The quantitative engine continuously learns from closed trades. Probability thresholds and filter gates automatically calibrate daily to optimize the profit factor and win-rate.
+                </p>
+              </div>
+
+              {adaptiveStatus && adaptiveStatus.outcome_stats && (
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <div style={{ background: 'rgba(0,0,0,0.5)', padding: '10px 16px', borderRadius: '12px', border: '1px solid #1e293b', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Data Points</div>
+                    <div style={{ color: '#e2e8f0', fontSize: '1.2rem', fontWeight: 'bold' }}>{adaptiveStatus.outcome_stats.total_trades_logged || 0}</div>
+                  </div>
+                  <div style={{ background: 'rgba(0,0,0,0.5)', padding: '10px 16px', borderRadius: '12px', border: '1px solid #1e293b', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Overall WR</div>
+                    <div style={{ color: '#fbbf24', fontSize: '1.2rem', fontWeight: 'bold' }}>{adaptiveStatus.outcome_stats.overall_win_rate || 0}%</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {adaptiveStatus?.retrain_recommended && (
+              <div style={{ marginTop: '20px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef444455', color: '#fca5a5', padding: '12px 16px', borderRadius: '8px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '1.2rem' }}>⚠️</span> Model Retrain Recommended: The moving average win-rate has dropped below standard baseline. Consider triggering a data re-fetch and manual model fit.
+              </div>
+            )}
+          </div>
+
+          {!adaptiveStatus ? (
+             <div className="loader">Connecting to Engine Core...</div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+              
+              <div className="card" style={{ borderColor: '#6366f144', background: 'rgba(15, 23, 42, 0.8)' }}>
+                <div className="card-header" style={{ marginBottom: '20px' }}>
+                  <h3 style={{ margin: 0, color: '#a5b4fc', fontSize: '1.1rem' }}>Calibrated Thresholds</h3>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Logistic Regression updated</div>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid #334155', padding: '14px', borderRadius: '10px', position: 'relative' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginBottom: '6px' }}>Standard Probability</div>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#38bdf8' }}>&ge; {adaptiveStatus.calibrated_thresholds?.STD_PROB_UP?.toFixed(2)}</div>
+                    <div style={{ position: 'absolute', top: '14px', right: '14px', fontSize: '0.65rem', color: '#38bdf8', background: 'rgba(56,189,248,0.1)', padding: '2px 6px', borderRadius: '4px' }}>Base</div>
+                  </div>
+                  
+                  <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid #334155', padding: '14px', borderRadius: '10px', position: 'relative' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginBottom: '6px' }}>High Conviction Prob</div>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#fbbf24' }}>&ge; {adaptiveStatus.calibrated_thresholds?.HC_PROB_UP?.toFixed(2)}</div>
+                    <div style={{ position: 'absolute', top: '14px', right: '14px', fontSize: '0.65rem', color: '#fbbf24', background: 'rgba(251,191,36,0.1)', padding: '2px 6px', borderRadius: '4px' }}>Strict</div>
+                  </div>
+                  
+                  <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid #334155', padding: '14px', borderRadius: '10px' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginBottom: '6px' }}>Standard Vol Spike</div>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#38bdf8' }}>&ge; {adaptiveStatus.calibrated_thresholds?.STD_VOL_RATIO?.toFixed(1)}x</div>
+                  </div>
+                  
+                  <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid #334155', padding: '14px', borderRadius: '10px' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginBottom: '6px' }}>HC Vol Spike</div>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#fbbf24' }}>&ge; {adaptiveStatus.calibrated_thresholds?.HC_VOL_RATIO?.toFixed(1)}x</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="card" style={{ borderColor: '#6366f144', background: 'rgba(15, 23, 42, 0.8)' }}>
+                <div className="card-header" style={{ marginBottom: '20px' }}>
+                  <h3 style={{ margin: 0, color: '#a5b4fc', fontSize: '1.1rem' }}>Optimized Quality Gates</h3>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Grid-Search updated</div>
+                </div>
+                
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>RSI Sweet Spot</span>
+                    <span style={{ fontSize: '0.85rem', color: '#a5b4fc', fontWeight: 'bold' }}>{adaptiveStatus.optimized_gates?.rsi_min} — {adaptiveStatus.optimized_gates?.rsi_max}</span>
+                  </div>
+                  <div style={{ height: '6px', background: '#1e293b', borderRadius: '3px', position: 'relative' }}>
+                    <div style={{ position: 'absolute', left: `${adaptiveStatus.optimized_gates?.rsi_min}%`, width: `${(adaptiveStatus.optimized_gates?.rsi_max || 100) - (adaptiveStatus.optimized_gates?.rsi_min || 0)}%`, height: '100%', background: 'linear-gradient(90deg, #6366f1, #8b5cf6)', borderRadius: '3px' }} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(0,0,0,0.4)', border: '1px solid #334155', borderRadius: '8px', marginBottom: '10px' }}>
+                  <div>
+                    <div style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: 600 }}>Trend Strength (ADX)</div>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Minimum directional movement</div>
+                  </div>
+                  <div style={{ color: '#a5b4fc', fontWeight: 'bold' }}>&ge; {adaptiveStatus.optimized_gates?.adx_min}</div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(0,0,0,0.4)', border: '1px solid #334155', borderRadius: '8px' }}>
+                  <div>
+                    <div style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: 600 }}>MACD Required</div>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Must show bullish histogram</div>
+                  </div>
+                  <div style={{ color: adaptiveStatus.optimized_gates?.macd_positive ? '#4ade80' : '#64748b', fontWeight: 'bold' }}>
+                    {adaptiveStatus.optimized_gates?.macd_positive ? 'True ✅' : 'False'}
+                  </div>
+                </div>
+              </div>
+              
+            </div>
+          )}
+        </div>
       )}
     </div>
 

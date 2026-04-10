@@ -643,3 +643,11 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+.tab.tab-adaptive.active {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(79, 70, 229, 0.15) 100%);
+  border-color: rgba(99, 102, 241, 0.5);
+  color: #c7d2fe;
+  box-shadow: 0 0 25px rgba(99, 102, 241, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+}
+
