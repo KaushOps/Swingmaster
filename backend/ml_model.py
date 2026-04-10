@@ -2,6 +2,7 @@ import inspect
 import pandas as pd
 import ta
 import numpy as np
+from typing import Optional
 
 # Use XGBoost with fallback to RandomForest if not installed
 try:
@@ -18,6 +19,15 @@ DEFAULT_LOOKAHEAD = 60
 
 WALK_FORWARD_MIN_TRAIN = 120
 WALK_FORWARD_STRIDE = 10
+WALK_FORWARD_RECENT_STRIDE = 2
+WALK_FORWARD_HIGH_VOL_ATR_PCT = 0.03
+WALK_FORWARD_EMBARGO_ROWS = DEFAULT_LOOKAHEAD
+
+try:
+    from sklearn.isotonic import IsotonicRegression
+    _USE_ISOTONIC = True
+except Exception:
+    _USE_ISOTONIC = False
 
 
 def add_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -209,6 +219,7 @@ def predict_proba_walk_forward_stride(
     df: pd.DataFrame,
     min_train_rows: int = WALK_FORWARD_MIN_TRAIN,
     stride: int = WALK_FORWARD_STRIDE,
+    embargo_rows: int = WALK_FORWARD_EMBARGO_ROWS,
 ) -> pd.Series:
     """
     Out-of-sample style probabilities: refit every `stride` bars; each bar i is predicted
@@ -220,18 +231,54 @@ def predict_proba_walk_forward_stride(
         return probs
 
     model = None
+    calibrator: Optional[object] = None
     for i in range(min_train_rows, n):
-        if i == min_train_rows or (i - min_train_rows) % stride == 0:
-            train_df = df.iloc[:i]
+        adaptive_stride = stride
+        if i > 30:
+            recent = df.iloc[max(0, i - 30):i]
+            recent_close = recent.get('close')
+            recent_atr = recent.get('atr')
+            if recent_close is not None and recent_atr is not None and len(recent) > 0:
+                atr_pct = float((recent_atr / recent_close.replace(0, np.nan)).mean())
+                if np.isfinite(atr_pct) and atr_pct >= WALK_FORWARD_HIGH_VOL_ATR_PCT:
+                    adaptive_stride = WALK_FORWARD_RECENT_STRIDE
+
+        if i == min_train_rows or (i - min_train_rows) % adaptive_stride == 0:
+            # Purged walk-forward: remove the trailing embargo window to reduce
+            # overlap leakage from label lookahead near the prediction timestamp.
+            train_end = i - embargo_rows if i - embargo_rows > min_train_rows else i
+            train_df = df.iloc[:train_end]
             model = SwingModel()
+            calibrator = None
             try:
-                model.train(train_df)
+                # Keep a small holdout tail inside training slice for probability calibration.
+                calib_rows = max(30, min(120, int(len(train_df) * 0.2)))
+                if len(train_df) > (min_train_rows + calib_rows):
+                    fit_df = train_df.iloc[:-calib_rows]
+                    calib_df = train_df.iloc[-calib_rows:]
+                else:
+                    fit_df = train_df
+                    calib_df = None
+
+                model.train(fit_df)
+
+                if _USE_ISOTONIC and calib_df is not None:
+                    y_cal = calib_df['label'].astype(int).values
+                    if len(np.unique(y_cal)) >= 2:
+                        raw_cal = model.predict_proba(calib_df).astype(float).values
+                        iso = IsotonicRegression(out_of_bounds='clip')
+                        iso.fit(raw_cal, y_cal)
+                        calibrator = iso
             except Exception:
                 model = None
+                calibrator = None
         if model is None:
             continue
         try:
-            probs.iloc[i] = float(model.predict_proba(df.iloc[i : i + 1]).iloc[0])
+            p = float(model.predict_proba(df.iloc[i : i + 1]).iloc[0])
+            if calibrator is not None:
+                p = float(calibrator.predict([p])[0])
+            probs.iloc[i] = max(0.0, min(1.0, p))
         except Exception:
             pass
     return probs

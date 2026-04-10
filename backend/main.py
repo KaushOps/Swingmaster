@@ -164,6 +164,38 @@ MULTIBAGGER_CACHE = {
 }
 _mb_lock = threading.Lock()
 
+
+def get_dynamic_thresholds(market_bullish: bool, atr_pct: float) -> Dict[str, float]:
+    """
+    Regime + volatility aware thresholds:
+    - higher thresholds in high-volatility conditions
+    - slightly more strict when market regime is bearish
+    """
+    buy_prob = 0.55
+    buy_vol = 0.50
+    hc_prob = HC_PROB_UP
+    hc_vol = HC_VOL_RATIO
+
+    if atr_pct >= 0.03:
+        buy_prob += 0.03
+        buy_vol += 0.20
+        hc_prob += 0.02
+        hc_vol += 0.10
+    elif atr_pct <= 0.012:
+        buy_prob -= 0.01
+        buy_vol -= 0.05
+
+    if not market_bullish:
+        buy_prob += 0.02
+        hc_prob += 0.02
+
+    return {
+        "buy_prob": max(0.50, min(0.80, buy_prob)),
+        "buy_vol": max(0.40, min(2.00, buy_vol)),
+        "hc_prob": max(0.60, min(0.90, hc_prob)),
+        "hc_vol": max(1.00, min(3.00, hc_vol)),
+    }
+
 NIFTY_SECTOR_MAP = {
     "Information Technology": "NIFTY IT",
     "IT Services & Consulting": "NIFTY IT",
@@ -254,6 +286,12 @@ def compute_hc_historical_stats(historical_map):
     closed = wins + losses
     win_rate = round(wins / closed * 100, 1) if closed > 0 else 0
     avg_days = round(total_days / closed) if closed > 0 else 0
+    # Strategy R-multiple profile (TP: +2.5R, SL: -1R with 5ATR/2ATR structure)
+    gross_win_r = wins * 2.5
+    gross_loss_r = losses * 1.0
+    net_r = gross_win_r - gross_loss_r
+    expectancy_r = (net_r / closed) if closed > 0 else 0.0
+    profit_factor_r = (gross_win_r / gross_loss_r) if gross_loss_r > 0 else (float("inf") if gross_win_r > 0 else 0.0)
     return {
         "total_signals": total,
         "target_hit": wins,
@@ -261,8 +299,41 @@ def compute_hc_historical_stats(historical_map):
         "active": active,
         "win_rate_pct": win_rate,
         "avg_days_to_close": avg_days,
-        "closed_trades": closed
+        "closed_trades": closed,
+        "expectancy_r": round(expectancy_r, 3),
+        "profit_factor_r": (round(profit_factor_r, 3) if profit_factor_r != float("inf") else None),
+        "net_r_multiple": round(net_r, 2),
     }
+
+
+def get_drift_guardrail_multiplier(historical_map: Dict[str, List[Dict[str, Any]]], lookback_closed: int = 80) -> float:
+    """
+    Phase-2 drift guardrail:
+    tighten thresholds when recent closed-trade quality degrades.
+    """
+    closed_statuses: List[str] = []
+    for d in sorted(historical_map.keys(), reverse=True):
+        for s in historical_map[d]:
+            st = s.get("status")
+            if st in ("TARGET HIT", "SL HIT"):
+                closed_statuses.append(st)
+                if len(closed_statuses) >= lookback_closed:
+                    break
+        if len(closed_statuses) >= lookback_closed:
+            break
+
+    if len(closed_statuses) < 30:
+        return 1.0
+
+    wins = sum(1 for x in closed_statuses if x == "TARGET HIT")
+    wr = wins / len(closed_statuses)
+    if wr < 0.35:
+        return 1.12
+    if wr < 0.40:
+        return 1.08
+    if wr < 0.45:
+        return 1.04
+    return 1.0
 
 def update_universe_cache():
     if GLOBAL_BUY_CACHE["is_scanning"]:
@@ -306,13 +377,6 @@ def update_universe_cache():
             bt_stats = run_backtest(df, sl_atr_mult=2.0, tp_atr_mult=5.0, init_cash=100000)
             latest_close = float(df['close'].iloc[-1])
 
-            entries = df[(df['prob_up'] > 0.55) & (df['volume_ratio'] > 0.5)]
-            hc_entries = df[
-                (df['prob_up'] > HC_PROB_UP) &
-                (df['volume_ratio'] > HC_VOL_RATIO) &
-                (df['atr'] / df['close'] > HC_ATR_FILTER)
-            ]
-
             latest = df.iloc[-1]
             latest_date_str = df.index[-1].strftime("%Y-%m-%d")
             entry_price = float(latest['close'])
@@ -320,6 +384,19 @@ def update_universe_cache():
             prob_up = latest['prob_up']
             vol_ratio = float(latest['volume_ratio'])
             atr_pct = atr / entry_price if entry_price > 0 else 0
+            th = get_dynamic_thresholds(market_bullish, atr_pct)
+            guardrail_mult = get_drift_guardrail_multiplier(historical_map, lookback_closed=80)
+            guarded_buy_prob = min(0.90, th["buy_prob"] * guardrail_mult)
+            guarded_hc_prob = min(0.95, th["hc_prob"] * guardrail_mult)
+            guarded_buy_vol = min(3.0, th["buy_vol"] * (1.0 + (guardrail_mult - 1.0) * 0.5))
+            guarded_hc_vol = min(4.0, th["hc_vol"] * (1.0 + (guardrail_mult - 1.0) * 0.5))
+
+            entries = df[(df['prob_up'] > guarded_buy_prob) & (df['volume_ratio'] > guarded_buy_vol)]
+            hc_entries = df[
+                (df['prob_up'] > guarded_hc_prob) &
+                (df['volume_ratio'] > guarded_hc_vol) &
+                (df['atr'] / df['close'] > HC_ATR_FILTER)
+            ]
 
             sym = symbol.replace(".NS", "")
             target = entry_price + (5.0 * atr)
@@ -389,8 +466,8 @@ def update_universe_cache():
 
             if (
                 pd.notna(prob_up)
-                and prob_up > 0.55
-                and vol_ratio > 0.5
+                and prob_up > guarded_buy_prob
+                and vol_ratio > guarded_buy_vol
                 and market_bullish
                 and passes_quality_gates(latest)
                 and weekly_ok
@@ -410,8 +487,8 @@ def update_universe_cache():
 
             if (
                 pd.notna(prob_up)
-                and prob_up > HC_PROB_UP
-                and vol_ratio > HC_VOL_RATIO
+                and prob_up > guarded_hc_prob
+                and vol_ratio > guarded_hc_vol
                 and atr_pct > HC_ATR_FILTER
                 and market_bullish
                 and passes_quality_gates(latest)
@@ -534,6 +611,7 @@ def scan_markets(market: str = "IN") -> Dict[str, Any]:
     init_cash = 100000 if market == "IN" else 1200
     
     results = []
+    market_bullish = is_nifty_bullish() if market == "IN" else True
     
     for symbol in stocks_to_scan:
         try:
@@ -556,10 +634,16 @@ def scan_markets(market: str = "IN") -> Dict[str, Any]:
             atr = float(latest['atr'])
             prob_up = float(latest['prob_up'])
             vol_ratio = float(latest['volume_ratio'])
+            atr_pct = atr / entry_price if entry_price > 0 else 0
+            th = get_dynamic_thresholds(market_bullish, atr_pct)
             
             action = "WAIT"
-            # Relaxed the thresholds dynamically to generate more frequent signals 
-            if prob_up > 0.55 and vol_ratio > 0.5:
+            if (
+                prob_up > th["buy_prob"]
+                and vol_ratio > th["buy_vol"]
+                and passes_quality_gates(latest)
+                and (market != "IN" or market_bullish)
+            ):
                 action = "BUY"
             
             target = entry_price + (5.0 * atr)
@@ -581,7 +665,13 @@ def scan_markets(market: str = "IN") -> Dict[str, Any]:
             
     results.sort(key=lambda x: x['confidence'], reverse=True)
             
-    return {"status": "success", "timestamp": datetime.now().isoformat(), "market": market, "data": results}
+    return {
+        "status": "success",
+        "timestamp": datetime.now().isoformat(),
+        "market": market,
+        "nifty_bullish": market_bullish if market == "IN" else None,
+        "data": results,
+    }
 
 
 @app.get("/api/stock_detail/{symbol}")
@@ -914,6 +1004,21 @@ def search_stock(q: str):
     except Exception as e:
         print(f"Search API error: {e}")
     return {"results": []}
+
+@app.get("/api/healthz")
+def healthz() -> Dict[str, Any]:
+    """
+    Lightweight health endpoint with no external-data dependencies.
+    Safe for deploy/post-restart checks.
+    """
+    return {
+        "status": "ok",
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "backend_scanning": GLOBAL_BUY_CACHE["is_scanning"],
+        "backend_last_updated": GLOBAL_BUY_CACHE["last_updated"],
+        "multibagger_scanning": MULTIBAGGER_CACHE["is_scanning"],
+        "multibagger_last_updated": MULTIBAGGER_CACHE["last_updated"],
+    }
 
 if __name__ == "__main__":
     import uvicorn

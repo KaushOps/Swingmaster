@@ -468,6 +468,8 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
   const d_closed = d_wins + d_loss;
   const dynWinRate = d_closed > 0 ? (d_wins / d_closed * 100).toFixed(1) : 0;
   const dynAvgDays = d_closed > 0 ? Math.round(d_days / d_closed) : 0;
+  const dynExpectancyR = d_closed > 0 ? (((d_wins * 2.5) - d_loss) / d_closed) : 0;
+  const dynProfitFactor = d_loss > 0 ? ((d_wins * 2.5) / d_loss) : (d_wins > 0 ? null : 0);
   
   const isMonth = selectedMonth !== 'All';
   const showWinRate = isMonth ? dynWinRate : (stats?.win_rate_pct || 0);
@@ -475,6 +477,8 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
   const showLoss = isMonth ? d_loss : (stats?.sl_hit || 0);
   const showTotal = isMonth ? d_total : (stats?.total_signals || 0);
   const showAvgDays = isMonth ? dynAvgDays : (stats?.avg_days_to_close || 0);
+  const showExpectancyR = isMonth ? dynExpectancyR : (stats?.expectancy_r || 0);
+  const showProfitFactor = isMonth ? dynProfitFactor : (stats?.profit_factor_r ?? 0);
 
   return (
     <>
@@ -499,6 +503,20 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
           <div style={{ textAlign:'center' }}>
             <div style={{ fontSize:'2rem', fontWeight:'800', color:'#c084fc' }}>{showAvgDays || 0}d</div>
             <div style={{ fontSize:'0.8rem', color:'#d8b4fe', opacity:0.8 }}>Avg Time to TP/SL</div>
+          </div>
+          <div style={{ textAlign:'center' }}>
+            <div style={{ fontSize:'2rem', fontWeight:'800', color: showExpectancyR >= 0 ? '#4ade80' : '#f87171' }}>
+              {showExpectancyR > 0 ? '+' : ''}{Number(showExpectancyR).toFixed(2)}R
+            </div>
+            <div style={{ fontSize:'0.8rem', color: showExpectancyR >= 0 ? '#86efac' : '#fca5a5', opacity:0.8 }}>
+              Expectancy / trade
+            </div>
+          </div>
+          <div style={{ textAlign:'center' }}>
+            <div style={{ fontSize:'2rem', fontWeight:'800', color:'#38bdf8' }}>
+              {showProfitFactor === null ? '∞' : Number(showProfitFactor).toFixed(2)}
+            </div>
+            <div style={{ fontSize:'0.8rem', color:'#93c5fd', opacity:0.8 }}>Profit Factor (R)</div>
           </div>
           {bannerTheme !== 'amber' && (
             <div style={{ textAlign:'center' }}>
