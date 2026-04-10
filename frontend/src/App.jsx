@@ -302,16 +302,17 @@ function SearchBar({ onSelect }) {
   }, [query]);
 
   return (
-    <div style={{ position:'relative', width: '320px', marginLeft: 'auto', marginRight: '15px' }}>
+    <div className="search-wrap">
       <input 
         type="text" 
-        placeholder="🔍 Search NSE stock / company..." 
+        className="search-input"
+        placeholder="Search NSE symbol or company…" 
         value={query}
         onChange={e => setQuery(e.target.value)}
-        style={{ width:'100%', padding:'10px 15px', borderRadius:'8px', border:'1px solid #334155', background:'#1e293b', color:'#e2e8f0', outline:'none', fontSize:'0.9rem' }}
+        aria-label="Search stocks"
       />
       {results.length > 0 && query.trim().length >= 2 && (
-        <div style={{ position:'absolute', top:'100%', left:0, right:0, background:'#0f172a', border:'1px solid #334155', borderRadius:'8px', marginTop:'5px', zIndex:1000, overflow:'hidden', boxShadow:'0 10px 25px rgba(0,0,0,0.5)' }}>
+        <div style={{ position:'absolute', top:'100%', left:0, right:0, background:'rgba(15, 23, 42, 0.98)', border:'1px solid rgba(148, 163, 184, 0.2)', borderRadius:'12px', marginTop:'8px', zIndex:1000, overflow:'hidden', boxShadow:'0 16px 40px rgba(0,0,0,0.45)' }}>
           {results.map(r => (
             <div key={r.symbol} onClick={() => { onSelect(r.symbol); setQuery(''); setResults([]); }} style={{ padding:'12px 15px', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems: 'center', borderBottom:'1px solid #1e293b' }} onMouseEnter={e => e.currentTarget.style.background='#1e293b'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
               <strong style={{color:'#66fcf1', fontSize:'0.9rem'}}>{r.symbol}</strong>
@@ -435,6 +436,13 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
             <div style={{ textAlign:'center' }}>
               <div style={{ fontSize:'1rem', fontWeight:'700', color:'#d1fae5', marginTop:'6px' }}>Criteria: AI &gt; 72% • Vol &gt; 1.5x • ATR &gt; 1.5%</div>
               <div style={{ fontSize:'0.8rem', color:'#a7f3d0', opacity:0.7 }}>Stricter = fewer, higher quality</div>
+            </div>
+          )}
+          {bannerTheme === 'amber' && stats && stats.total_signals > 0 && (
+            <div style={{ gridColumn: '1 / -1', textAlign: 'center', marginTop: '14px', paddingTop: '14px', borderTop: '1px solid rgba(251, 191, 36, 0.15)' }}>
+              <p style={{ fontSize: '0.78rem', color: '#fde68a', opacity: 0.88, lineHeight: 1.55, maxWidth: '720px', margin: '0 auto' }}>
+                <strong style={{ color: '#fcd34d' }}>Win rate</strong> is computed from your ledger: (targets hit) ÷ (targets + stop losses) among <em>closed</em> trades only. It is not a forecast. After logic updates (walk-forward scoring and ledger gates), the number will reflect real outcomes as new data accumulates—there is no fixed &quot;correct&quot; percentage to expect upfront.
+              </p>
             </div>
           )}
         </div>
@@ -707,32 +715,37 @@ function App() {
   return (
     <>
     <div className="container">
-      <header className="header" style={{ position: 'relative' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '15px' }}>
-          <div>
-            <h1 style={{ margin: 0 }}>OmniQuant <span className="highlight">AI</span></h1>
-            <p className="subtitle" style={{ margin: '5px 0 0 0' }}>Algorithmic Equity Prediction Matrix</p>
+      <header className="app-header">
+        <div className="app-header-top">
+          <div className="app-brand">
+            <h1 className="app-title">OmniQuant <span className="highlight">AI</span></h1>
+            <p className="app-tagline">Algorithmic equity prediction matrix</p>
           </div>
           <SearchBar onSelect={symbol => setSelectedDetail(symbol)} />
         </div>
-        <div className="tabs">
-          <button className={`tab ${market === "IN"       ? "active" : ""}`} onClick={() => setMarket("IN")}>🇮🇳 India (NSE)</button>
-          <button className={`tab ${market === "US"       ? "active" : ""}`} onClick={() => setMarket("US")}>🇺🇸 USA (NYSE)</button>
-          <button className={`tab ${market === "NSE_BUYS" ? "active" : ""}`} onClick={() => setMarket("NSE_BUYS")}>🚀 All NSE (Buy Only)</button>
-          <button className={`tab ${market === "HC"       ? "active" : ""}`} onClick={() => setMarket("HC")} style={{ borderColor: market === "HC" ? "#fbbf24" : undefined, color: market === "HC" ? "#fbbf24" : undefined }}>🎯 High Conviction</button>
-          <button className={`tab ${market === "ACTIVE_SIGNALS" ? "active" : ""}`} onClick={() => setMarket("ACTIVE_SIGNALS")} style={{ borderColor: market === "ACTIVE_SIGNALS" ? "#4ade80" : undefined, color: market === "ACTIVE_SIGNALS" ? "#4ade80" : undefined }}>🟢 Active Signals</button>
-          <button className={`tab ${market === "BUDGET" ? "active" : ""}`} onClick={() => setMarket("BUDGET")} style={{ borderColor: market === "BUDGET" ? "#34d399" : undefined, color: market === "BUDGET" ? "#34d399" : undefined }}>₹ Budget Friendly</button>
-          <button className={`tab ${market === "PORTFOLIO" ? "active" : ""}`} onClick={() => setMarket("PORTFOLIO")}>💼 My Portfolio</button>
-          <button className={`tab ${market === "MULTIBAGGER" ? "active" : ""}`} onClick={() => { setMarket("MULTIBAGGER"); if (mbData.length === 0 && !mbLoading) { setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/live`).then(r=>r.json()).then(res=>{setMbData(res.data||[]);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }} style={{ borderColor: market === "MULTIBAGGER" ? "#a855f7" : undefined, color: market === "MULTIBAGGER" ? "#a855f7" : undefined }}>🚀 Multibaggers</button>
-        </div>
+        <nav className="tab-strip" aria-label="Main navigation">
+          <button type="button" className={`tab ${market === "IN" ? "active" : ""}`} onClick={() => setMarket("IN")}>India (NSE)</button>
+          <button type="button" className={`tab ${market === "US" ? "active" : ""}`} onClick={() => setMarket("US")}>USA (NYSE)</button>
+          <button type="button" className={`tab ${market === "NSE_BUYS" ? "active" : ""}`} onClick={() => setMarket("NSE_BUYS")}>All NSE (Buy)</button>
+          <button type="button" className={`tab tab-hc ${market === "HC" ? "active" : ""}`} onClick={() => setMarket("HC")}>High Conviction</button>
+          <button type="button" className={`tab tab-active-signals ${market === "ACTIVE_SIGNALS" ? "active" : ""}`} onClick={() => setMarket("ACTIVE_SIGNALS")}>Active Signals</button>
+          <button type="button" className={`tab tab-budget ${market === "BUDGET" ? "active" : ""}`} onClick={() => setMarket("BUDGET")}>Budget friendly</button>
+          <button type="button" className={`tab ${market === "PORTFOLIO" ? "active" : ""}`} onClick={() => setMarket("PORTFOLIO")}>My portfolio</button>
+          <button type="button" className={`tab tab-multibagger ${market === "MULTIBAGGER" ? "active" : ""}`} onClick={() => { setMarket("MULTIBAGGER"); if (mbData.length === 0 && !mbLoading) { setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/live`).then(r=>r.json()).then(res=>{setMbData(res.data||[]);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }}>Multibaggers</button>
+        </nav>
 
         {trendingSectors.length > 0 && (
-          <div style={{ marginTop:'20px', display:'flex', gap:'10px', overflowX:'auto', paddingBottom:'10px', scrollbarWidth:'none', msOverflowStyle:'none' }}>
-            <span style={{color:'#94a3b8', fontSize:'0.85rem', display:'flex', alignItems:'center', whiteSpace:'nowrap', letterSpacing:'1px', textTransform:'uppercase'}}>🔥 Trending Sectors</span>
+          <div className="app-trending">
+            <span className="app-trending-label">Trending sectors</span>
             {trendingSectors.map(s => (
-              <button key={s.sector} onClick={() => loadSectorInsight(s.sector)} style={{ background: 'rgba(255,255,255,0.05)', borderRadius:'12px', padding:'6px 14px', fontSize:'0.8rem', display:'flex', alignItems:'center', gap:'8px', whiteSpace:'nowrap', border:`1px solid ${s.change_pct >= 0 ? '#166534' : '#7f1d1d'}`, cursor:'pointer', color:'inherit', transition:'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.1)'} onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.05)'}>
-                <span style={{fontWeight:'bold', color:'#e2e8f0'}}>{s.sector.replace('NIFTY ','')}</span>
-                <span style={{color: s.change_pct >= 0 ? '#4ade80' : '#f87171', fontWeight:'600'}}>{s.change_pct > 0 ? '+' : ''}{s.change_pct}%</span>
+              <button
+                key={s.sector}
+                type="button"
+                onClick={() => loadSectorInsight(s.sector)}
+                className={`sector-chip ${s.change_pct >= 0 ? 'sector-chip-up' : 'sector-chip-down'}`}
+              >
+                <span style={{ fontWeight: 700, color: '#f1f5f9' }}>{s.sector.replace('NIFTY ', '')}</span>
+                <span style={{ color: s.change_pct >= 0 ? '#4ade80' : '#fb7185', fontWeight: 600 }}>{s.change_pct > 0 ? '+' : ''}{s.change_pct}%</span>
               </button>
             ))}
           </div>
@@ -766,7 +779,7 @@ function App() {
                 <div className="grid">
                   {data.length === 0 && <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'40px',color:'var(--text-dim)'}}>No High Conviction signals today. Thresholds are intentionally strict — quality over quantity.</div>}
                   {data.map(stock => (
-                    <div className="card" key={stock.symbol} style={{ borderColor:'#fbbf2444', boxShadow:'0 0 20px #fbbf2411', cursor:'pointer' }} onClick={() => setSelectedDetail(stock.symbol)}>
+                    <div className="card hc-card-glow" key={stock.symbol} style={{ cursor:'pointer' }} onClick={() => setSelectedDetail(stock.symbol)}>
                       <div className="card-header">
                         <h2>{stock.symbol}</h2>
                         <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
