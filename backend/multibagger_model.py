@@ -110,6 +110,7 @@ def process_symbol(symbol: str, target_date: Optional[str] = None) -> Optional[D
 
         years = 5 if target_date else 2
         df = fetch_daily_data(ns_symbol, years=years)
+        df = df.dropna(subset=['close', 'open', 'volume'])
         if df.empty or len(df) < 200:
             return None
 

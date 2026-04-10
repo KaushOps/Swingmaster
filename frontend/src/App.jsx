@@ -914,9 +914,40 @@ function App() {
             <h1 className="app-title">OmniQuant <span className="highlight">AI</span></h1>
             <p className="app-tagline">Algorithmic equity prediction matrix</p>
           </div>
-          <div style={{ display:'flex', gap:'10px', alignItems:'center', flexWrap:'wrap' }}>
-            <button type="button" className="tab" onClick={() => setExperienceMode((v) => !v)}>
-              {experienceMode ? "Disable Experience" : "Enable Experience"}
+          <div style={{ display:'flex', gap:'12px', alignItems:'center', flexWrap:'wrap' }}>
+            <button 
+              type="button" 
+              onClick={() => setExperienceMode((v) => !v)}
+              style={{
+                background: experienceMode ? 'rgba(94, 234, 212, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                border: experienceMode ? '1px solid rgba(94, 234, 212, 0.3)' : '1px solid rgba(255, 255, 255, 0.1)',
+                color: experienceMode ? '#5eead4' : '#94a3b8',
+                padding: '10px 14px',
+                borderRadius: '12px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '0.85rem',
+                fontWeight: '600',
+                transition: 'all 0.2s ease',
+                boxShadow: experienceMode ? '0 0 15px rgba(94, 234, 212, 0.1)' : 'none'
+              }}
+              onMouseEnter={(e) => {
+                if (!experienceMode) {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                  e.currentTarget.style.color = '#e2e8f0';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!experienceMode) {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.color = '#94a3b8';
+                }
+              }}
+            >
+              <span style={{ fontSize: '1.1rem' }}>✨</span>
+              <span className="hide-on-mobile">{experienceMode ? "Cinematic Mode On" : "Enable Cinematic"}</span>
             </button>
             <SearchBar onSelect={symbol => setSelectedDetail(symbol)} />
           </div>
