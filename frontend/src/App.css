@@ -2,6 +2,118 @@
   max-width: 1280px;
   margin: 0 auto;
   padding: 28px 22px 56px;
+  position: relative;
+  z-index: 1;
+}
+
+.interactive-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at var(--px, 50%) var(--py, 20%), rgba(94, 234, 212, 0.14), transparent 28%),
+    radial-gradient(circle at calc(var(--px, 50%) + 20%) calc(var(--py, 20%) + 22%), rgba(168, 85, 247, 0.1), transparent 30%);
+}
+
+.experience-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 1001;
+  display: grid;
+  place-items: center;
+  background: rgba(2, 6, 23, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.experience-intro-card {
+  width: min(640px, 92vw);
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.78));
+  padding: 28px 30px;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+}
+
+.experience-intro-card h2 {
+  color: var(--text-bright);
+  margin-bottom: 8px;
+}
+
+.experience-intro-card p {
+  color: var(--text-main);
+}
+
+.experience-shell {
+  margin-bottom: 24px;
+  border: 1px solid rgba(94, 234, 212, 0.2);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(6, 11, 24, 0.85), rgba(15, 23, 42, 0.6));
+  padding: 24px;
+}
+
+.experience-hero h2 {
+  color: var(--text-bright);
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  margin-bottom: 8px;
+}
+
+.experience-hero p {
+  color: var(--text-main);
+  max-width: 760px;
+}
+
+.experience-kicker {
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  color: #5eead4;
+}
+
+.experience-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.experience-grid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.experience-card {
+  text-align: left;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.5);
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: inherit;
+}
+
+.experience-card h3 {
+  margin: 0 0 6px;
+  color: var(--text-bright);
+  font-size: 1rem;
+}
+
+.experience-card p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-main);
+}
+
+.experience-card.active,
+.experience-card:hover {
+  border-color: rgba(94, 234, 212, 0.45);
+  transform: translateY(-2px);
+  background: rgba(30, 41, 59, 0.65);
 }
 
 .app-header {

@@ -61,7 +61,10 @@ const StatusBadge = ({ status }) => {
 function formatScanTimestamp(iso) {
   if (!iso) return '';
   try {
-    return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    // Backend currently emits naive ISO strings; treat them as UTC for consistent display.
+    const hasTz = /[zZ]|[+\-]\d{2}:\d{2}$/.test(iso);
+    const normalized = hasTz ? iso : `${iso}Z`;
+    return new Date(normalized).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   } catch {
     return '';
   }
@@ -80,6 +83,52 @@ function NiftyRegimeBanner({ niftyBullish, scanAt }) {
       )}
       {scanAt ? <span className="nifty-regime-meta">Universe scan: {scanAt}</span> : null}
     </div>
+  );
+}
+
+const EXPERIENCE_CHAPTERS = [
+  { id: "regime", title: "Market Regime", subtitle: "Nifty above/below 50 EMA sets risk posture." },
+  { id: "engine", title: "Signal Engine", subtitle: "AI confidence, volume spike, ATR and quality gates." },
+  { id: "conviction", title: "High Conviction", subtitle: "Stricter filters for quality-over-quantity entries." },
+  { id: "multibagger", title: "Multibagger Radar", subtitle: "Long-horizon scan with refresh + scan timestamp." },
+];
+
+function ExperienceMode({ onExit, onNavigate, activeChapter, setActiveChapter }) {
+  return (
+    <section className="experience-shell">
+      <div className="experience-hero">
+        <p className="experience-kicker">Interactive Mode</p>
+        <h2>OmniQuant Experience</h2>
+        <p>
+          Explore your scanner as a guided story: regime, signal engine, high conviction and
+          multibagger radar.
+        </p>
+        <div className="experience-actions">
+          <button type="button" className="tab active" onClick={() => onNavigate("HC")}>Open High Conviction</button>
+          <button type="button" className="tab" onClick={onExit}>Exit Experience</button>
+        </div>
+      </div>
+      <div className="experience-grid">
+        {EXPERIENCE_CHAPTERS.map((chapter) => (
+          <button
+            key={chapter.id}
+            type="button"
+            className={`experience-card ${activeChapter === chapter.id ? "active" : ""}`}
+            onMouseEnter={() => setActiveChapter(chapter.id)}
+            onFocus={() => setActiveChapter(chapter.id)}
+            onClick={() => {
+              if (chapter.id === "conviction") onNavigate("HC");
+              if (chapter.id === "regime") onNavigate("NSE_BUYS");
+              if (chapter.id === "engine") onNavigate("IN");
+              if (chapter.id === "multibagger") onNavigate("MULTIBAGGER");
+            }}
+          >
+            <h3>{chapter.title}</h3>
+            <p>{chapter.subtitle}</p>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -599,6 +648,10 @@ function App() {
   const [universeScanAt, setUniverseScanAt] = useState('');
   const [budgetCapital, setBudgetCapital] = useState(30000);
   const [budgetRiskPct, setBudgetRiskPct] = useState(2);
+  const [experienceMode, setExperienceMode] = useState(true);
+  const [showExperienceIntro, setShowExperienceIntro] = useState(true);
+  const [activeChapter, setActiveChapter] = useState("regime");
+  const [pointer, setPointer] = useState({ x: 50, y: 20 });
 
   const loadMultibagger = useCallback((refresh = false) => {
     setMbLoading(true);
@@ -616,6 +669,16 @@ function App() {
         setMbLoading(false);
       })
       .catch(() => setMbLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const onMove = (e) => {
+      const x = (e.clientX / window.innerWidth) * 100;
+      const y = (e.clientY / window.innerHeight) * 100;
+      setPointer({ x, y });
+    };
+    window.addEventListener("mousemove", onMove);
+    return () => window.removeEventListener("mousemove", onMove);
   }, []);
 
   useEffect(() => {
@@ -767,14 +830,45 @@ function App() {
 
   return (
     <>
+    <div className="interactive-bg" style={{ "--px": `${pointer.x}%`, "--py": `${pointer.y}%` }} />
+    {showExperienceIntro && (
+      <div className="experience-intro">
+        <div className="experience-intro-card">
+          <p className="experience-kicker">OmniQuant v2.4.1</p>
+          <h2>Start Interactive Experience?</h2>
+          <p>A cinematic layer on top of your existing dashboard. You can switch off anytime.</p>
+          <div className="experience-actions">
+            <button type="button" className="tab active" onClick={() => { setExperienceMode(true); setShowExperienceIntro(false); }}>
+              Start Experience
+            </button>
+            <button type="button" className="tab" onClick={() => { setExperienceMode(false); setShowExperienceIntro(false); }}>
+              Open Classic Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     <div className="container">
+      {experienceMode && (
+        <ExperienceMode
+          onExit={() => setExperienceMode(false)}
+          onNavigate={(next) => setMarket(next)}
+          activeChapter={activeChapter}
+          setActiveChapter={setActiveChapter}
+        />
+      )}
       <header className="app-header">
         <div className="app-header-top">
           <div className="app-brand">
             <h1 className="app-title">OmniQuant <span className="highlight">AI</span></h1>
             <p className="app-tagline">Algorithmic equity prediction matrix</p>
           </div>
-          <SearchBar onSelect={symbol => setSelectedDetail(symbol)} />
+          <div style={{ display:'flex', gap:'10px', alignItems:'center', flexWrap:'wrap' }}>
+            <button type="button" className="tab" onClick={() => setExperienceMode((v) => !v)}>
+              {experienceMode ? "Disable Experience" : "Enable Experience"}
+            </button>
+            <SearchBar onSelect={symbol => setSelectedDetail(symbol)} />
+          </div>
         </div>
         <nav className="tab-strip" aria-label="Main navigation">
           <button type="button" className={`tab ${market === "IN" ? "active" : ""}`} onClick={() => setMarket("IN")}>India (NSE)</button>
