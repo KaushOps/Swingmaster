@@ -1150,8 +1150,11 @@ function App() {
                       </div>
                     </div>
                   ))}
-                  {(mbView === 'live' ? mbData : (mbBacktest?.picks || [])).length === 0 && (
+                  {mbView === 'live' && mbLastUpdated && mbData.length === 0 && (
                     <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'60px'}}>No multibagger candidates found matching the strict criteria.</div>
+                  )}
+                  {mbView === 'backtest' && mbBacktest && (mbBacktest.picks || []).length === 0 && (
+                    <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'60px'}}>No multibagger candidates found in this historical period.</div>
                   )}
                 </div>
               )}
