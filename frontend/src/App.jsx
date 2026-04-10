@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts'
 import './App.css'
 
@@ -57,6 +57,31 @@ const StatusBadge = ({ status }) => {
   const cls = status === 'TARGET HIT' ? 'target-hit' : status === 'SL HIT' ? 'sl-hit' : status === 'STRONG BUY' ? 'strong-buy' : status === 'BUY' ? 'buy' : 'active';
   return <span className={`badge ${cls}`}>{status}</span>;
 };
+
+function formatScanTimestamp(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  } catch {
+    return '';
+  }
+}
+
+function NiftyRegimeBanner({ niftyBullish, scanAt }) {
+  if (niftyBullish !== true && niftyBullish !== false) return null;
+  const bull = niftyBullish;
+  return (
+    <div className={`nifty-regime ${bull ? 'nifty-regime-bull' : 'nifty-regime-bear'}`} role="status">
+      <strong>Nifty 50 vs 50-day EMA:</strong>{' '}
+      {bull ? (
+        <>Bullish (index above 50 EMA). New All NSE BUY and High Conviction signals are allowed when other filters pass.</>
+      ) : (
+        <>Bearish (index below 50 EMA). <em>New</em> BUY and High Conviction scanner entries are suppressed to protect capital. Historical ledger rows are unchanged.</>
+      )}
+      {scanAt ? <span className="nifty-regime-meta">Universe scan: {scanAt}</span> : null}
+    </div>
+  );
+}
 
 function StockDetailDrawer({ symbol, onClose }) {
   const [detail, setDetail] = useState(null);
@@ -568,8 +593,30 @@ function App() {
   const [mbView, setMbView] = useState('live'); // 'live' | 'backtest'
   const [mbYearsAgo, setMbYearsAgo] = useState(1);
   const [mbLoading, setMbLoading] = useState(false);
+  const [mbLastUpdated, setMbLastUpdated] = useState(null);
+  const [mbRemoteScanning, setMbRemoteScanning] = useState(false);
+  const [niftyBullish, setNiftyBullish] = useState(null);
+  const [universeScanAt, setUniverseScanAt] = useState('');
   const [budgetCapital, setBudgetCapital] = useState(30000);
   const [budgetRiskPct, setBudgetRiskPct] = useState(2);
+
+  const loadMultibagger = useCallback((refresh = false) => {
+    setMbLoading(true);
+    setMbRemoteScanning(false);
+    const baseUrl = import.meta.env.PROD ? '' : 'http://localhost:8000';
+    const q = refresh ? '?refresh=true' : '';
+    fetch(`${baseUrl}/api/multibagger/live${q}`)
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.status === 'success') {
+          setMbData(res.data || []);
+          if (res.last_updated) setMbLastUpdated(res.last_updated);
+          setMbRemoteScanning(!!res.is_scanning);
+        }
+        setMbLoading(false);
+      })
+      .catch(() => setMbLoading(false));
+  }, []);
 
   useEffect(() => {
     // Fetch trending sectors once on load
@@ -624,6 +671,8 @@ function App() {
             setHcData(result.data || []);
             if (result.historical) setHcHistorical(result.historical.slice(-120));
             if (result.backtest_summary) setHcStats(result.backtest_summary);
+            if (typeof result.nifty_bullish === 'boolean') setNiftyBullish(result.nifty_bullish);
+            if (result.last_updated) setUniverseScanAt(formatScanTimestamp(result.last_updated));
           })
           .catch(console.error);
       }
@@ -634,6 +683,8 @@ function App() {
             setData(result.data || []);
             if (result.historical) setHistoricalData(result.historical.slice(-120));
             if (result.backtest_summary) setNseStats(result.backtest_summary);
+            if (typeof result.nifty_bullish === 'boolean') setNiftyBullish(result.nifty_bullish);
+            if (result.last_updated) setUniverseScanAt(formatScanTimestamp(result.last_updated));
           })
           .catch(console.error);
       }
@@ -678,6 +729,8 @@ function App() {
       .then(result => {
         if (ignore) return;
         setData(result.data || []);
+        if (typeof result.nifty_bullish === 'boolean') setNiftyBullish(result.nifty_bullish);
+        if (result.last_updated) setUniverseScanAt(formatScanTimestamp(result.last_updated));
         if (result.historical) {
           if (isHC) {
             setHcHistorical(result.historical.slice(-120));
@@ -731,7 +784,7 @@ function App() {
           <button type="button" className={`tab tab-active-signals ${market === "ACTIVE_SIGNALS" ? "active" : ""}`} onClick={() => setMarket("ACTIVE_SIGNALS")}>Active Signals</button>
           <button type="button" className={`tab tab-budget ${market === "BUDGET" ? "active" : ""}`} onClick={() => setMarket("BUDGET")}>Budget friendly</button>
           <button type="button" className={`tab ${market === "PORTFOLIO" ? "active" : ""}`} onClick={() => setMarket("PORTFOLIO")}>My portfolio</button>
-          <button type="button" className={`tab tab-multibagger ${market === "MULTIBAGGER" ? "active" : ""}`} onClick={() => { setMarket("MULTIBAGGER"); if (mbData.length === 0 && !mbLoading) { setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/live`).then(r=>r.json()).then(res=>{setMbData(res.data||[]);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }}>Multibaggers</button>
+          <button type="button" className={`tab tab-multibagger ${market === "MULTIBAGGER" ? "active" : ""}`} onClick={() => { setMarket("MULTIBAGGER"); if (mbData.length === 0 && !mbLoading) loadMultibagger(false); }}>Multibaggers</button>
         </nav>
 
         {trendingSectors.length > 0 && (
@@ -761,6 +814,7 @@ function App() {
           {/* HIGH CONVICTION VIEW */}
           {market === "HC" && (
             <>
+              <NiftyRegimeBanner niftyBullish={niftyBullish} scanAt={universeScanAt} />
               <HistoryPanel
                 key="hc-panel"
                 histData={hcHistorical}
@@ -818,6 +872,7 @@ function App() {
           {/* NSE BUY ONLY VIEW */}
           {market === "NSE_BUYS" && (
             <>
+              <NiftyRegimeBanner niftyBullish={niftyBullish} scanAt={universeScanAt} />
               <HistoryPanel
                 key="nse-panel"
                 histData={historicalData}
@@ -861,11 +916,25 @@ function App() {
                     <h2 style={{ color:'#e2e8f0', margin:0, fontSize:'1.3rem' }}>🧠 Renaissance Multibagger Engine</h2>
                     <p style={{ color:'#94a3b8', margin:'4px 0 0', fontSize:'0.85rem' }}>Quantitative anomaly detection · R² trend analysis · Volume accumulation scoring</p>
                   </div>
-                  <div style={{ display:'flex', gap:'8px' }}>
+                  <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
                     <button onClick={() => setMbView('live')} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='live' ? '1px solid #a855f7' : '1px solid #334155', background: mbView==='live' ? 'rgba(168,85,247,0.15)' : 'transparent', color: mbView==='live' ? '#c084fc' : '#94a3b8', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600' }}>📡 Live Predictions</button>
                     <button onClick={() => { setMbView('backtest'); if (!mbBacktest) { setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${mbYearsAgo}`).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='backtest' ? '1px solid #a855f7' : '1px solid #334155', background: mbView==='backtest' ? 'rgba(168,85,247,0.15)' : 'transparent', color: mbView==='backtest' ? '#c084fc' : '#94a3b8', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600' }}>⏳ Historical Proof</button>
                   </div>
                 </div>
+
+                {mbView === 'live' && (
+                  <div className="mb-toolbar">
+                    <span className="mb-scan-meta">
+                      {mbLastUpdated
+                        ? <>Last multibagger scan: <strong style={{ color: '#e2e8f0' }}>{formatScanTimestamp(mbLastUpdated)}</strong></>
+                        : 'No multibagger scan yet — click Refresh to run.'}
+                    </span>
+                    <button type="button" className="mb-refresh-btn" disabled={mbLoading} onClick={() => loadMultibagger(true)}>
+                      {mbLoading ? 'Scanning…' : 'Refresh scan'}
+                    </button>
+                    {mbRemoteScanning ? <span className="mb-scan-meta">A full scan is still running on the server — you can refresh again shortly.</span> : null}
+                  </div>
+                )}
 
                 {mbView === 'backtest' && (
                   <div style={{ display:'flex', gap:'8px', marginBottom:'16px' }}>

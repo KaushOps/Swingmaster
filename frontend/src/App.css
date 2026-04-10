@@ -469,3 +469,65 @@
 .sector-chip-down {
   border-color: rgba(248, 113, 113, 0.35);
 }
+
+.nifty-regime {
+  border-radius: var(--radius-lg);
+  padding: 14px 18px;
+  margin-bottom: 22px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  border: 1px solid var(--border-subtle);
+}
+
+.nifty-regime-bull {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.28);
+  color: var(--text-main);
+}
+
+.nifty-regime-bear {
+  background: rgba(251, 113, 133, 0.1);
+  border-color: rgba(251, 113, 133, 0.35);
+  color: var(--text-main);
+}
+
+.nifty-regime-meta {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.mb-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.mb-scan-meta {
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.mb-refresh-btn {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid #a855f766;
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: inherit;
+}
+
+.mb-refresh-btn:hover:not(:disabled) {
+  background: rgba(168, 85, 247, 0.22);
+}
+
+.mb-refresh-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

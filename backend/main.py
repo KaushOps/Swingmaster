@@ -139,7 +139,8 @@ GLOBAL_BUY_CACHE = {
     "data": [],
     "historical": [],
     "backtest_summary": {},
-    "is_scanning": False
+    "is_scanning": False,
+    "nifty_bullish": None,  # as of last universe scan: Nifty 50 close > 50-day EMA
 }
 
 # High Conviction cache: stricter thresholds — fewer but much higher quality signals
@@ -148,7 +149,7 @@ HC_CACHE = {
     "data": [],
     "historical": [],
     "backtest_summary": {},
-    "is_scanning": False
+    "is_scanning": False,
 }
 
 # HC Thresholds
@@ -156,7 +157,12 @@ HC_PROB_UP    = 0.72   # at least 72% ML confidence
 HC_VOL_RATIO  = 1.5    # at least 1.5x average volume spike
 HC_ATR_FILTER = 0.015  # require at least 1.5% ATR (avoid noise)
 
-_nifty_bullish = True  # global cache for regime; updated with each scan
+MULTIBAGGER_CACHE = {
+    "last_updated": None,
+    "data": [],
+    "is_scanning": False,
+}
+_mb_lock = threading.Lock()
 
 NIFTY_SECTOR_MAP = {
     "Information Technology": "NIFTY IT",
@@ -446,6 +452,7 @@ def update_universe_cache():
     GLOBAL_BUY_CACHE["backtest_summary"] = nse_stats
     GLOBAL_BUY_CACHE["last_updated"] = datetime.now().isoformat()
     GLOBAL_BUY_CACHE["is_scanning"] = False
+    GLOBAL_BUY_CACHE["nifty_bullish"] = market_bullish
     HC_CACHE["data"] = hc_buys
     HC_CACHE["historical"] = hc_hist_list
     HC_CACHE["backtest_summary"] = hc_stats
@@ -498,12 +505,13 @@ scheduler.start()
 @app.get("/api/scan_universe_buys")
 def scan_universe_buys() -> Dict[str, Any]:
     return {
-        "status": "success", 
-        "last_updated": GLOBAL_BUY_CACHE["last_updated"], 
+        "status": "success",
+        "last_updated": GLOBAL_BUY_CACHE["last_updated"],
         "is_scanning": GLOBAL_BUY_CACHE["is_scanning"],
         "data": GLOBAL_BUY_CACHE["data"],
         "historical": GLOBAL_BUY_CACHE["historical"],
-        "backtest_summary": GLOBAL_BUY_CACHE["backtest_summary"]
+        "backtest_summary": GLOBAL_BUY_CACHE["backtest_summary"],
+        "nifty_bullish": GLOBAL_BUY_CACHE["nifty_bullish"],
     }
 
 @app.get("/api/high_conviction")
@@ -514,7 +522,8 @@ def high_conviction_buys() -> Dict[str, Any]:
         "is_scanning": GLOBAL_BUY_CACHE["is_scanning"],
         "data": HC_CACHE["data"],
         "historical": HC_CACHE["historical"],
-        "backtest_summary": HC_CACHE["backtest_summary"]
+        "backtest_summary": HC_CACHE["backtest_summary"],
+        "nifty_bullish": GLOBAL_BUY_CACHE["nifty_bullish"],
     }
 
 @app.get("/api/scan")
@@ -740,18 +749,49 @@ async def stock_detail(symbol: str):
 
 
 @app.get("/api/multibagger/live")
-async def multibagger_live():
+def multibagger_live(refresh: bool = False) -> Dict[str, Any]:
     """
-    Returns the top 20 current multibagger candidates scored by
-    the Renaissance-style quantitative algorithm.
+    Returns cached multibagger rankings unless refresh=true or no scan has run yet.
     """
     from multibagger_model import scan_multibaggers
     from symbols import NSE_200
-    # Strip .NS suffix for the model (it adds it back internally)
-    # Memory Cap removed, Oracle Server 24GB active. Processing up to 500 liquid stocks with 30 threads.
+
     symbols = [s.replace(".NS", "") for s in NSE_200]
-    results = scan_multibaggers(symbols, target_date=None, max_workers=30, top_n=20)
-    return {"status": "success", "data": results}
+
+    with _mb_lock:
+        if MULTIBAGGER_CACHE["is_scanning"]:
+            return {
+                "status": "success",
+                "data": MULTIBAGGER_CACHE["data"],
+                "last_updated": MULTIBAGGER_CACHE["last_updated"],
+                "is_scanning": True,
+            }
+        if not refresh and MULTIBAGGER_CACHE["last_updated"] is not None:
+            return {
+                "status": "success",
+                "data": MULTIBAGGER_CACHE["data"],
+                "last_updated": MULTIBAGGER_CACHE["last_updated"],
+                "is_scanning": False,
+            }
+        MULTIBAGGER_CACHE["is_scanning"] = True
+
+    try:
+        results = scan_multibaggers(symbols, target_date=None, max_workers=30, top_n=20)
+        ts = datetime.now().isoformat()
+        with _mb_lock:
+            MULTIBAGGER_CACHE["data"] = results
+            MULTIBAGGER_CACHE["last_updated"] = ts
+        return {
+            "status": "success",
+            "data": results,
+            "last_updated": ts,
+            "is_scanning": False,
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e), "data": [], "last_updated": None, "is_scanning": False}
+    finally:
+        with _mb_lock:
+            MULTIBAGGER_CACHE["is_scanning"] = False
 
 
 @app.get("/api/multibagger/backtest")

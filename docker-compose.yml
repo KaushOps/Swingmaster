@@ -10,25 +10,51 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+    volumes:
+      - ./backend/data:/app/data
     networks:
       - swingmaster-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/scan?market=IN"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=
+        - VITE_API_URL=${VITE_API_URL:-}
     container_name: swingmaster-frontend
     restart: always
     ports:
-      - "8080:80"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
     depends_on:
       - backend
     networks:
       - swingmaster-network
 
+  certbot:
+    image: certbot/certbot
+    container_name: swingmaster-certbot
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done'"
+
 networks:
   swingmaster-network:
     driver: bridge
+
+volumes:
+  letsencrypt:
+    name: swingmaster_letsencrypt
+  certbot_www:
+    name: swingmaster_certbot_webroot
