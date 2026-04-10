@@ -785,7 +785,7 @@ function App() {
             setHcData(result.data || []);
             if (result.historical) setHcHistorical(result.historical.slice(-120));
             if (result.backtest_summary) setHcStats(result.backtest_summary);
-            if (typeof result.nifty_bullish === 'boolean') setNiftyBullish(result.nifty_bullish);
+            if (typeof result.market_bullish === 'boolean') setNiftyBullish(result.market_bullish);
             if (result.last_updated) setUniverseScanAt(formatScanTimestamp(result.last_updated));
           })
           .catch(console.error);
@@ -797,7 +797,7 @@ function App() {
             setData(result.data || []);
             if (result.historical) setHistoricalData(result.historical.slice(-120));
             if (result.backtest_summary) setNseStats(result.backtest_summary);
-            if (typeof result.nifty_bullish === 'boolean') setNiftyBullish(result.nifty_bullish);
+            if (typeof result.market_bullish === 'boolean') setNiftyBullish(result.market_bullish);
             if (result.last_updated) setUniverseScanAt(formatScanTimestamp(result.last_updated));
           })
           .catch(console.error);
@@ -843,7 +843,7 @@ function App() {
       .then(result => {
         if (ignore) return;
         setData(result.data || []);
-        if (typeof result.nifty_bullish === 'boolean') setNiftyBullish(result.nifty_bullish);
+        if (typeof result.market_bullish === 'boolean') setNiftyBullish(result.market_bullish);
         if (result.last_updated) setUniverseScanAt(formatScanTimestamp(result.last_updated));
         if (result.historical) {
           if (isHC) {
