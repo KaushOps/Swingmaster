@@ -27,6 +27,12 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
+    # Never cache index.html
+    location = /index.html {
+        root /usr/share/nginx/html;
+        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
+    }
+
     location /api/ {
         proxy_pass http://swingmaster-backend:8000/api/;
         proxy_http_version 1.1;
