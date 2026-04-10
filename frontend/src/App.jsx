@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { BarChart, Bar, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts'
 import './App.css'
 
@@ -53,6 +54,77 @@ const StockTooltip = ({ active, payload, label }) => {
   return null;
 };
 
+const FilterToolbar = ({ filters, setFilters }) => {
+  return (
+    <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+      <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>Filters:</span>
+      <select 
+        value={filters.sortBy} 
+        onChange={e => setFilters({...filters, sortBy: e.target.value})}
+        style={{ background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', padding: '4px 8px', fontSize: '0.85rem' }}
+      >
+        <option value="confidence">Sort by AI Confidence</option>
+        <option value="volume">Sort by Volume Surge</option>
+        <option value="growth">Sort by Today's Gain</option>
+      </select>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#94a3b8' }}>
+        <input 
+          type="checkbox" 
+          checked={filters.highConfidence} 
+          onChange={e => setFilters({...filters, highConfidence: e.target.checked})} 
+        />
+        Confidence {'>'} 75%
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#94a3b8' }}>
+        <input 
+          type="checkbox" 
+          checked={filters.highVolume} 
+          onChange={e => setFilters({...filters, highVolume: e.target.checked})} 
+        />
+        Vol Surge {'>'} 2x
+      </div>
+    </div>
+  );
+};
+
+const SectorGauge = ({ portfolio }) => {
+  const sectors = portfolio.reduce((acc, trade) => {
+    const sec = trade.sector || 'Unknown';
+    acc[sec] = (acc[sec] || 0) + (trade.buyPrice * trade.qty);
+    return acc;
+  }, {});
+  
+  const total = Object.values(sectors).reduce((a, b) => a + b, 0);
+  if (total === 0) return null;
+
+  return (
+    <div style={{ background: 'var(--panel-bg)', padding: '20px', borderRadius: '16px', border: 'var(--glass-border)', marginBottom: '30px' }}>
+      <h3 style={{ margin: '0 0 15px 0', fontSize: '0.9rem', color: 'var(--text-bright)', textTransform: 'uppercase', letterSpacing: '1px' }}>Sector Concentration</h3>
+      <div style={{ display: 'flex', gap: '8px', height: '12px', borderRadius: '6px', overflow: 'hidden', background: 'rgba(255,255,255,0.05)' }}>
+        {Object.entries(sectors).map(([name, value], i) => (
+          <div 
+            key={name}
+            style={{ 
+              width: `${(value/total)*100}%`, 
+              background: `hsl(${i * 45}, 70%, 60%)`,
+              height: '100%'
+            }} 
+            title={`${name}: ${((value/total)*100).toFixed(1)}%`}
+          />
+        ))}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', marginTop: '12px' }}>
+        {Object.entries(sectors).map(([name, value], i) => (
+          <div key={name} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: `hsl(${i * 45}, 70%, 60%)` }} />
+            <span style={{ color: '#94a3b8' }}>{name} ({((value/total)*100).toFixed(1)}%)</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const StatusBadge = ({ status }) => {
   const cls = status === 'TARGET HIT' ? 'target-hit' : status === 'SL HIT' ? 'sl-hit' : status === 'STRONG BUY' ? 'strong-buy' : status === 'BUY' ? 'buy' : 'active';
   return <span className={`badge ${cls}`}>{status}</span>;
@@ -64,6 +136,7 @@ function StockDetailDrawer({ symbol, onClose }) {
   const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
 
   useEffect(() => {
+    if (!symbol) return;
     setLoading(true);
     fetch(`${baseUrl}/api/stock_detail/${symbol}`)
       .then(r => r.json())
@@ -79,8 +152,18 @@ function StockDetailDrawer({ symbol, onClose }) {
   );
 
   return (
-    <div style={{ position:'fixed', top:0, right:0, width:'min(480px, 100vw)', height:'100vh', background:'#0f172a', borderLeft:'1px solid #1e293b', zIndex:1000, overflowY:'auto', boxShadow:'-4px 0 30px rgba(0,0,0,0.5)' }}>
-      <div style={{ padding:'20px', borderBottom:'1px solid #1e293b', display:'flex', justifyContent:'space-between', alignItems:'center', position:'sticky', top:0, background:'#0f172a', zIndex:1 }}>
+    <AnimatePresence>
+      {symbol && (
+        <>
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={onClose}
+            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:999, backdropFilter:'blur(4px)' }} 
+          />
+          <motion.div 
+            initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            style={{ position:'fixed', top:0, right:0, width:'min(480px, 100vw)', height:'100vh', background:'rgba(15, 23, 42, 0.85)', backdropFilter:'blur(16px)', borderLeft:'1px solid rgba(56,189,248,0.2)', zIndex:1000, overflowY:'auto', boxShadow:'-10px 0 40px rgba(0,0,0,0.5)' }}>
+            <div style={{ padding:'20px', borderBottom:'1px solid rgba(255,255,255,0.05)', display:'flex', justifyContent:'space-between', alignItems:'center', position:'sticky', top:0, background:'rgba(15, 23, 42, 0.95)', zIndex:1, backdropFilter:'blur(10px)' }}>
         <div>
           <h2 style={{ margin:0, color:'#f8fafc', fontSize:'1.4rem' }}>{symbol}</h2>
           {detail && <div style={{ color:'#64748b', fontSize:'0.85rem', marginTop:'2px' }}>{detail.company_name}</div>}
@@ -182,21 +265,43 @@ function StockDetailDrawer({ symbol, onClose }) {
           )}
         </div>
       )}
-    </div>
+      </motion.div>
+      </>
+      )}
+    </AnimatePresence>
   );
 }
 
-function StockGrid({ data, currency, capLabel, onLogTrade }) {
+function StockGrid({ data, currency, capLabel, onLogTrade, onDetail }) {
   if (!data || data.length === 0) return <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'40px',color:'var(--text-dim)'}}>No active signals at this time.</div>;
+  
+  const containerVars = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.05 }
+    }
+  };
+
+  const itemVars = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0 }
+  };
+
   return (
-    <>
+    <motion.div className="grid" variants={containerVars} initial="hidden" animate="show">
       {data.map(stock => (
-        <div className="card" key={stock.symbol}>
+        <motion.div className="card" key={stock.symbol} variants={itemVars} onClick={() => onDetail && onDetail(stock.symbol)} style={{ cursor: 'pointer' }}>
           <div className="card-header">
             <h2>{stock.symbol}</h2>
             <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
-              <StatusBadge status={stock.action} />
-              {onLogTrade && <button onClick={() => onLogTrade(stock, stock.entry)} style={{background:'transparent', border:`1px solid var(--accent-color)`, color:'var(--accent-color)', borderRadius:'4px', padding:'4px 8px', fontSize:'0.75rem', cursor:'pointer'}}>+ Log</button>}
+              <StatusBadge status={stock.action || stock.status} />
+              {onLogTrade && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onLogTrade(stock, stock.entry); }} 
+                  style={{background:'rgba(56,189,248,0.1)', border:`1px solid var(--accent-color)`, color:'var(--accent-color)', borderRadius:'8px', padding:'6px 12px', fontSize:'0.75rem', cursor:'pointer', fontWeight:'bold'}}
+                >+ Log</button>
+              )}
             </div>
           </div>
           <div className="stats-grid">
@@ -205,19 +310,22 @@ function StockGrid({ data, currency, capLabel, onLogTrade }) {
             <div className="stat"><span>Stoploss</span><strong className="down">{currency}{stock.stoploss.toFixed(2)}</strong></div>
             <div className="stat"><span>Confidence</span><strong>{stock.confidence.toFixed(1)}%</strong></div>
             <div className="stat"><span>Vol Spike</span><strong className={stock.volume_ratio > 1.5 ? 'up' : 'wait'}>{stock.volume_ratio.toFixed(2)}x</strong></div>
+            {stock.growth_pct !== undefined && <div className="stat"><span>Growth</span><strong className={stock.growth_pct >= 0 ? 'up' : 'down'}>{stock.growth_pct.toFixed(1)}%</strong></div>}
           </div>
-          <div className="backtest-section">
-            <h3>1-3 Month Swing Backtest ({capLabel})</h3>
-            <div className="bt-stats">
-              <div>Win Rate: <span>{stock.backtest.win_rate.toFixed(1)}%</span></div>
-              <div>Sharpe: <span>{stock.backtest.sharpe_ratio.toFixed(2)}</span></div>
-              <div>Drawdown: <span className="down">{stock.backtest.max_drawdown.toFixed(1)}%</span></div>
-              <div>Return: <span className={stock.backtest.total_return >= 0 ? 'up' : 'down'}>{stock.backtest.total_return.toFixed(1)}%</span></div>
+          {stock.backtest && (
+            <div className="backtest-section">
+              <h3>1-3 Month Swing Backtest ({capLabel})</h3>
+              <div className="bt-stats">
+                <div>Win Rate: <span>{stock.backtest.win_rate.toFixed(1)}%</span></div>
+                <div>Sharpe: <span>{stock.backtest.sharpe_ratio.toFixed(2)}</span></div>
+                <div>Drawdown: <span className="down">{stock.backtest.max_drawdown.toFixed(1)}%</span></div>
+                <div>Return: <span className={stock.backtest.total_return >= 0 ? 'up' : 'down'}>{stock.backtest.total_return.toFixed(1)}%</span></div>
+              </div>
             </div>
-          </div>
-        </div>
+          )}
+        </motion.div>
       ))}
-    </>
+    </motion.div>
   );
 }
 
@@ -234,29 +342,45 @@ function PortfolioGrid({ portfolio, setPortfolio }) {
     if (isNaN(exitPrice)) return alert("Invalid price");
     setPortfolio(p => p.map(t => t.id === id ? { ...t, status: 'CLOSED', exitPrice } : t));
   };
+  
+  const addNote = (id) => {
+    const note = prompt("Add a trade note (e.g., 'Target reached', 'Stopped out early'):");
+    if (note !== null) {
+      setPortfolio(p => p.map(t => t.id === id ? { ...t, notes: note } : t));
+    }
+  };
+
   const deleteTrade = (id) => {
     if(confirm("Delete this log?")) setPortfolio(p => p.filter(t => t.id !== id));
   };
 
   return (
     <>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:'20px', marginBottom:'24px', padding:'20px', backgroundColor:'#0f172a', borderRadius:'15px', border:'1px solid #1e293b' }}>
+      <SectorGauge portfolio={portfolio} />
+      
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:'20px', marginBottom:'24px', padding:'25px', background:'var(--panel-bg)', borderRadius:'20px', border:'var(--glass-border)', backdropFilter:'blur(10px)' }}>
          <div>
-           <div style={{fontSize:'0.85rem', color:'#94a3b8'}}>Active Investment</div>
-           <div style={{fontSize:'1.8rem', fontWeight:'bold', color:'#38bdf8'}}>₹{totalInvested.toLocaleString('en-IN', {minimumFractionDigits: 2})}</div>
+           <div style={{fontSize:'0.8rem', color:'#94a3b8', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'8px'}}>Active Investment</div>
+           <div style={{fontSize:'2rem', fontWeight:'bold', color:'#38bdf8'}}>₹{totalInvested.toLocaleString('en-IN', {minimumFractionDigits: 2})}</div>
          </div>
          <div>
-           <div style={{fontSize:'0.85rem', color:'#94a3b8'}}>Realized P&L</div>
-           <div style={{fontSize:'1.8rem', fontWeight:'bold', color: realizedPnL >= 0 ? '#4ade80' : '#f87171'}}>{realizedPnL >= 0 ? '+' : ''}₹{realizedPnL.toLocaleString('en-IN', {minimumFractionDigits: 2})}</div>
+           <div style={{fontSize:'0.8rem', color:'#94a3b8', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'8px'}}>Realized P&L</div>
+           <div style={{fontSize:'2rem', fontWeight:'bold', color: realizedPnL >= 0 ? '#4ade80' : '#f87171'}}>{realizedPnL >= 0 ? '+' : ''}₹{realizedPnL.toLocaleString('en-IN', {minimumFractionDigits: 2})}</div>
          </div>
       </div>
+
       <div className="grid">
         {portfolio.map(trade => (
-          <div className="card" key={trade.id} style={{ borderColor: trade.status==='CLOSED' ? '#334155' : '#38bdf844' }}>
+          <div className="card" key={trade.id} style={{ borderColor: trade.status==='CLOSED' ? 'rgba(255,255,255,0.05)' : 'rgba(56,189,248,0.3)' }}>
             <div className="card-header">
-              <h2>{trade.symbol} <span style={{fontSize:'0.9rem', color:'#94a3b8', fontWeight:'normal'}}>({trade.qty} Qty)</span></h2>
+              <h2 style={{ fontSize: '1.4rem' }}>{trade.symbol} <span style={{fontSize:'0.85rem', color:'#64748b', fontWeight:'normal'}}>({trade.qty} Qty)</span></h2>
               <StatusBadge status={trade.status} />
             </div>
+            {trade.notes && (
+              <div style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: '10px', fontSize: '0.82rem', color: '#cbd5e1', marginBottom: '15px', fontStyle: 'italic', borderLeft: '3px solid var(--accent-color)' }}>
+                "{trade.notes}"
+              </div>
+            )}
             <div className="stats-grid">
               <div className="stat"><span>Buy Price</span><strong>₹{trade.buyPrice.toFixed(2)}</strong></div>
               <div className="stat"><span>Invested</span><strong>₹{(trade.buyPrice * trade.qty).toFixed(2)}</strong></div>
@@ -266,12 +390,13 @@ function PortfolioGrid({ portfolio, setPortfolio }) {
                   <div className="stat"><span>P&L</span><strong className={trade.exitPrice >= trade.buyPrice ? 'up' : 'down'}>{trade.exitPrice >= trade.buyPrice ? '+' : ''}₹{((trade.exitPrice - trade.buyPrice) * trade.qty).toFixed(2)}</strong></div>
                 </>
               ) : (
-                <div className="stat"><span>Date Logged</span><strong style={{fontSize:'0.9rem'}}>{trade.date}</strong></div>
+                <div className="stat"><span>Date Logged</span><strong style={{fontSize:'1rem'}}>{trade.date}</strong></div>
               )}
             </div>
-            <div style={{display:'flex', gap:'10px', marginTop:'15px'}}>
-              {trade.status === 'OPEN' && <button onClick={() => closeTrade(trade.id)} style={{flex:1, padding:'8px', background:'rgba(56, 189, 248, 0.15)', color:'#38bdf8', border:'1px solid rgba(56,189,248,0.3)', borderRadius:'8px', cursor:'pointer'}}>Close Trade</button>}
-              <button onClick={() => deleteTrade(trade.id)} style={{flex: trade.status==='OPEN' ? 0.3 : 1, padding:'8px', background:'rgba(248, 113, 113, 0.1)', color:'#f87171', border:'1px solid rgba(248,113,113,0.3)', borderRadius:'8px', cursor:'pointer'}}>{trade.status==='OPEN' ? '✕' : 'Remove Log'}</button>
+            <div style={{display:'flex', gap:'8px', marginTop:'10px'}}>
+              {trade.status === 'OPEN' && <button onClick={() => closeTrade(trade.id)} style={{flex:1, padding:'10px', background:'rgba(56, 189, 248, 0.1)', color:'#38bdf8', border:'1px solid rgba(56,189,248,0.2)', borderRadius:'10px', cursor:'pointer', fontWeight:'600', fontSize:'0.85rem'}}>Close Position</button>}
+              <button onClick={() => addNote(trade.id)} style={{ padding:'10px', background:'rgba(255,255,255,0.05)', color:'#94a3b8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'10px', cursor:'pointer', fontSize:'0.85rem' }}>📝</button>
+              <button onClick={() => deleteTrade(trade.id)} style={{ padding:'10px', background:'rgba(248, 113, 113, 0.05)', color:'#f87171', border:'1px solid rgba(248,113,113,0.1)', borderRadius:'10px', cursor:'pointer', fontSize:'0.85rem' }}>✕</button>
             </div>
           </div>
         ))}
@@ -555,6 +680,7 @@ function App() {
   });
   const [trendingSectors, setTrendingSectors] = useState([]);
   const [mbData, setMbData] = useState([]);
+  const [mbTimestamp, setMbTimestamp] = useState(null);
   const [sectorInsight, setSectorInsight] = useState(null);
   const [mbBacktest, setMbBacktest] = useState(null);
   const [mbView, setMbView] = useState('live'); // 'live' | 'backtest'
@@ -562,11 +688,26 @@ function App() {
   const [mbLoading, setMbLoading] = useState(false);
   const [budgetCapital, setBudgetCapital] = useState(30000);
   const [budgetRiskPct, setBudgetRiskPct] = useState(2);
+  const [marketBullish, setMarketBullish] = useState(true);
+  const [filters, setFilters] = useState({ sortBy: 'confidence', highConfidence: false, highVolume: false });
+
+  const filteredData = useMemo(() => {
+    let result = [...data];
+    if (filters.highConfidence) result = result.filter(s => s.confidence > 75);
+    if (filters.highVolume) result = result.filter(s => s.volume_ratio > 2);
+    
+    return result.sort((a, b) => {
+      if (filters.sortBy === 'confidence') return b.confidence - a.confidence;
+      if (filters.sortBy === 'volume') return b.volume_ratio - a.volume_ratio;
+      if (filters.sortBy === 'growth') return (b.growth_pct || 0) - (a.growth_pct || 0);
+      return 0;
+    });
+  }, [data, filters]);
 
   useEffect(() => {
     // Fetch trending sectors once on load
     const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
-    fetch(`${baseUrl}/api/trending_sectors`)
+    fetch(`${baseUrl}/api/trending_sectors`, { cache: 'no-store' })
       .then(r => r.json())
       .then(res => { if (res.status === 'success') setTrendingSectors(res.data) })
       .catch(console.error);
@@ -584,7 +725,18 @@ function App() {
     const qty = Number(qtyStr);
     const buyPrice = Number(priceStr);
     if (isNaN(qty) || isNaN(buyPrice)) return alert("Invalid numbers entered.");
-    const trade = { id: Date.now(), symbol: stock.symbol, buyPrice, qty, status: 'OPEN', exitPrice: null, date: new Date().toISOString().split('T')[0] };
+    
+    // Try to capture sector from stock object if it exists (e.g. from HC data)
+    const trade = { 
+      id: Date.now(), 
+      symbol: stock.symbol, 
+      buyPrice, 
+      qty, 
+      status: 'OPEN', 
+      exitPrice: null, 
+      date: new Date().toISOString().split('T')[0],
+      sector: stock.sector || 'General'
+    };
     setPortfolio(p => [...p, trade]);
     alert(`${qty} shares of ${stock.symbol} successfully added to your Portfolio!`);
   };
@@ -592,7 +744,7 @@ function App() {
   const loadSectorInsight = (sector) => {
     setSectorInsight({ sector, loading: true, data: null, error: null });
     const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
-    fetch(`${baseUrl}/api/sector_leader?sector=${encodeURIComponent(sector)}`)
+    fetch(`${baseUrl}/api/sector_leader?sector=${encodeURIComponent(sector)}`, { cache: 'no-store' })
       .then(r => r.json())
       .then(res => {
         if (res.status === 'success') {
@@ -610,20 +762,22 @@ function App() {
       setLoading(false);
       const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
       if (hcData.length === 0) {
-        fetch(`${baseUrl}/api/high_conviction`)
+        fetch(`${baseUrl}/api/high_conviction`, { cache: 'no-store' })
           .then(r => r.json())
           .then(result => {
             setHcData(result.data || []);
+            setMarketBullish(result.market_bullish !== false);
             if (result.historical) setHcHistorical(result.historical.slice(-120));
             if (result.backtest_summary) setHcStats(result.backtest_summary);
           })
           .catch(console.error);
       }
       if (nseStats === null) {
-        fetch(`${baseUrl}/api/scan_universe_buys`)
+        fetch(`${baseUrl}/api/scan_universe_buys`, { cache: 'no-store' })
           .then(r => r.json())
           .then(result => {
             setData(result.data || []);
+            setMarketBullish(result.market_bullish !== false);
             if (result.historical) setHistoricalData(result.historical.slice(-120));
             if (result.backtest_summary) setNseStats(result.backtest_summary);
           })
@@ -665,11 +819,12 @@ function App() {
             : isNSEBuys ? `${baseUrl}/api/scan_universe_buys`
             : `${baseUrl}/api/scan?market=${market}`;
 
-    fetch(url)
+    fetch(url, { cache: 'no-store' })
       .then(r => r.json())
       .then(result => {
         if (ignore) return;
         setData(result.data || []);
+        setMarketBullish(result.market_bullish !== false);
         if (result.historical) {
           if (isHC) {
             setHcHistorical(result.historical.slice(-120));
@@ -711,7 +866,22 @@ function App() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '15px' }}>
           <div>
             <h1 style={{ margin: 0 }}>OmniQuant <span className="highlight">AI</span></h1>
-            <p className="subtitle" style={{ margin: '5px 0 0 0' }}>Algorithmic Equity Prediction Matrix</p>
+            <p className="subtitle" style={{ margin: '5px 0 0 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              Algorithmic Equity Prediction Matrix
+              <span style={{ 
+                background: marketBullish ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', 
+                color: marketBullish ? '#4ade80' : '#f87171', 
+                border: `1px solid ${marketBullish ? '#22c55e44' : '#ef444444'}`,
+                padding: '2px 8px', 
+                borderRadius: '12px', 
+                fontSize: '0.7rem', 
+                fontWeight: 'bold',
+                letterSpacing: '0.5px',
+                textTransform: 'uppercase'
+              }}>
+                Market: {marketBullish ? 'Bullish 📈' : 'Bearish 📉'}
+              </span>
+            </p>
           </div>
           <SearchBar onSelect={symbol => setSelectedDetail(symbol)} />
         </div>
@@ -723,7 +893,7 @@ function App() {
           <button className={`tab ${market === "ACTIVE_SIGNALS" ? "active" : ""}`} onClick={() => setMarket("ACTIVE_SIGNALS")} style={{ borderColor: market === "ACTIVE_SIGNALS" ? "#4ade80" : undefined, color: market === "ACTIVE_SIGNALS" ? "#4ade80" : undefined }}>🟢 Active Signals</button>
           <button className={`tab ${market === "BUDGET" ? "active" : ""}`} onClick={() => setMarket("BUDGET")} style={{ borderColor: market === "BUDGET" ? "#34d399" : undefined, color: market === "BUDGET" ? "#34d399" : undefined }}>₹ Budget Friendly</button>
           <button className={`tab ${market === "PORTFOLIO" ? "active" : ""}`} onClick={() => setMarket("PORTFOLIO")}>💼 My Portfolio</button>
-          <button className={`tab ${market === "MULTIBAGGER" ? "active" : ""}`} onClick={() => { setMarket("MULTIBAGGER"); if (mbData.length === 0 && !mbLoading) { setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/live`).then(r=>r.json()).then(res=>{setMbData(res.data||[]);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }} style={{ borderColor: market === "MULTIBAGGER" ? "#a855f7" : undefined, color: market === "MULTIBAGGER" ? "#a855f7" : undefined }}>🚀 Multibaggers</button>
+          <button className={`tab ${market === "MULTIBAGGER" ? "active" : ""}`} onClick={() => { setMarket("MULTIBAGGER"); if (mbData.length === 0 && !mbLoading) { setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/live`, { cache: 'no-store' }).then(r=>r.json()).then(res=>{setMbData(res.data||[]);setMbTimestamp(res.timestamp||new Date().toISOString());setMbLoading(false)}).catch(()=>setMbLoading(false)); } }} style={{ borderColor: market === "MULTIBAGGER" ? "#a855f7" : undefined, color: market === "MULTIBAGGER" ? "#a855f7" : undefined }}>🚀 Multibaggers</button>
         </div>
 
         {trendingSectors.length > 0 && (
@@ -763,40 +933,20 @@ function App() {
               />
 
               {!selectedHcDate && (
-                <div className="grid">
-                  {data.length === 0 && <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'40px',color:'var(--text-dim)'}}>No High Conviction signals today. Thresholds are intentionally strict — quality over quantity.</div>}
-                  {data.map(stock => (
-                    <div className="card" key={stock.symbol} style={{ borderColor:'#fbbf2444', boxShadow:'0 0 20px #fbbf2411', cursor:'pointer' }} onClick={() => setSelectedDetail(stock.symbol)}>
-                      <div className="card-header">
-                        <h2>{stock.symbol}</h2>
-                        <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
-                          <StatusBadge status={stock.action} />
-                          <button onClick={() => logTrade(stock, stock.entry)} style={{background:'transparent', border:'1px solid #fbbf24', color:'#fbbf24', borderRadius:'4px', padding:'4px 8px', fontSize:'0.75rem', cursor:'pointer'}}>+ Log</button>
-                        </div>
-                      </div>
-                      <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
-                        <div style={{ height:'6px', flex:1, background:'#334155', borderRadius:'3px' }}>
-                          <div style={{ height:'100%', width:`${stock.confidence}%`, background:'linear-gradient(to right,#fbbf24,#f59e0b)', borderRadius:'3px' }} />
-                        </div>
-                        <span style={{ color:'#fbbf24', fontWeight:'bold', fontSize:'0.9rem' }}>{stock.confidence.toFixed(1)}%</span>
-                      </div>
-                      <div className="stats-grid">
-                        <div className="stat"><span>Entry</span><strong>₹{stock.entry.toFixed(2)}</strong></div>
-                        <div className="stat"><span>Target</span><strong className="up">₹{stock.target.toFixed(2)}</strong></div>
-                        <div className="stat"><span>Stoploss</span><strong className="down">₹{stock.stoploss.toFixed(2)}</strong></div>
-                        <div className="stat"><span>Vol Spike</span><strong style={{color:'#fbbf24'}}>{stock.volume_ratio.toFixed(2)}x 🔥</strong></div>
-                      </div>
-                      <div className="backtest-section">
-                        <h3>Backtest (₹1L Cap)</h3>
-                        <div className="bt-stats">
-                          <div>Win Rate: <span>{stock.backtest.win_rate.toFixed(1)}%</span></div>
-                          <div>Sharpe: <span>{stock.backtest.sharpe_ratio.toFixed(2)}</span></div>
-                          <div>Drawdown: <span className="down">{stock.backtest.max_drawdown.toFixed(1)}%</span></div>
-                          <div>Return: <span className={stock.backtest.total_return >= 0 ? 'up' : 'down'}>{stock.backtest.total_return.toFixed(1)}%</span></div>
-                        </div>
-                      </div>
+                <div style={{ padding: '0 0 20px 0' }}>
+                  <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-bright)' }}>High Conviction Radar</h2>
+                    <span style={{ fontSize: '0.8rem', color: '#fbbf24', background: 'rgba(251,191,36,0.1)', padding: '4px 12px', borderRadius: '20px', border: '1px solid rgba(251,191,36,0.2)' }}>Top 1% Setups</span>
+                  </div>
+                  {!marketBullish && data.length === 0 ? (
+                    <div className="no-data" style={{ textAlign:'center', padding:'60px', background:'rgba(239,68,68,0.03)', borderRadius:'15px', border:'1px dashed #ef444444' }}>
+                      <div style={{ fontSize:'2.5rem', marginBottom:'15px' }}>🛡️</div>
+                      <h3 style={{ color:'#f87171', margin:'0 0 8px' }}>Signals Paused: Bearish Market</h3>
+                      <p style={{ color:'#94a3b8', maxWidth:'400px', margin:'0 auto', fontSize:'0.9rem' }}>Nifty 50 is currently below its 50-day EMA. Buying signals are automatically suppressed for capital safety until the trend reverses.</p>
                     </div>
-                  ))}
+                  ) : (
+                    <StockGrid data={data} currency="₹" capLabel="₹1L Cap" onLogTrade={logTrade} onDetail={setSelectedDetail} />
+                  )}
                 </div>
               )}
             </>
@@ -819,18 +969,34 @@ function App() {
                 onDetail={setSelectedDetail}
               />
               {!selectedHistDate && (
-                <div className="grid">
-                  {data.length === 0 && <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center'}}>No active BUY signals found today.</div>}
-                  <StockGrid data={data} currency="₹" capLabel="₹1L Cap" onLogTrade={logTrade} />
-                </div>
+                <>
+                  {!marketBullish && data.length === 0 && (
+                    <div className="no-data" style={{ textAlign:'center', padding:'40px', background:'rgba(239,68,68,0.03)', borderRadius:'15px', border:'1px dashed #ef444444', marginBottom:'20px' }}>
+                      <p style={{ color:'#f87171', fontWeight:'600', margin:0 }}>⚠️ Bearish Market Regime Detected. NSE Buy signals are currently locked for safety.</p>
+                    </div>
+                  )}
+                  <StockGrid data={data} currency="₹" capLabel="₹1L Cap" onLogTrade={logTrade} onDetail={setSelectedDetail} />
+                </>
               )}
             </>
           )}
 
           {/* IN / US VIEWS */}
           {(market === "IN" || market === "US") && (
-            <div className="grid">
-              <StockGrid data={data} currency={currency} capLabel={capLabel} onLogTrade={logTrade} />
+            <>
+              <FilterToolbar filters={filters} setFilters={setFilters} />
+              <StockGrid data={filteredData} currency={currency} capLabel={capLabel} onLogTrade={logTrade} onDetail={setSelectedDetail} />
+            </>
+          )}
+
+          {/* ACTIVE SIGNALS VIEW */}
+          {market === "ACTIVE_SIGNALS" && (
+            <div style={{ padding: '0 0 20px 0' }}>
+               <div style={{ marginBottom: '20px' }}>
+                 <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-bright)' }}>Live Performance Tracking</h2>
+                 <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#94a3b8' }}>Tracking historical BUY signals through current market cycle</p>
+               </div>
+               <StockGrid data={activeSignals} currency="₹" capLabel="₹1L Cap" onLogTrade={logTrade} onDetail={setSelectedDetail} />
             </div>
           )}
 
@@ -850,14 +1016,24 @@ function App() {
                   </div>
                   <div style={{ display:'flex', gap:'8px' }}>
                     <button onClick={() => setMbView('live')} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='live' ? '1px solid #a855f7' : '1px solid #334155', background: mbView==='live' ? 'rgba(168,85,247,0.15)' : 'transparent', color: mbView==='live' ? '#c084fc' : '#94a3b8', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600' }}>📡 Live Predictions</button>
-                    <button onClick={() => { setMbView('backtest'); if (!mbBacktest) { setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${mbYearsAgo}`).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='backtest' ? '1px solid #a855f7' : '1px solid #334155', background: mbView==='backtest' ? 'rgba(168,85,247,0.15)' : 'transparent', color: mbView==='backtest' ? '#c084fc' : '#94a3b8', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600' }}>⏳ Historical Proof</button>
+                    <button onClick={() => { setMbView('backtest'); if (!mbBacktest) { setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${mbYearsAgo}`, { cache: 'no-store' }).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='backtest' ? '1px solid #a855f7' : '1px solid #334155', background: mbView==='backtest' ? 'rgba(168,85,247,0.15)' : 'transparent', color: mbView==='backtest' ? '#c084fc' : '#94a3b8', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600' }}>⏳ Historical Proof</button>
+                    <button onClick={() => { setMbLoading(true); setMbView('live'); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/live`, { cache: 'no-store' }).then(r=>r.json()).then(res=>{setMbData(res.data||[]);setMbTimestamp(res.timestamp||new Date().toISOString());setMbLoading(false)}).catch(()=>setMbLoading(false)); }} style={{ padding:'8px 16px', borderRadius:'8px', border:'1px solid #334155', background:'transparent', color:'#94a3b8', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600' }}>🔄 Refresh Scan</button>
                   </div>
                 </div>
+
+                {mbTimestamp && mbView === 'live' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(124, 58, 237, 0.1)', padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(124, 58, 237, 0.2)', width: 'fit-content', marginBottom: '20px', marginTop: '-10px' }}>
+                    <span style={{ fontSize: '1rem' }}>🕒</span>
+                    <span style={{ fontSize: '0.85rem', color: '#c084fc' }}>
+                      Last Scanned: <strong style={{ color: '#fff', marginLeft: '4px' }}>{new Date(mbTimestamp).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</strong>
+                    </span>
+                  </div>
+                )}
 
                 {mbView === 'backtest' && (
                   <div style={{ display:'flex', gap:'8px', marginBottom:'16px' }}>
                     {[1, 2, 3].map(y => (
-                      <button key={y} onClick={() => { setMbYearsAgo(y); setMbBacktest(null); setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${y}`).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); }} style={{ padding:'6px 14px', borderRadius:'8px', border: mbYearsAgo===y ? '1px solid #a855f7' : '1px solid #334155', background: mbYearsAgo===y ? 'rgba(168,85,247,0.2)' : 'transparent', color: mbYearsAgo===y ? '#c084fc' : '#64748b', cursor:'pointer', fontSize:'0.8rem' }}>{y} Year{y>1?'s':''} Ago</button>
+                      <button key={y} onClick={() => { setMbYearsAgo(y); setMbBacktest(null); setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${y}`, { cache: 'no-store' }).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); }} style={{ padding:'6px 14px', borderRadius:'8px', border: mbYearsAgo===y ? '1px solid #a855f7' : '1px solid #334155', background: mbYearsAgo===y ? 'rgba(168,85,247,0.2)' : 'transparent', color: mbYearsAgo===y ? '#c084fc' : '#64748b', cursor:'pointer', fontSize:'0.8rem' }}>{y} Year{y>1?'s':''} Ago</button>
                     ))}
                   </div>
                 )}
@@ -889,7 +1065,7 @@ function App() {
               ) : (
                 <div className="grid">
                   {(mbView === 'live' ? mbData : (mbBacktest?.picks || [])).map((stock, i) => (
-                    <div className="card" key={stock.symbol} style={{ borderColor:'#7c3aed44', cursor:'pointer' }} onClick={() => setSelectedDetail(stock.symbol)}>
+                    <div className="card mb-legacy-card" key={stock.symbol} style={{ borderColor:'#7c3aed44', cursor:'pointer' }} onClick={() => setSelectedDetail(stock.symbol)}>
                       <div className="card-header">
                         <h2 style={{ display:'flex', alignItems:'center', gap:'8px' }}>
                           <span style={{ color:'#c084fc', fontSize:'0.75rem' }}>#{i+1}</span>
@@ -1127,10 +1303,16 @@ function App() {
                 </div>
 
                 {budgetSignals.length === 0 ? (
-                  <div className="no-data" style={{ textAlign:'center', padding:'60px', color:'#64748b' }}>
-                    <div style={{ fontSize:'2rem', marginBottom:'12px' }}>📊</div>
-                    <div>No budget-friendly signals loaded yet.</div>
-                    <div style={{ fontSize:'0.85rem', marginTop:'8px', color:'#475569' }}>Visit <strong style={{color:'#38bdf8'}}>🚀 All NSE (Buy Only)</strong> or <strong style={{color:'#fbbf24'}}>🎯 High Conviction</strong> tabs first to load signal data, then return here.</div>
+                  <div className="no-data" style={{ textAlign:'center', padding:'60px', color:'#64748b', background:'rgba(0,0,0,0.2)', borderRadius:'16px' }}>
+                    <div style={{ fontSize:'2.5rem', marginBottom:'15px' }}>{marketBullish ? '📊' : '🛡️'}</div>
+                    <div style={{ fontSize:'1.1rem', fontWeight:'bold', color: marketBullish ? '#94a3b8' : '#f87171', marginBottom:'8px' }}>
+                      {marketBullish ? 'No budget-friendly signals loaded yet.' : 'Signals Paused: Bearish Market Trend'}
+                    </div>
+                    <div style={{ fontSize:'0.85rem', color:'#64748b', maxWidth:'450px', margin:'0 auto' }}>
+                      {marketBullish 
+                        ? 'Visit All NSE (Buy Only) or High Conviction tabs first to load signal data, then return here.'
+                        : 'Capital preservation is active because Nifty is in a downtrend. Signals will reappear once the market stabilizes above its 50-day EMA.'}
+                    </div>
                   </div>
                 ) : (
                   <>

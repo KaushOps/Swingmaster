@@ -185,11 +185,11 @@ When multiple signals fire in the same week, rank using this matrix:
 
 These rules must be non-negotiable to protect your account:
 
-1. **Maximum 4 open positions at any time** — prevents over-concentration
-2. **Maximum 40% of capital in any single sector** — sector risk cap
-3. **3 consecutive SL hits → pause for 1 week** — circuit breaker to avoid emotional trading
-4. **Never average down on a losing position** — adds to risk in the wrong direction
-5. **Monthly P&L < −15% → stop new entries** — capital preservation triggers
+
+1. **Maximum 40% of capital in any single sector** — sector risk cap
+2. **3 consecutive SL hits → pause for 1 week** — circuit breaker to avoid emotional trading
+3. **Never average down on a losing position** — adds to risk in the wrong direction
+
 
 ---
 

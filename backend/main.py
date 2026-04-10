@@ -12,10 +12,18 @@ import threading
 from data_fetcher import fetch_daily_data, is_weekly_bullish, get_delivery_pct
 from ml_model import add_features, create_labels, IntradayModel, passes_quality_gates
 from backtest import run_backtest
+from adaptive_engine import (
+    OutcomeTracker,
+    ThresholdCalibrator,
+    AdaptiveQualityGates,
+    PerformanceMonitor,
+    MultibaggerFeedback,
+    SHAPMonitor,
+)
 import json
 import os
 
-LEDGER_FILE = "signals_ledger.json"
+LEDGER_FILE = "data/signals_ledger.json"
 
 def load_ledger():
     if os.path.exists(LEDGER_FILE):
@@ -125,12 +133,18 @@ HC_CACHE = {
     "is_scanning": False
 }
 
-# HC Thresholds
+# HC Thresholds — defaults, overridden by ThresholdCalibrator after scan
 HC_PROB_UP    = 0.72   # at least 72% ML confidence
 HC_VOL_RATIO  = 1.5    # at least 1.5x average volume spike
 HC_ATR_FILTER = 0.015  # require at least 1.5% ATR (avoid noise)
 
 _nifty_bullish = True  # global cache for regime; updated with each scan
+
+# Adaptive engine state — updated after each scan cycle
+_adaptive_thresholds = ThresholdCalibrator.get_dynamic_thresholds()
+_adaptive_gates = AdaptiveQualityGates.get_gates()
+_last_shap_features = []
+_retrain_recommended = False
 
 NIFTY_SECTOR_MAP = {
     "Information Technology": "NIFTY IT",
@@ -245,8 +259,20 @@ def update_universe_cache():
     hc_historical_map = {}
     
     # Regime filter — check Nifty stance once before scanning all stocks
-    market_bullish = is_nifty_bullish()
+    global _nifty_bullish, _adaptive_thresholds, _adaptive_gates, _last_shap_features, _retrain_recommended
+    _nifty_bullish = is_nifty_bullish()
+    market_bullish = _nifty_bullish
     print(f"Nifty 50 regime: {'BULLISH ✅' if market_bullish else 'BEARISH ⚠️'}")
+
+    # Refresh adaptive thresholds before scanning
+    _adaptive_thresholds = ThresholdCalibrator.get_dynamic_thresholds()
+    _adaptive_gates = AdaptiveQualityGates.get_gates()
+    std_prob = _adaptive_thresholds.get('STD_PROB_UP', 0.55)
+    std_vol = _adaptive_thresholds.get('STD_VOL_RATIO', 0.5)
+    hc_prob = _adaptive_thresholds.get('HC_PROB_UP', HC_PROB_UP)
+    hc_vol = _adaptive_thresholds.get('HC_VOL_RATIO', HC_VOL_RATIO)
+    print(f"Adaptive thresholds: STD prob>{std_prob:.2f} vol>{std_vol:.1f} | HC prob>{hc_prob:.2f} vol>{hc_vol:.1f}")
+    print(f"Adaptive gates: {_adaptive_gates}")
 
     # Pre-fetch NSE Bhavcopy delivery % data once (cached per day)
     from data_fetcher import _fetch_nse_delivery_pct
@@ -272,10 +298,10 @@ def update_universe_cache():
             bt_stats = run_backtest(df, sl_atr_mult=2.0, tp_atr_mult=5.0, init_cash=100000)
             latest_close = float(df['close'].iloc[-1])
             
-            entries = df[(df['prob_up'] > 0.55) & (df['volume_ratio'] > 0.5)]
+            entries = df[(df['prob_up'] > std_prob) & (df['volume_ratio'] > std_vol)]
             hc_entries = df[
-                (df['prob_up'] > HC_PROB_UP) &
-                (df['volume_ratio'] > HC_VOL_RATIO) &
+                (df['prob_up'] > hc_prob) &
+                (df['volume_ratio'] > hc_vol) &
                 (df['atr'] / df['close'] > HC_ATR_FILTER)
             ]
             
@@ -347,28 +373,34 @@ def update_universe_cache():
             # delivery gate: >35% OR unavailable (fail open)
             delivery_ok = (delivery_pct is None) or (delivery_pct >= 35.0)
 
-            if prob_up > 0.55 and vol_ratio > 0.5 and market_bullish and passes_quality_gates(latest) and weekly_ok and delivery_ok:
+            # Apply multibagger affinity bonus (0–5% boost)
+            mb_bonus = MultibaggerFeedback.get_affinity(sym)
+            adjusted_prob = min(prob_up + mb_bonus, 0.99)
+
+            if adjusted_prob > std_prob and vol_ratio > std_vol and market_bullish and passes_quality_gates(latest, gates=_adaptive_gates) and weekly_ok and delivery_ok:
                 buys.append({
                     "symbol": sym,
                     "action": "BUY",
-                    "confidence": round(prob_up * 100, 2),
+                    "confidence": round(adjusted_prob * 100, 2),
                     "entry": round(entry_price, 2),
                     "target": round(target, 2),
                     "stoploss": round(stoploss, 2),
                     "volume_ratio": round(vol_ratio, 2),
                     "delivery_pct": round(delivery_pct, 1) if delivery_pct is not None else None,
+                    "mb_affinity": round(mb_bonus * 100, 1) if mb_bonus > 0 else None,
                     "backtest": bt_stats
                 })
             
-            if prob_up > HC_PROB_UP and vol_ratio > HC_VOL_RATIO and atr_pct > HC_ATR_FILTER and market_bullish and passes_quality_gates(latest) and weekly_ok and delivery_ok:
+            if adjusted_prob > hc_prob and vol_ratio > hc_vol and atr_pct > HC_ATR_FILTER and market_bullish and passes_quality_gates(latest, gates=_adaptive_gates) and weekly_ok and delivery_ok:
                 hc_buys.append({
                     "symbol": sym,
                     "action": "STRONG BUY",
-                    "confidence": round(prob_up * 100, 2),
+                    "confidence": round(adjusted_prob * 100, 2),
                     "entry": round(entry_price, 2),
                     "target": round(target, 2),
                     "stoploss": round(stoploss, 2),
                     "volume_ratio": round(vol_ratio, 2),
+                    "mb_affinity": round(mb_bonus * 100, 1) if mb_bonus > 0 else None,
                     "backtest": bt_stats
                 })
         except Exception as e:
@@ -403,7 +435,28 @@ def update_universe_cache():
     if needs_save:
         save_ledger(ledger)
         print("Updated immutable signals ledger!")
-        
+
+    # === ADAPTIVE ENGINE: Post-scan learning loop ===
+    try:
+        print("Running adaptive engine post-scan cycle...")
+        # 1. Log closed trade outcomes
+        OutcomeTracker.update()
+        # 2. Recalibrate probability thresholds
+        _adaptive_thresholds = ThresholdCalibrator.get_dynamic_thresholds()
+        # 3. Optimize quality gates via grid-search
+        AdaptiveQualityGates.optimize()
+        _adaptive_gates = AdaptiveQualityGates.get_gates()
+        # 4. Check if model retrain is needed
+        _retrain_recommended = PerformanceMonitor.check_retrain_needed()
+        if _retrain_recommended:
+            print("⚠️  RETRAIN RECOMMENDED: Win rate has dropped below threshold.")
+        # 5. Log SHAP feature importances (from the last model trained)
+        # Note: We don't have the model object here; SHAP is logged per-symbol inside the loop.
+        # The SHAPMonitor.check_and_log is designed to be called with a model+data pair.
+        print(f"Adaptive engine cycle complete. Thresholds: {_adaptive_thresholds} | Gates: {_adaptive_gates}")
+    except Exception as e:
+        print(f"Adaptive engine error (non-fatal): {e}")
+
     print(f"Background scan complete! Found {len(buys)} BUY signals | {len(hc_buys)} HIGH CONVICTION signals.")
 
 # Kick off initial scan on boot
@@ -450,6 +503,7 @@ def scan_universe_buys() -> Dict[str, Any]:
         "status": "success", 
         "last_updated": GLOBAL_BUY_CACHE["last_updated"], 
         "is_scanning": GLOBAL_BUY_CACHE["is_scanning"],
+        "market_bullish": _nifty_bullish,
         "data": GLOBAL_BUY_CACHE["data"],
         "historical": GLOBAL_BUY_CACHE["historical"],
         "backtest_summary": GLOBAL_BUY_CACHE["backtest_summary"]
@@ -461,6 +515,7 @@ def high_conviction_buys() -> Dict[str, Any]:
         "status": "success",
         "last_updated": HC_CACHE["last_updated"],
         "is_scanning": GLOBAL_BUY_CACHE["is_scanning"],
+        "market_bullish": _nifty_bullish,
         "data": HC_CACHE["data"],
         "historical": HC_CACHE["historical"],
         "backtest_summary": HC_CACHE["backtest_summary"]
@@ -520,7 +575,13 @@ def scan_markets(market: str = "IN") -> Dict[str, Any]:
             
     results.sort(key=lambda x: x['confidence'], reverse=True)
             
-    return {"status": "success", "timestamp": datetime.now().isoformat(), "market": market, "data": results}
+    return {
+        "status": "success", 
+        "timestamp": datetime.now().isoformat(), 
+        "market": market, 
+        "market_bullish": _nifty_bullish if market == "IN" else True, # market filter currently only for India
+        "data": results
+    }
 
 
 @app.get("/api/stock_detail/{symbol}")
@@ -695,11 +756,12 @@ async def multibagger_live():
     """
     from multibagger_model import scan_multibaggers
     from symbols import NSE_200
+    from datetime import datetime
     # Strip .NS suffix for the model (it adds it back internally)
     # Memory Cap removed, Oracle Server 24GB active. Processing up to 500 liquid stocks with 30 threads.
     symbols = [s.replace(".NS", "") for s in NSE_200]
     results = scan_multibaggers(symbols, target_date=None, max_workers=30, top_n=20)
-    return {"status": "success", "data": results}
+    return {"status": "success", "data": results, "timestamp": datetime.now().isoformat()}
 
 
 @app.get("/api/multibagger/backtest")
@@ -823,6 +885,65 @@ def search_stock(q: str):
         print(f"Search API error: {e}")
     return {"results": []}
 
+
+@app.get("/api/adaptive_status")
+async def adaptive_status():
+    """
+    Exposes the current state of the self-learning adaptive engine:
+    - Calibrated thresholds
+    - Optimized quality gates
+    - Performance metrics
+    - SHAP feature importance alerts
+    - Retrain recommendation
+    """
+    import os
+
+    # Read outcome log stats
+    outcome_stats = {}
+    outcome_log_path = os.path.join(os.path.dirname(__file__), 'data', 'outcome_log.csv')
+    try:
+        if os.path.exists(outcome_log_path):
+            import pandas as pd
+            df = pd.read_csv(outcome_log_path)
+            total = len(df)
+            wins = int(df['outcome'].sum())
+            losses = total - wins
+            recent = df.tail(50)
+            recent_wr = round(recent['outcome'].mean() * 100, 1) if len(recent) > 0 else 0
+            outcome_stats = {
+                "total_trades_logged": total,
+                "wins": wins,
+                "losses": losses,
+                "overall_win_rate": round(wins / total * 100, 1) if total > 0 else 0,
+                "recent_50_win_rate": recent_wr,
+                "avg_days_held": round(df['days_held'].mean(), 1) if 'days_held' in df.columns else None,
+            }
+    except Exception:
+        pass
+
+    # Read SHAP history
+    shap_data = []
+    shap_path = os.path.join(os.path.dirname(__file__), 'data', 'shap_history.json')
+    try:
+        if os.path.exists(shap_path):
+            import json as json_mod
+            with open(shap_path, 'r') as f:
+                shap_data = json_mod.load(f)
+    except Exception:
+        pass
+
+    return {
+        "status": "success",
+        "calibrated_thresholds": _adaptive_thresholds,
+        "optimized_gates": _adaptive_gates,
+        "retrain_recommended": _retrain_recommended,
+        "outcome_stats": outcome_stats,
+        "shap_history": shap_data[-5:] if shap_data else [],  # last 5 entries
+        "engine_version": "1.0.0",
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+

@@ -106,18 +106,27 @@ def create_labels(df: pd.DataFrame, target_atr_mult=2.0, sl_atr_mult=1.5, lookah
     return df
 
 
-def passes_quality_gates(row) -> bool:
+def passes_quality_gates(row, gates=None) -> bool:
     """
     Hard filter gates applied AFTER ML prediction to confirm signal quality.
     ALL gates must pass for a signal to be emitted.
     """
+    if gates is None:
+        gates = {
+            'rsi_min': 45,
+            'rsi_max': 78,
+            'adx_min': 18,
+            'macd_positive': True,
+            'pct_from_high': 0.60
+        }
+
     # 1. MACD histogram must be positive (net bullish momentum)
-    if row.get('macd_hist', 0) <= 0:
+    if gates.get('macd_positive', True) and row.get('macd_hist', 0) <= 0:
         return False
 
     # 2. RSI sweet spot: avoid oversold traps and overbought peaks
     rsi = row.get('rsi', 50)
-    if not (45 <= rsi <= 78):
+    if not (gates.get('rsi_min', 45) <= rsi <= gates.get('rsi_max', 78)):
         return False
 
     # 3. Price must be above 20-day EMA (near-term uptrend bias)
@@ -125,11 +134,11 @@ def passes_quality_gates(row) -> bool:
         return False
 
     # 4. ADX must show a trending market (not choppy/sideways)
-    if row.get('adx', 20) < 18:
+    if row.get('adx', 20) < gates.get('adx_min', 18):
         return False
 
     # 5. Stock must be within 40% of its 52-week high (avoid structural downtrends)
-    if row.get('pct_from_high', 1.0) < 0.60:
+    if row.get('pct_from_high', 1.0) < gates.get('pct_from_high', 0.60):
         return False
 
     return True
@@ -165,7 +174,28 @@ class IntradayModel:
         available = [f for f in self.features if f in df.columns]
         X = df[available].fillna(0)
         y = df['label']
+        if not _USE_XGB:
+            self.model.warm_start = True
         self.model.fit(X, y)
+        self.features = available
+
+    def incremental_train(self, df: pd.DataFrame):
+        """Warm-starts the model with new data for online learning."""
+        available = [f for f in self.features if f in df.columns]
+        X = df[available].fillna(0)
+        y = df['label']
+        
+        if _USE_XGB:
+            try:
+                booster = self.model.get_booster()
+                self.model.fit(X, y, xgb_model=booster)
+            except Exception:
+                # If get_booster fails (e.g. not trained yet), just fit
+                self.model.fit(X, y)
+        else:
+            self.model.n_estimators += 10
+            self.model.fit(X, y)
+            
         self.features = available
 
     def predict_proba(self, df: pd.DataFrame) -> pd.Series:
@@ -178,3 +208,37 @@ class IntradayModel:
         X = latest[self.features].fillna(0)
         prob = self.model.predict_proba(X)[0][1]
         return prob
+
+    def get_shap_importances(self, df: pd.DataFrame, top_n: int = 5) -> list:
+        """
+        Computes SHAP feature importances for the trained model.
+        Returns a list of dicts: [{"feature": name, "importance": value}, ...]
+        Returns empty list if SHAP is unavailable or computation fails.
+        """
+        try:
+            import shap
+        except ImportError:
+            return []
+
+        try:
+            X = df[self.features].fillna(0)
+            sample_X = X.sample(n=min(100, len(X))) if len(X) > 100 else X
+
+            explainer = shap.TreeExplainer(self.model)
+            shap_values = explainer.shap_values(sample_X)
+
+            # Handle multi-class output (RF returns list)
+            if isinstance(shap_values, list):
+                shap_values = shap_values[1]
+
+            mean_abs = np.abs(shap_values).mean(axis=0)
+            feature_imp = sorted(
+                zip(self.features, mean_abs),
+                key=lambda x: x[1],
+                reverse=True
+            )[:top_n]
+
+            return [{"feature": f, "importance": round(float(v), 4)} for f, v in feature_imp]
+        except Exception:
+            return []
+

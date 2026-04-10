@@ -12,3 +12,4 @@ ta
 xgboost
 yahooquery
 scipy
+shap

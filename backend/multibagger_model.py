@@ -20,6 +20,13 @@ import concurrent.futures
 from data_fetcher import fetch_daily_data
 
 
+def sanitize_float(val: float) -> Optional[float]:
+    """Ensures a float is JSON-compliant (not NaN or inf). Returns None if invalid."""
+    if val is None or np.isnan(val) or np.isinf(val):
+        return None
+    return float(val)
+
+
 def calculate_multibagger_score(df: pd.DataFrame) -> Optional[Dict]:
     """
     Computes a Renaissance-style quantitative score (0-100) for a stock.
@@ -42,8 +49,8 @@ def calculate_multibagger_score(df: pd.DataFrame) -> Optional[Dict]:
     # Total return over the window
     total_return = (closes[-1] / closes[0]) - 1
 
-    # Only consider uptrending stocks
-    if slope <= 0 or total_return <= 0.05:
+    # Only consider uptrending stocks (slope handle slope > 0)
+    if (slope is None or np.isnan(slope) or slope <= 0) or total_return <= 0.05:
         return None
 
     # --- 2. Volume Accumulation Ratio ---
@@ -69,26 +76,26 @@ def calculate_multibagger_score(df: pd.DataFrame) -> Optional[Dict]:
 
     # --- SCORING ---
     # R² score (max 40 pts): smooth uptrends score highest
-    score_r2 = min(r_squared, 1.0) * 40
+    score_r2 = min(max(r_squared, 0), 1.0) * 40
 
     # Accumulation score (max 25 pts): institutional buying footprint
     score_acc = min(max((accumulation_ratio - 0.9) * 25, 0), 25)
 
     # Return-to-drawdown score (max 20 pts): capital efficiency
-    score_rtdd = min(return_to_dd * 5, 20)
+    score_rtdd = min(max(return_to_dd * 5, 0), 20)
 
     # Momentum score (max 15 pts): raw returns capped at 200%
-    score_mom = min(total_return / 2.0 * 15, 15)
+    score_mom = min(max(total_return / 2.0 * 15, 0), 15)
 
     final_score = score_r2 + score_acc + score_rtdd + score_mom
 
     return {
-        "score": round(min(final_score, 99.9), 1),
-        "r_squared": round(r_squared, 3),
-        "return_1y": round(total_return * 100, 1),
-        "annualized_return": round(annualized_return, 1),
-        "accumulation_ratio": round(accumulation_ratio, 2),
-        "max_drawdown": round(max_drawdown * 100, 1),
+        "score": round(min(final_score, 99.9), 1) if not np.isnan(final_score) else 0,
+        "r_squared": sanitize_float(round(r_squared, 3)),
+        "return_1y": sanitize_float(round(total_return * 100, 1)),
+        "annualized_return": sanitize_float(round(annualized_return, 1)),
+        "accumulation_ratio": sanitize_float(round(accumulation_ratio, 2)),
+        "max_drawdown": sanitize_float(round(max_drawdown * 100, 1)),
     }
 
 
@@ -120,20 +127,21 @@ def process_symbol(symbol: str, target_date: Optional[str] = None) -> Optional[D
 
             entry_price = df_fwd.iloc[0]['open']
             exit_price = df_fwd.iloc[-1]['close']
-            forward_return = round(((exit_price / entry_price) - 1) * 100, 1)
+            forward_return = sanitize_float(round(((exit_price / entry_price) - 1) * 100, 1))
             df = df_hist
 
         metrics = calculate_multibagger_score(df)
         
         # Lower threshold for backtests to accommodate varying market conditions
-        min_score = 40 if target_date else 55
+        # Live threshold lowered from 55 to 50 to ensure results are populated in various market cycles.
+        min_score = 40 if target_date else 50
         
         if not metrics or metrics["score"] < min_score:
             return None
 
         result = {
             "symbol": clean_sym,
-            "current_price": round(float(df.iloc[-1]['close']), 2),
+            "current_price": sanitize_float(round(float(df.iloc[-1]['close']), 2)),
             **metrics,
         }
 
@@ -190,7 +198,12 @@ def run_backtest_with_benchmark(
     if not picks:
         return {"picks": [], "avg_return": 0, "nifty_return": 0}
 
-    avg_return = round(sum(p["forward_return"] for p in picks) / len(picks), 1)
+    # Calculate average return only for picks that have forward_return data
+    valid_picks = [p for p in picks if "forward_return" in p]
+    if not valid_picks:
+        avg_return = 0
+    else:
+        avg_return = round(sum(p["forward_return"] for p in valid_picks) / len(valid_picks), 1)
 
     # Benchmark: Nifty 50
     nifty_return = 0.0
