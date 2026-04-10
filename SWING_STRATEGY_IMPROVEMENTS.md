@@ -1,7 +1,12 @@
 # 📈 OmniQuant Swing Strategy — Improvement Suggestions & Capital Management Guide
 
-> **⚠️ Read-only Reference Document — No code changes have been made.**  
-> This document contains analysis and suggestions for improving the OmniQuant algorithm and managing capital within a ₹30,000/month constraint.
+> **⚠️ Reference document.** Some items below are suggestions only; others have been implemented in code (see section 1.3).
+
+---
+
+## Implementation note (backend)
+
+Training labels in `create_labels()` now use **5×ATR target / 2×ATR stop** and a **60-session lookahead**, matching live signal levels and the vectorbt backtest. Class probabilities use **stride walk-forward refitting** (`predict_proba_walk_forward_stride`, default min train 120 bars, stride 10) to avoid full in-sample leakage on historical bars.
 
 ---
 
@@ -42,12 +47,13 @@ This filters out daily noise during weekly corrections and dramatically reduces 
 ---
 
 ### 1.3 Improve Label Quality in ML Training
-**Problem**: The current `create_labels()` function labels a bar as `1` if price hits `entry + 2×ATR` before `entry - 1.5×ATR` within 40 days. A 2:1.5 reward:risk ratio may train the model on easy, low-conviction wins.
+**Problem (historical)**: Earlier versions labeled a bar as `1` if price hit a smaller ATR target before a tighter stop within 40 days, which did not match live 5R/2R exits.
 
-**Suggestions**:
-- **Raise target multiplier to 3.0×ATR** to train the model to find higher-quality, sustained moves.
+**Done in code**: Target/stop multipliers and lookahead are aligned with production; **stride walk-forward** probabilities replace single-fit in-sample scores on historical rows.
+
+**Further suggestions** (optional):
 - **Add a minimum hold period of 5 days** before checking for target/SL. This stops the model from learning 1–2 day spike patterns that don't repeat reliably.
-- **Use walk-forward training** rather than training on all data except the last bar. Train on first 70% → validate on next 20% → signal on last 10%. This eliminates look-ahead data leakage.
+- **Tune stride / min_train** for speed vs. approximation tradeoffs on the full NSE universe scan.
 
 ---
 

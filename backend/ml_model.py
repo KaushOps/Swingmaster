@@ -1,3 +1,4 @@
+import inspect
 import pandas as pd
 import ta
 import numpy as np
@@ -9,6 +10,15 @@ try:
 except ImportError:
     from sklearn.ensemble import RandomForestClassifier
     _USE_XGB = False
+
+# Training labels aligned with live cards / vectorbt backtest (5R target, 2R stop)
+LABEL_TARGET_ATR_MULT = 5.0
+LABEL_SL_ATR_MULT = 2.0
+DEFAULT_LOOKAHEAD = 60
+
+WALK_FORWARD_MIN_TRAIN = 120
+WALK_FORWARD_STRIDE = 10
+
 
 def add_features(df: pd.DataFrame) -> pd.DataFrame:
     """Adds technical indicators to the dataframe."""
@@ -68,9 +78,15 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     return df.dropna()
 
 
-def create_labels(df: pd.DataFrame, target_atr_mult=2.0, sl_atr_mult=1.5, lookahead=40) -> pd.DataFrame:
+def create_labels(
+    df: pd.DataFrame,
+    target_atr_mult: float = LABEL_TARGET_ATR_MULT,
+    sl_atr_mult: float = LABEL_SL_ATR_MULT,
+    lookahead: int = DEFAULT_LOOKAHEAD,
+) -> pd.DataFrame:
     """
     Look ahead logic: Does the price hit Target before Stoploss within lookahead window?
+    Defaults match live TP/SL (5x / 2x ATR) and a ~60-session horizon.
     """
     df = df.copy()
     df['label'] = 0
@@ -135,20 +151,29 @@ def passes_quality_gates(row) -> bool:
     return True
 
 
-class IntradayModel:
+def _xgb_classifier_kwargs() -> dict:
+    """Build XGBClassifier kwargs; omit deprecated args not supported by installed XGBoost."""
+    kw = dict(
+        n_estimators=200,
+        max_depth=5,
+        learning_rate=0.05,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        eval_metric='logloss',
+        random_state=42,
+        verbosity=0,
+    )
+    if _USE_XGB:
+        params = inspect.signature(XGBClassifier.__init__).parameters
+        if 'use_label_encoder' in params:
+            kw['use_label_encoder'] = False
+    return kw
+
+
+class SwingModel:
     def __init__(self):
         if _USE_XGB:
-            self.model = XGBClassifier(
-                n_estimators=200,
-                max_depth=5,
-                learning_rate=0.05,
-                subsample=0.8,
-                colsample_bytree=0.8,
-                use_label_encoder=False,
-                eval_metric='logloss',
-                random_state=42,
-                verbosity=0
-            )
+            self.model = XGBClassifier(**_xgb_classifier_kwargs())
         else:
             from sklearn.ensemble import RandomForestClassifier
             self.model = RandomForestClassifier(n_estimators=200, max_depth=6, random_state=42)
@@ -178,3 +203,39 @@ class IntradayModel:
         X = latest[self.features].fillna(0)
         prob = self.model.predict_proba(X)[0][1]
         return prob
+
+
+def predict_proba_walk_forward_stride(
+    df: pd.DataFrame,
+    min_train_rows: int = WALK_FORWARD_MIN_TRAIN,
+    stride: int = WALK_FORWARD_STRIDE,
+) -> pd.Series:
+    """
+    Out-of-sample style probabilities: refit every `stride` bars; each bar i is predicted
+    using a model trained only on rows [0:i). Leading bars are NaN (no entries).
+    """
+    n = len(df)
+    probs = pd.Series(np.nan, index=df.index, dtype=float)
+    if n <= min_train_rows:
+        return probs
+
+    model = None
+    for i in range(min_train_rows, n):
+        if i == min_train_rows or (i - min_train_rows) % stride == 0:
+            train_df = df.iloc[:i]
+            model = SwingModel()
+            try:
+                model.train(train_df)
+            except Exception:
+                model = None
+        if model is None:
+            continue
+        try:
+            probs.iloc[i] = float(model.predict_proba(df.iloc[i : i + 1]).iloc[0])
+        except Exception:
+            pass
+    return probs
+
+
+# Backward-compatible alias
+IntradayModel = SwingModel

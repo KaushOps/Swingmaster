@@ -51,5 +51,5 @@ def run_backtest(df: pd.DataFrame, sl_atr_mult=1.5, tp_atr_mult=2.0, init_cash=1
         print(f"Backtesting error: {e}")
         return {
             'total_return': 0, 'win_rate': 0, 'sharpe_ratio': 0,
-            'max_drawdown': 0, 'total_trades': 0, 'final_value': 100000
+            'max_drawdown': 0, 'total_trades': 0, 'final_value': init_cash
         }

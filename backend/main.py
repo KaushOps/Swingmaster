@@ -10,7 +10,16 @@ import pytz
 import threading
 
 from data_fetcher import fetch_daily_data, is_weekly_bullish, get_delivery_pct
-from ml_model import add_features, create_labels, IntradayModel, passes_quality_gates
+from ml_model import (
+    add_features,
+    create_labels,
+    passes_quality_gates,
+    predict_proba_walk_forward_stride,
+    LABEL_TARGET_ATR_MULT,
+    LABEL_SL_ATR_MULT,
+    DEFAULT_LOOKAHEAD,
+    WALK_FORWARD_MIN_TRAIN,
+)
 from backtest import run_backtest
 import json
 import os
@@ -26,6 +35,23 @@ def load_ledger():
 def save_ledger(ledger):
     with open(LEDGER_FILE, "w") as f:
         json.dump(ledger, f, indent=2)
+
+
+def ledger_entry_allowed(
+    date_str: str,
+    latest_date_str: str,
+    row,
+    market_bullish: bool,
+    weekly_ok: bool,
+    delivery_ok: bool,
+) -> bool:
+    """Historical rows: quality gates only. Latest bar: also regime, weekly, delivery (matches live)."""
+    if not passes_quality_gates(row):
+        return False
+    if date_str == latest_date_str:
+        return market_bullish and weekly_ok and delivery_ok
+    return True
+
 
 def build_signal_frozen(frozen_sig, date_str, df, sym, latest_close):
     entry_price = frozen_sig['entry']
@@ -260,40 +286,50 @@ def update_universe_cache():
     for symbol in NSE_UNIVERSE:
         try:
             df = fetch_daily_data(symbol, years=2)
-            if len(df) < 100: continue
-            
+            if len(df) <= WALK_FORWARD_MIN_TRAIN:
+                continue
+
             df = add_features(df)
-            df = create_labels(df)
-            
-            model = IntradayModel()
-            model.train(df[:-1])
-            
-            df['prob_up'] = model.predict_proba(df)
+            df = create_labels(
+                df,
+                target_atr_mult=LABEL_TARGET_ATR_MULT,
+                sl_atr_mult=LABEL_SL_ATR_MULT,
+                lookahead=DEFAULT_LOOKAHEAD,
+            )
+            df['prob_up'] = predict_proba_walk_forward_stride(df)
             bt_stats = run_backtest(df, sl_atr_mult=2.0, tp_atr_mult=5.0, init_cash=100000)
             latest_close = float(df['close'].iloc[-1])
-            
+
             entries = df[(df['prob_up'] > 0.55) & (df['volume_ratio'] > 0.5)]
             hc_entries = df[
                 (df['prob_up'] > HC_PROB_UP) &
                 (df['volume_ratio'] > HC_VOL_RATIO) &
                 (df['atr'] / df['close'] > HC_ATR_FILTER)
             ]
-            
+
             latest = df.iloc[-1]
             latest_date_str = df.index[-1].strftime("%Y-%m-%d")
             entry_price = float(latest['close'])
             atr = float(latest['atr'])
-            prob_up = float(latest['prob_up'])
+            prob_up = latest['prob_up']
             vol_ratio = float(latest['volume_ratio'])
             atr_pct = atr / entry_price if entry_price > 0 else 0
-            
+
             sym = symbol.replace(".NS", "")
             target = entry_price + (5.0 * atr)
             stoploss = entry_price - (2.0 * atr)
-            
+
+            weekly_ok = is_weekly_bullish(symbol)
+            delivery_pct = get_delivery_pct(symbol)
+            delivery_ok = (delivery_pct is None) or (delivery_pct >= 35.0)
+
             # Update Immutable Ledger
             for date, row in entries.iterrows():
                 date_str = date.strftime("%Y-%m-%d")
+                if not ledger_entry_allowed(
+                    date_str, latest_date_str, row, market_bullish, weekly_ok, delivery_ok
+                ):
+                    continue
                 if is_seed_run or date_str == latest_date_str:
                     if date_str not in ledger["NSE_BUYS"]:
                         ledger["NSE_BUYS"][date_str] = {}
@@ -313,6 +349,10 @@ def update_universe_cache():
 
             for date, row in hc_entries.iterrows():
                 date_str = date.strftime("%Y-%m-%d")
+                if not ledger_entry_allowed(
+                    date_str, latest_date_str, row, market_bullish, weekly_ok, delivery_ok
+                ):
+                    continue
                 if is_seed_run or date_str == latest_date_str:
                     if date_str not in ledger["HIGH_CONVICTION"]:
                         ledger["HIGH_CONVICTION"][date_str] = {}
@@ -340,18 +380,20 @@ def update_universe_cache():
                 if sym in sigs:
                     if date_str not in hc_historical_map: hc_historical_map[date_str] = []
                     hc_historical_map[date_str].append(build_signal_frozen(sigs[sym], date_str, df, sym, latest_close))
-            
-            # --- Extra gates for live signals: weekly trend + delivery % ---
-            weekly_ok = is_weekly_bullish(symbol)
-            delivery_pct = get_delivery_pct(symbol)
-            # delivery gate: >35% OR unavailable (fail open)
-            delivery_ok = (delivery_pct is None) or (delivery_pct >= 35.0)
 
-            if prob_up > 0.55 and vol_ratio > 0.5 and market_bullish and passes_quality_gates(latest) and weekly_ok and delivery_ok:
+            if (
+                pd.notna(prob_up)
+                and prob_up > 0.55
+                and vol_ratio > 0.5
+                and market_bullish
+                and passes_quality_gates(latest)
+                and weekly_ok
+                and delivery_ok
+            ):
                 buys.append({
                     "symbol": sym,
                     "action": "BUY",
-                    "confidence": round(prob_up * 100, 2),
+                    "confidence": round(float(prob_up) * 100, 2),
                     "entry": round(entry_price, 2),
                     "target": round(target, 2),
                     "stoploss": round(stoploss, 2),
@@ -359,12 +401,21 @@ def update_universe_cache():
                     "delivery_pct": round(delivery_pct, 1) if delivery_pct is not None else None,
                     "backtest": bt_stats
                 })
-            
-            if prob_up > HC_PROB_UP and vol_ratio > HC_VOL_RATIO and atr_pct > HC_ATR_FILTER and market_bullish and passes_quality_gates(latest) and weekly_ok and delivery_ok:
+
+            if (
+                pd.notna(prob_up)
+                and prob_up > HC_PROB_UP
+                and vol_ratio > HC_VOL_RATIO
+                and atr_pct > HC_ATR_FILTER
+                and market_bullish
+                and passes_quality_gates(latest)
+                and weekly_ok
+                and delivery_ok
+            ):
                 hc_buys.append({
                     "symbol": sym,
                     "action": "STRONG BUY",
-                    "confidence": round(prob_up * 100, 2),
+                    "confidence": round(float(prob_up) * 100, 2),
                     "entry": round(entry_price, 2),
                     "target": round(target, 2),
                     "stoploss": round(stoploss, 2),
@@ -373,7 +424,7 @@ def update_universe_cache():
                 })
         except Exception as e:
             continue
-            
+
     hist_list = []
     for d, sigs in historical_map.items():
         stocks_only = [s["symbol"] for s in sigs]
@@ -478,16 +529,17 @@ def scan_markets(market: str = "IN") -> Dict[str, Any]:
     for symbol in stocks_to_scan:
         try:
             df = fetch_daily_data(symbol, years=2)
-            if len(df) < 100:
+            if len(df) <= WALK_FORWARD_MIN_TRAIN:
                 continue
-                
+
             df = add_features(df)
-            df = create_labels(df)
-            
-            model = IntradayModel()
-            model.train(df[:-1])
-            
-            df['prob_up'] = model.predict_proba(df)
+            df = create_labels(
+                df,
+                target_atr_mult=LABEL_TARGET_ATR_MULT,
+                sl_atr_mult=LABEL_SL_ATR_MULT,
+                lookahead=DEFAULT_LOOKAHEAD,
+            )
+            df['prob_up'] = predict_proba_walk_forward_stride(df)
             bt_stats = run_backtest(df, sl_atr_mult=2.0, tp_atr_mult=5.0, init_cash=init_cash)
             
             latest = df.iloc[-1]
