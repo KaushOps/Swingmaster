@@ -399,7 +399,7 @@ function SearchBar({ onSelect }) {
   );
 }
 
-function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accentColor, bannerTheme, TooltipComponent, onLogTrade, onDetail }) {
+function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accentColor, bannerTheme, TooltipComponent, onLogTrade, onDetail, amountPerTrade, setAmountPerTrade }) {
   const [selectedMonth, setSelectedMonth] = useState('All');
   const [groupBy, setGroupBy] = useState('DATE'); // 'DATE' or 'STOCK'
   const months = [...new Set(histData.map(d => d.date.substring(0, 7)))].sort().reverse();
@@ -448,12 +448,11 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
 
   const chartWidth = Math.max(1200, (groupBy === 'DATE' ? filteredHistData.length : stockData.length) * 22);
   const monthlySignals = activeDataForStats.reduce((sum, day) => sum + ((day.signals && day.signals.length) || day.count || 0), 0);
-  const allocPerTrade = 10000; // Simulated constant allocation per trade for realistic P&L
-  const monthlyCost = activeDataForStats.reduce((sum, day) => sum + (((day.signals && day.signals.length) || 0) * allocPerTrade), 0);
+  const monthlyCost = activeDataForStats.reduce((sum, day) => sum + (((day.signals && day.signals.length) || 0) * amountPerTrade), 0);
   const monthlyPnL = activeDataForStats.reduce((sum, day) => {
     return sum + (day.signals || []).reduce((s, stock) => {
       if (!stock.entry || stock.entry === 0) return s;
-      const qty = allocPerTrade / stock.entry;
+      const qty = amountPerTrade / stock.entry;
       if (stock.status === 'TARGET HIT') return s + ((stock.target - stock.entry) * qty);
       if (stock.status === 'SL HIT') return s + ((stock.stoploss - stock.entry) * qty);
       return s;
@@ -569,9 +568,18 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
                 {months.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
               
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-bright)', display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-bright)', display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'6px', background:'rgba(56,189,248,0.06)', padding:'4px 10px', borderRadius:'8px', border:'1px solid rgba(56,189,248,0.15)' }}>
+                  <span style={{ color:'#94a3b8', fontSize:'0.75rem' }}>₹/Trade:</span>
+                  <input 
+                    type="number" 
+                    value={amountPerTrade} 
+                    onChange={e => setAmountPerTrade(Number(e.target.value))} 
+                    style={{ width:'70px', background:'transparent', border:'none', color:'#38bdf8', fontWeight:'bold', fontSize:'0.85rem', outline:'none' }}
+                  />
+                </div>
                 <span>Signals: <strong style={{color:accentColor}}>{monthlySignals}</strong></span>
-                <span>Cost (10k/Trade): <strong style={{color:accentColor}}>₹{monthlyCost.toLocaleString('en-IN')}</strong></span>
+                <span>Cost: <strong style={{color:accentColor}}>₹{monthlyCost.toLocaleString('en-IN')}</strong></span>
                 <span>Est. P&L: <strong style={{color: monthlyPnL >= 0 ? '#4ade80' : '#f87171'}}>{monthlyPnL > 0 ? '+' : ''}₹{monthlyPnL.toLocaleString('en-IN', {minimumFractionDigits:0, maximumFractionDigits:0})}</strong></span>
               </div>
               <span style={{ fontSize:'0.85rem', color:accentColor }}>← Scroll → • Click bar</span>
@@ -667,6 +675,7 @@ function App() {
   const [niftyBullish, setNiftyBullish] = useState(null);
   const [universeScanAt, setUniverseScanAt] = useState('');
   const [budgetCapital, setBudgetCapital] = useState(30000);
+  const [amountPerTrade, setAmountPerTrade] = useState(10000);
   const [budgetRiskPct, setBudgetRiskPct] = useState(2);
   const [experienceMode, setExperienceMode] = useState(true);
   const [showExperienceIntro, setShowExperienceIntro] = useState(true);
@@ -1239,10 +1248,7 @@ function App() {
             </>
           )}
 
-          {/* BUDGET FRIENDLY VIEW */}
           {market === "BUDGET" && (() => {
-            const riskPerTrade = budgetCapital * (budgetRiskPct / 100);
-
             // Gather all signals from both NSE and HC
             const allSignals = [
               ...data.map(s => ({ ...s, tier: s.action === 'STRONG BUY' ? 'HC' : 'NSE' })),
@@ -1257,14 +1263,13 @@ function App() {
               }, {})
             );
 
-            // Filter: price must allow at least 3 shares within budgetCapital
+            // Filter: price must allow at least 1 share within amountPerTrade
             const budgetSignals = deduped
-              .filter(s => s.entry > 0 && s.entry <= budgetCapital / 3)
+              .filter(s => s.entry > 0 && s.entry <= amountPerTrade)
               .map(s => {
-                const stopGap = s.entry - s.stoploss;
-                const qty = stopGap > 0 ? Math.max(1, Math.floor(riskPerTrade / stopGap)) : 1;
+                const qty = Math.floor(amountPerTrade / s.entry);
                 const capitalUsed = qty * s.entry;
-                const canAfford = capitalUsed <= budgetCapital * 0.45; // max 45% per trade
+                const canAfford = true; // already filtered
 
                 // Signal score 0-100
                 let score = 0;
@@ -1284,10 +1289,10 @@ function App() {
                 if (s.delivery_pct != null && s.delivery_pct >= 45) score += 10;
                 else if (s.delivery_pct != null && s.delivery_pct >= 35) score += 5;
 
-                const tier1 = score >= 80 && canAfford;
-                const tier2 = score >= 65 && score < 80 && canAfford;
+                const tier1 = score >= 80;
+                const tier2 = score >= 65 && score < 80;
 
-                return { ...s, qty, capitalUsed, canAfford, score, stopGap, tier1, tier2 };
+                return { ...s, qty, capitalUsed, canAfford, score, tier1, tier2 };
               })
               .sort((a, b) => b.score - a.score);
 
@@ -1321,14 +1326,13 @@ function App() {
 
                 {/* Position sizing */}
                 <div style={{ background:'rgba(52,211,153,0.06)', border:'1px solid #34d39922', borderRadius:'10px', padding:'12px', marginBottom:'12px' }}>
-                  <div style={{ fontSize:'0.72rem', color:'#6ee7b7', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'8px', fontWeight:'600' }}>📐 Position Sizing (2% Rule)</div>
+                  <div style={{ fontSize:'0.72rem', color:'#6ee7b7', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'8px', fontWeight:'600' }}>📐 Position Sizing (Flat $\{amountPerTrade})</div>
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
                     <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Entry Price</div><div style={{ fontWeight:'bold', color:'#e2e8f0' }}>₹{s.entry.toFixed(2)}</div></div>
                     <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Suggested Qty</div><div style={{ fontWeight:'bold', color:'#34d399', fontSize:'1.1rem' }}>{s.qty} shares</div></div>
-                    <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Capital Used</div><div style={{ fontWeight:'bold', color: s.canAfford ? '#4ade80' : '#f87171' }}>₹{s.capitalUsed.toLocaleString('en-IN', {maximumFractionDigits:0})}</div></div>
-                    <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Max Risk</div><div style={{ fontWeight:'bold', color:'#fbbf24' }}>₹{riskPerTrade.toFixed(0)}</div></div>
+                    <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Capital Used</div><div style={{ fontWeight:'bold', color:'#4ade80' }}>₹{s.capitalUsed.toLocaleString('en-IN', {maximumFractionDigits:0})}</div></div>
+                    <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Target Amt</div><div style={{ fontWeight:'bold', color:'#fbbf24' }}>₹{amountPerTrade.toLocaleString('en-IN')}</div></div>
                   </div>
-                  {!s.canAfford && <div style={{ marginTop:'8px', fontSize:'0.72rem', color:'#f87171' }}>⚠️ Capital used exceeds 45% limit. Reduce qty.</div>}
                 </div>
 
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px', marginBottom:'10px' }}>
@@ -1354,21 +1358,21 @@ function App() {
                   <h2 style={{ margin:'0 0 6px', color:'#34d399', fontSize:'1.3rem' }}>₹ Budget Friendly Swing Planner</h2>
                   <p style={{ color:'#6ee7b7', margin:'0 0 20px', fontSize:'0.85rem', opacity:0.8 }}>Position sizing & signal filtering calibrated to your monthly capital. Signals pulled from HC + NSE Buy tabs.</p>
 
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', gap:'16px', marginBottom:'20px' }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', gap:'20px', marginBottom:'20px' }}>
                     <div>
-                      <label style={{ fontSize:'0.8rem', color:'#6ee7b7', display:'block', marginBottom:'6px' }}>Monthly Capital (₹)</label>
+                      <label style={{ fontSize:'0.8rem', color:'#6ee7b7', display:'block', marginBottom:'6px' }}>Total Portfolio Capital (₹)</label>
                       <input type="number" value={budgetCapital} onChange={e => setBudgetCapital(Number(e.target.value))} min={5000} step={1000}
                         style={{ width:'100%', padding:'10px 14px', background:'#0f172a', border:'1px solid #059669', borderRadius:'8px', color:'#f8fafc', fontSize:'1rem', boxSizing:'border-box', outline:'none' }} />
                     </div>
                     <div>
-                      <label style={{ fontSize:'0.8rem', color:'#6ee7b7', display:'block', marginBottom:'6px' }}>Risk Per Trade (%)</label>
-                      <input type="number" value={budgetRiskPct} onChange={e => setBudgetRiskPct(Math.min(5, Math.max(0.5, Number(e.target.value))))} min={0.5} max={5} step={0.5}
+                      <label style={{ fontSize:'0.8rem', color:'#6ee7b7', display:'block', marginBottom:'6px' }}>Amount Per Trade (₹)</label>
+                      <input type="number" value={amountPerTrade} onChange={e => setAmountPerTrade(Number(e.target.value))} min={500} step={500}
                         style={{ width:'100%', padding:'10px 14px', background:'#0f172a', border:'1px solid #059669', borderRadius:'8px', color:'#f8fafc', fontSize:'1rem', boxSizing:'border-box', outline:'none' }} />
                     </div>
                     <div style={{ display:'flex', flexDirection:'column', justifyContent:'flex-end' }}>
                       <div style={{ background:'rgba(52,211,153,0.08)', border:'1px solid #34d39933', borderRadius:'10px', padding:'10px 14px' }}>
-                        <div style={{ fontSize:'0.72rem', color:'#6ee7b7', marginBottom:'2px' }}>Max Risk Per Trade</div>
-                        <div style={{ fontSize:'1.4rem', fontWeight:'bold', color:'#34d399' }}>₹{riskPerTrade.toFixed(0)}</div>
+                        <div style={{ fontSize:'0.72rem', color:'#6ee7b7', marginBottom:'2px' }}>Max Trade Slots</div>
+                        <div style={{ fontSize:'1.4rem', fontWeight:'bold', color:'#34d399' }}>{Math.floor(budgetCapital / amountPerTrade)}</div>
                       </div>
                     </div>
                   </div>
