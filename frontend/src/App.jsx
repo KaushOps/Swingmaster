@@ -399,9 +399,223 @@ function SearchBar({ onSelect }) {
   );
 }
 
+function BudgetPlanner({ data, hcData, budgetCapital, setBudgetCapital, amountPerTrade, setAmountPerTrade, logTrade, setSelectedDetail }) {
+  const [localBudget, setLocalBudget] = useState(budgetCapital);
+  const [localAlloc, setLocalAlloc] = useState(amountPerTrade);
+
+  useEffect(() => { setLocalBudget(budgetCapital); }, [budgetCapital]);
+  useEffect(() => { setLocalAlloc(amountPerTrade); }, [amountPerTrade]);
+
+  // Gather all signals from both NSE and HC
+  const allSignals = useMemo(() => [
+    ...data.map(s => ({ ...s, tier: s.action === 'STRONG BUY' ? 'HC' : 'NSE' })),
+    ...(hcData.length > 0 ? hcData.map(s => ({ ...s, tier: 'HC' })) : [])
+  ], [data, hcData]);
+
+  // Deduplicate by symbol, prefer HC
+  const deduped = useMemo(() => Object.values(
+    allSignals.reduce((acc, s) => {
+      if (!acc[s.symbol] || s.tier === 'HC') acc[s.symbol] = s;
+      return acc;
+    }, {})
+  ), [allSignals]);
+
+  // Filter: price must allow at least 1 share within amountPerTrade
+  const budgetSignals = useMemo(() => deduped
+    .filter(s => s.entry > 0 && s.entry <= amountPerTrade)
+    .map(s => {
+      const qty = Math.floor(amountPerTrade / s.entry);
+      const capitalUsed = qty * s.entry;
+      const canAfford = true; 
+
+      let score = 0;
+      if (s.confidence >= 72) score += 25;
+      else if (s.confidence >= 60) score += 15;
+      else if (s.confidence >= 55) score += 8;
+      if (s.volume_ratio >= 2.0) score += 20;
+      else if (s.volume_ratio >= 1.5) score += 15;
+      else if (s.volume_ratio >= 1.0) score += 8;
+      if (s.tier === 'HC') score += 20;
+      else score += 10;
+      if (s.entry <= 500) score += 15;
+      else if (s.entry <= 1000) score += 10;
+      else if (s.entry <= 1500) score += 5;
+      if (s.backtest && s.backtest.win_rate >= 60) score += 10;
+      else if (s.backtest && s.backtest.win_rate >= 50) score += 5;
+      if (s.delivery_pct != null && s.delivery_pct >= 45) score += 10;
+      else if (s.delivery_pct != null && s.delivery_pct >= 35) score += 5;
+
+      const tier1 = score >= 80;
+      const tier2 = score >= 65 && score < 80;
+
+      return { ...s, qty, capitalUsed, canAfford, score, tier1, tier2 };
+    })
+    .sort((a, b) => b.score - a.score)
+  , [deduped, amountPerTrade]);
+
+  const tier1 = budgetSignals.filter(s => s.score >= 80);
+  const tier2 = budgetSignals.filter(s => s.score >= 65 && s.score < 80);
+  const watchlist = budgetSignals.filter(s => s.score < 65);
+
+  const deployedWk1 = tier1.slice(0, 2).reduce((s, x) => s + x.capitalUsed, 0);
+  const deployedWk2 = tier2.slice(0, 3).reduce((s, x) => s + x.capitalUsed, 0);
+  const reserve = Math.max(0, budgetCapital - deployedWk1 - deployedWk2);
+
+  const SignalCard = ({ s }) => (
+    <div style={{ background:'#0f172a', border:`1px solid ${s.score >= 80 ? '#34d39944' : s.score >= 65 ? '#38bdf844' : '#334155'}`, borderRadius:'14px', padding:'18px', cursor:'pointer', transition:'border-color 0.2s', position:'relative' }}
+      onClick={() => setSelectedDetail(s.symbol)}
+      onMouseEnter={e => e.currentTarget.style.borderColor = s.score >= 80 ? '#34d399aa' : '#38bdf8aa'}
+      onMouseLeave={e => e.currentTarget.style.borderColor = s.score >= 80 ? '#34d39944' : s.score >= 65 ? '#38bdf844' : '#334155'}>
+
+      <div style={{ position: 'absolute', top: '12px', right: '12px', fontSize: '0.65rem', color: '#64748b', fontStyle: 'italic', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '4px' }}>Click for AI details</div>
+
+      <div style={{ position:'absolute', top:'14px', right:'14px', background: s.score >= 80 ? 'linear-gradient(135deg,#059669,#34d399)' : s.score >= 65 ? 'linear-gradient(135deg,#0284c7,#38bdf8)' : '#1e293b', borderRadius:'20px', padding:'4px 10px', fontSize:'0.75rem', fontWeight:'bold', color:'#fff' }}>
+        {s.score}/100
+      </div>
+
+      <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'12px' }}>
+        <h2 style={{ margin:0, fontSize:'1.2rem', color:'#f8fafc' }}>{s.symbol}</h2>
+        <span style={{ background: s.tier === 'HC' ? 'rgba(251,191,36,0.15)' : 'rgba(56,189,248,0.1)', color: s.tier === 'HC' ? '#fbbf24' : '#38bdf8', border:`1px solid ${s.tier === 'HC' ? '#fbbf2444' : '#38bdf844'}`, borderRadius:'6px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'bold' }}>
+          {s.tier === 'HC' ? '🎯 HC' : '🚀 NSE'}
+        </span>
+      </div>
+
+      <div style={{ background:'rgba(52,211,153,0.06)', border:'1px solid #34d39922', borderRadius:'10px', padding:'12px', marginBottom:'12px' }}>
+        <div style={{ fontSize:'0.72rem', color:'#6ee7b7', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'8px', fontWeight:'600' }}>📐 Position Sizing (Flat ₹{amountPerTrade})</div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+          <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Entry Price</div><div style={{ fontWeight:'bold', color:'#e2e8f0' }}>₹{s.entry.toFixed(2)}</div></div>
+          <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Suggested Qty</div><div style={{ fontWeight:'bold', color:'#34d399', fontSize:'1.1rem' }}>{s.qty} shares</div></div>
+          <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Capital Used</div><div style={{ fontWeight:'bold', color:'#4ade80' }}>₹{s.capitalUsed.toLocaleString('en-IN', {maximumFractionDigits:0})}</div></div>
+          <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Target Amt</div><div style={{ fontWeight:'bold', color:'#fbbf24' }}>₹{amountPerTrade.toLocaleString('en-IN')}</div></div>
+        </div>
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px', marginBottom:'10px' }}>
+        <div style={{ background:'#1e293b', borderRadius:'8px', padding:'8px', textAlign:'center' }}><div style={{ fontSize:'0.65rem', color:'#64748b' }}>Target</div><div style={{ fontWeight:'bold', color:'#4ade80', fontSize:'0.9rem' }}>₹{s.target.toFixed(2)}</div></div>
+        <div style={{ background:'#1e293b', borderRadius:'8px', padding:'8px', textAlign:'center' }}><div style={{ fontSize:'0.65rem', color:'#64748b' }}>Stoploss</div><div style={{ fontWeight:'bold', color:'#f87171', fontSize:'0.9rem' }}>₹{s.stoploss.toFixed(2)}</div></div>
+        <div style={{ background:'#1e293b', borderRadius:'8px', padding:'8px', textAlign:'center' }}><div style={{ fontSize:'0.65rem', color:'#64748b' }}>Confidence</div><div style={{ fontWeight:'bold', color:'#e2e8f0', fontSize:'0.9rem' }}>{s.confidence.toFixed(1)}%</div></div>
+      </div>
+
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.78rem', color:'#64748b' }}>
+        <span>Vol: <strong style={{ color: s.volume_ratio >= 1.5 ? '#fbbf24' : '#94a3b8' }}>{s.volume_ratio.toFixed(2)}x</strong></span>
+        {s.delivery_pct != null && <span>Delivery: <strong style={{ color: s.delivery_pct >= 45 ? '#4ade80' : '#94a3b8' }}>{s.delivery_pct}%</strong></span>}
+        {s.backtest && <span>Win Rate: <strong style={{ color: s.backtest.win_rate >= 60 ? '#4ade80' : '#94a3b8' }}>{s.backtest.win_rate.toFixed(0)}%</strong></span>}
+      </div>
+
+      <button onClick={e => { e.stopPropagation(); logTrade(s, s.entry); }} style={{ width:'100%', marginTop:'12px', padding:'8px', background:'rgba(52,211,153,0.1)', color:'#34d399', border:'1px solid rgba(52,211,153,0.3)', borderRadius:'8px', cursor:'pointer', fontSize:'0.82rem', fontWeight:'600' }}>+ Log Trade</button>
+    </div>
+  );
+
+  return (
+    <>
+      <div style={{ background:'linear-gradient(135deg,#022c22,#0f172a)', border:'1px solid #059669', borderRadius:'16px', padding:'24px', marginBottom:'28px' }}>
+        <h2 style={{ margin:'0 0 6px', color:'#34d399', fontSize:'1.3rem' }}>₹ Budget Friendly Swing Planner</h2>
+        <p style={{ color:'#6ee7b7', margin:'0 0 20px', fontSize:'0.85rem', opacity:0.8 }}>Position sizing & signal filtering calibrated to your monthly capital. Signals pulled from HC + NSE Buy tabs.</p>
+
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', gap:'20px', marginBottom:'20px' }}>
+          <div>
+            <label style={{ fontSize:'0.8rem', color:'#6ee7b7', display:'block', marginBottom:'6px' }}>Total Portfolio Capital (₹)</label>
+            <div style={{ display:'flex', gap:'8px' }}>
+              <input type="number" value={localBudget} onChange={e => setLocalBudget(Number(e.target.value))}
+                onKeyDown={e => { if(e.key==='Enter') setBudgetCapital(localBudget) }}
+                style={{ flex:1, padding:'10px 14px', background:'#0f172a', border:'1px solid #059669', borderRadius:'8px', color:'#f8fafc', fontSize:'1rem', boxSizing:'border-box', outline:'none' }} />
+              <button onClick={() => setBudgetCapital(localBudget)} style={{ padding:'0 15px', background:'rgba(52,211,153,0.15)', color:'#34d399', border:'1px solid #34d39944', borderRadius:'8px', cursor:'pointer', fontWeight:'bold' }}>Apply</button>
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize:'0.8rem', color:'#6ee7b7', display:'block', marginBottom:'6px' }}>Amount Per Trade (₹)</label>
+            <div style={{ display:'flex', gap:'8px' }}>
+              <input type="number" value={localAlloc} onChange={e => setLocalAlloc(Number(e.target.value))}
+                onKeyDown={e => { if(e.key==='Enter') setAmountPerTrade(localAlloc) }}
+                style={{ flex:1, padding:'10px 14px', background:'#0f172a', border:'1px solid #059669', borderRadius:'8px', color:'#f8fafc', fontSize:'1rem', boxSizing:'border-box', outline:'none' }} />
+              <button onClick={() => setAmountPerTrade(localAlloc)} style={{ padding:'0 15px', background:'rgba(52,211,153,0.15)', color:'#34d399', border:'1px solid #34d39944', borderRadius:'8px', cursor:'pointer', fontWeight:'bold' }}>Apply</button>
+            </div>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', justifyContent:'flex-end' }}>
+            <div style={{ background:'rgba(52,211,153,0.08)', border:'1px solid #34d39933', borderRadius:'10px', padding:'10px 14px' }}>
+              <div style={{ fontSize:'0.72rem', color:'#6ee7b7', marginBottom:'2px' }}>Max Trade Slots</div>
+              <div style={{ fontSize:'1.4rem', fontWeight:'bold', color:'#34d399' }}>{Math.floor(budgetCapital / amountPerTrade)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:'12px' }}>
+          {[
+            ['Week 1 Deploy', `₹${deployedWk1.toLocaleString('en-IN')}`, '#34d399', 'Tier 1 signals (top 2)'],
+            ['Week 2 Deploy', `₹${deployedWk2.toLocaleString('en-IN')}`, '#38bdf8', 'Tier 2 signals (top 3)'],
+            ['Reserve', `₹${reserve.toLocaleString('en-IN')}`, '#fbbf24', 'Never fully deploy'],
+            ['Max Positions', '4', '#c084fc', 'Open at any time'],
+          ].map(([label, val, color, sub]) => (
+            <div key={label} style={{ background:'rgba(0,0,0,0.3)', borderRadius:'10px', padding:'12px', borderLeft:`3px solid ${color}` }}>
+              <div style={{ fontSize:'0.72rem', color:'#64748b', marginBottom:'4px' }}>{label}</div>
+              <div style={{ fontSize:'1.4rem', fontWeight:'bold', color }}>{val}</div>
+              <div style={{ fontSize:'0.7rem', color:'#475569', marginTop:'2px' }}>{sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {budgetSignals.length === 0 ? (
+        <div className="no-data" style={{ textAlign:'center', padding:'60px', color:'#64748b' }}>
+          <div style={{ fontSize:'2rem', marginBottom:'12px' }}>📊</div>
+          <div>No budget-friendly signals loaded yet.</div>
+          <div style={{ fontSize:'0.85rem', marginTop:'8px', color:'#475569' }}>Visit <strong style={{color:'#38bdf8'}}>🚀 All NSE (Buy Only)</strong> or <strong style={{color:'#fbbf24'}}>🎯 High Conviction</strong> tabs first to load signal data, then return here.</div>
+        </div>
+      ) : (
+        <>
+          {tier1.length > 0 && (
+            <>
+              <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'14px' }}>
+                <div style={{ height:'1px', flex:1, background:'#059669' }} />
+                <span style={{ color:'#34d399', fontWeight:'bold', fontSize:'0.95rem', whiteSpace:'nowrap' }}>🥇 Tier 1 — Enter Week 1 (Score ≥ 80)</span>
+                <div style={{ height:'1px', flex:1, background:'#059669' }} />
+              </div>
+              <div className="grid" style={{ marginBottom:'28px' }}>
+                {tier1.map(s => <SignalCard key={s.symbol} s={s} />)}
+              </div>
+            </>
+          )}
+
+          {tier2.length > 0 && (
+            <>
+              <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'14px' }}>
+                <div style={{ height:'1px', flex:1, background:'#0284c7' }} />
+                <span style={{ color:'#38bdf8', fontWeight:'bold', fontSize:'0.95rem', whiteSpace:'nowrap' }}>🥈 Tier 2 — Enter Week 2 if Wk1 in profit (Score 65–79)</span>
+                <div style={{ height:'1px', flex:1, background:'#0284c7' }} />
+              </div>
+              <div className="grid" style={{ marginBottom:'28px' }}>
+                {tier2.map(s => <SignalCard key={s.symbol} s={s} />)}
+              </div>
+            </>
+          )}
+
+          {watchlist.length > 0 && (
+            <>
+              <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'14px' }}>
+                <div style={{ height:'1px', flex:1, background:'#334155' }} />
+                <span style={{ color:'#64748b', fontWeight:'bold', fontSize:'0.95rem', whiteSpace:'nowrap' }}>👁 Watchlist — Hold, wait for better setup (Score &lt; 65)</span>
+                <div style={{ height:'1px', flex:1, background:'#334155' }} />
+              </div>
+              <div className="grid">
+                {watchlist.map(s => <SignalCard key={s.symbol} s={s} />)}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
 function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accentColor, bannerTheme, TooltipComponent, onLogTrade, onDetail, amountPerTrade, setAmountPerTrade }) {
   const [selectedMonth, setSelectedMonth] = useState('All');
   const [groupBy, setGroupBy] = useState('DATE'); // 'DATE' or 'STOCK'
+  const [localAlloc, setLocalAlloc] = useState(amountPerTrade);
+
+  // Sync local state if parent prop changes
+  useEffect(() => {
+    setLocalAlloc(amountPerTrade);
+  }, [amountPerTrade]);
   const months = [...new Set(histData.map(d => d.date.substring(0, 7)))].sort().reverse();
   
   const filteredHistData = useMemo(() => {
@@ -573,16 +787,13 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
                   <span style={{ color:'#94a3b8', fontSize:'0.75rem' }}>₹/Trade:</span>
                   <input 
                     type="number" 
-                    defaultValue={amountPerTrade} 
-                    onKeyDown={e => { if(e.key==='Enter') setAmountPerTrade(Number(e.target.value)) }}
-                    onBlur={e => setAmountPerTrade(Number(e.target.value))}
+                    value={localAlloc} 
+                    onChange={e => setLocalAlloc(Number(e.target.value))}
+                    onKeyDown={e => { if(e.key==='Enter') setAmountPerTrade(localAlloc) }}
                     style={{ width:'70px', background:'transparent', border:'none', color:'#38bdf8', fontWeight:'bold', fontSize:'0.85rem', outline:'none' }}
                   />
                   <button 
-                    onClick={(e) => {
-                      const input = e.currentTarget.previousSibling;
-                      setAmountPerTrade(Number(input.value));
-                    }}
+                    onClick={() => setAmountPerTrade(localAlloc)}
                     style={{ background:'rgba(56,189,248,0.2)', border:'none', color:'#38bdf8', padding:'2px 6px', borderRadius:'4px', fontSize:'0.7rem', cursor:'pointer', fontWeight:'bold' }}
                   >Apply</button>
                 </div>
@@ -1256,216 +1467,18 @@ function App() {
             </>
           )}
 
-          {market === "BUDGET" && (() => {
-            // Gather all signals from both NSE and HC
-            const allSignals = [
-              ...data.map(s => ({ ...s, tier: s.action === 'STRONG BUY' ? 'HC' : 'NSE' })),
-              ...(hcData.length > 0 ? hcData.map(s => ({ ...s, tier: 'HC' })) : [])
-            ];
-
-            // Deduplicate by symbol, prefer HC
-            const deduped = Object.values(
-              allSignals.reduce((acc, s) => {
-                if (!acc[s.symbol] || s.tier === 'HC') acc[s.symbol] = s;
-                return acc;
-              }, {})
-            );
-
-            // Filter: price must allow at least 1 share within amountPerTrade
-            const budgetSignals = deduped
-              .filter(s => s.entry > 0 && s.entry <= amountPerTrade)
-              .map(s => {
-                const qty = Math.floor(amountPerTrade / s.entry);
-                const capitalUsed = qty * s.entry;
-                const canAfford = true; // already filtered
-
-                // Signal score 0-100
-                let score = 0;
-                if (s.confidence >= 72) score += 25;
-                else if (s.confidence >= 60) score += 15;
-                else if (s.confidence >= 55) score += 8;
-                if (s.volume_ratio >= 2.0) score += 20;
-                else if (s.volume_ratio >= 1.5) score += 15;
-                else if (s.volume_ratio >= 1.0) score += 8;
-                if (s.tier === 'HC') score += 20;
-                else score += 10;
-                if (s.entry <= 500) score += 15;
-                else if (s.entry <= 1000) score += 10;
-                else if (s.entry <= 1500) score += 5;
-                if (s.backtest && s.backtest.win_rate >= 60) score += 10;
-                else if (s.backtest && s.backtest.win_rate >= 50) score += 5;
-                if (s.delivery_pct != null && s.delivery_pct >= 45) score += 10;
-                else if (s.delivery_pct != null && s.delivery_pct >= 35) score += 5;
-
-                const tier1 = score >= 80;
-                const tier2 = score >= 65 && score < 80;
-
-                return { ...s, qty, capitalUsed, canAfford, score, tier1, tier2 };
-              })
-              .sort((a, b) => b.score - a.score);
-
-            const tier1 = budgetSignals.filter(s => s.score >= 80);
-            const tier2 = budgetSignals.filter(s => s.score >= 65 && s.score < 80);
-            const watchlist = budgetSignals.filter(s => s.score < 65);
-
-            const deployedWk1 = tier1.slice(0, 2).reduce((s, x) => s + x.capitalUsed, 0);
-            const deployedWk2 = tier2.slice(0, 3).reduce((s, x) => s + x.capitalUsed, 0);
-            const reserve = Math.max(0, budgetCapital - deployedWk1 - deployedWk2);
-
-            const SignalCard = ({ s }) => (
-              <div style={{ background:'#0f172a', border:`1px solid ${s.score >= 80 ? '#34d39944' : s.score >= 65 ? '#38bdf844' : '#334155'}`, borderRadius:'14px', padding:'18px', cursor:'pointer', transition:'border-color 0.2s', position:'relative' }}
-                onClick={() => setSelectedDetail(s.symbol)}
-                onMouseEnter={e => e.currentTarget.style.borderColor = s.score >= 80 ? '#34d399aa' : '#38bdf8aa'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = s.score >= 80 ? '#34d39944' : s.score >= 65 ? '#38bdf844' : '#334155'}>
-
-                <div style={{ position: 'absolute', top: '12px', right: '12px', fontSize: '0.65rem', color: '#64748b', fontStyle: 'italic', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '4px' }}>Click for AI details</div>
-
-                {/* Score badge */}
-                <div style={{ position:'absolute', top:'14px', right:'14px', background: s.score >= 80 ? 'linear-gradient(135deg,#059669,#34d399)' : s.score >= 65 ? 'linear-gradient(135deg,#0284c7,#38bdf8)' : '#1e293b', borderRadius:'20px', padding:'4px 10px', fontSize:'0.75rem', fontWeight:'bold', color:'#fff' }}>
-                  {s.score}/100
-                </div>
-
-                <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'12px' }}>
-                  <h2 style={{ margin:0, fontSize:'1.2rem', color:'#f8fafc' }}>{s.symbol}</h2>
-                  <span style={{ background: s.tier === 'HC' ? 'rgba(251,191,36,0.15)' : 'rgba(56,189,248,0.1)', color: s.tier === 'HC' ? '#fbbf24' : '#38bdf8', border:`1px solid ${s.tier === 'HC' ? '#fbbf2444' : '#38bdf844'}`, borderRadius:'6px', padding:'2px 8px', fontSize:'0.7rem', fontWeight:'bold' }}>
-                    {s.tier === 'HC' ? '🎯 HC' : '🚀 NSE'}
-                  </span>
-                </div>
-
-                {/* Position sizing */}
-                <div style={{ background:'rgba(52,211,153,0.06)', border:'1px solid #34d39922', borderRadius:'10px', padding:'12px', marginBottom:'12px' }}>
-                  <div style={{ fontSize:'0.72rem', color:'#6ee7b7', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'8px', fontWeight:'600' }}>📐 Position Sizing (Flat $\{amountPerTrade})</div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
-                    <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Entry Price</div><div style={{ fontWeight:'bold', color:'#e2e8f0' }}>₹{s.entry.toFixed(2)}</div></div>
-                    <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Suggested Qty</div><div style={{ fontWeight:'bold', color:'#34d399', fontSize:'1.1rem' }}>{s.qty} shares</div></div>
-                    <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Capital Used</div><div style={{ fontWeight:'bold', color:'#4ade80' }}>₹{s.capitalUsed.toLocaleString('en-IN', {maximumFractionDigits:0})}</div></div>
-                    <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Target Amt</div><div style={{ fontWeight:'bold', color:'#fbbf24' }}>₹{amountPerTrade.toLocaleString('en-IN')}</div></div>
-                  </div>
-                </div>
-
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px', marginBottom:'10px' }}>
-                  <div style={{ background:'#1e293b', borderRadius:'8px', padding:'8px', textAlign:'center' }}><div style={{ fontSize:'0.65rem', color:'#64748b' }}>Target</div><div style={{ fontWeight:'bold', color:'#4ade80', fontSize:'0.9rem' }}>₹{s.target.toFixed(2)}</div></div>
-                  <div style={{ background:'#1e293b', borderRadius:'8px', padding:'8px', textAlign:'center' }}><div style={{ fontSize:'0.65rem', color:'#64748b' }}>Stoploss</div><div style={{ fontWeight:'bold', color:'#f87171', fontSize:'0.9rem' }}>₹{s.stoploss.toFixed(2)}</div></div>
-                  <div style={{ background:'#1e293b', borderRadius:'8px', padding:'8px', textAlign:'center' }}><div style={{ fontSize:'0.65rem', color:'#64748b' }}>Confidence</div><div style={{ fontWeight:'bold', color:'#e2e8f0', fontSize:'0.9rem' }}>{s.confidence.toFixed(1)}%</div></div>
-                </div>
-
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.78rem', color:'#64748b' }}>
-                  <span>Vol: <strong style={{ color: s.volume_ratio >= 1.5 ? '#fbbf24' : '#94a3b8' }}>{s.volume_ratio.toFixed(2)}x</strong></span>
-                  {s.delivery_pct != null && <span>Delivery: <strong style={{ color: s.delivery_pct >= 45 ? '#4ade80' : '#94a3b8' }}>{s.delivery_pct}%</strong></span>}
-                  {s.backtest && <span>Win Rate: <strong style={{ color: s.backtest.win_rate >= 60 ? '#4ade80' : '#94a3b8' }}>{s.backtest.win_rate.toFixed(0)}%</strong></span>}
-                </div>
-
-                <button onClick={e => { e.stopPropagation(); logTrade(s, s.entry); }} style={{ width:'100%', marginTop:'12px', padding:'8px', background:'rgba(52,211,153,0.1)', color:'#34d399', border:'1px solid rgba(52,211,153,0.3)', borderRadius:'8px', cursor:'pointer', fontSize:'0.82rem', fontWeight:'600' }}>+ Log Trade</button>
-              </div>
-            );
-
-            return (
-              <>
-                {/* Controls */}
-                <div style={{ background:'linear-gradient(135deg,#022c22,#0f172a)', border:'1px solid #059669', borderRadius:'16px', padding:'24px', marginBottom:'28px' }}>
-                  <h2 style={{ margin:'0 0 6px', color:'#34d399', fontSize:'1.3rem' }}>₹ Budget Friendly Swing Planner</h2>
-                  <p style={{ color:'#6ee7b7', margin:'0 0 20px', fontSize:'0.85rem', opacity:0.8 }}>Position sizing & signal filtering calibrated to your monthly capital. Signals pulled from HC + NSE Buy tabs.</p>
-
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', gap:'20px', marginBottom:'20px' }}>
-                    <div>
-                      <label style={{ fontSize:'0.8rem', color:'#6ee7b7', display:'block', marginBottom:'6px' }}>Total Portfolio Capital (₹)</label>
-                      <input type="number" value={budgetCapital} onChange={e => setBudgetCapital(Number(e.target.value))} min={5000} step={1000}
-                        style={{ width:'100%', padding:'10px 14px', background:'#0f172a', border:'1px solid #059669', borderRadius:'8px', color:'#f8fafc', fontSize:'1rem', boxSizing:'border-box', outline:'none' }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize:'0.8rem', color:'#6ee7b7', display:'block', marginBottom:'6px' }}>Amount Per Trade (₹)</label>
-                      <div style={{ display:'flex', gap:'8px' }}>
-                        <input type="number" defaultValue={amountPerTrade} 
-                          onKeyDown={e => { if(e.key==='Enter') setAmountPerTrade(Number(e.target.value)) }}
-                          style={{ flex:1, padding:'10px 14px', background:'#0f172a', border:'1px solid #059669', borderRadius:'8px', color:'#f8fafc', fontSize:'1rem', boxSizing:'border-box', outline:'none' }} />
-                        <button 
-                          onClick={(e) => {
-                            const input = e.currentTarget.previousSibling;
-                            setAmountPerTrade(Number(input.value));
-                          }}
-                          style={{ padding:'0 15px', background:'rgba(52,211,153,0.15)', color:'#34d399', border:'1px solid #34d39944', borderRadius:'8px', cursor:'pointer', fontWeight:'bold' }}
-                        >Apply</button>
-                      </div>
-                    </div>
-                    <div style={{ display:'flex', flexDirection:'column', justifyContent:'flex-end' }}>
-                      <div style={{ background:'rgba(52,211,153,0.08)', border:'1px solid #34d39933', borderRadius:'10px', padding:'10px 14px' }}>
-                        <div style={{ fontSize:'0.72rem', color:'#6ee7b7', marginBottom:'2px' }}>Max Trade Slots</div>
-                        <div style={{ fontSize:'1.4rem', fontWeight:'bold', color:'#34d399' }}>{Math.floor(budgetCapital / amountPerTrade)}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Deployment Plan */}
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:'12px' }}>
-                    {[
-                      ['Week 1 Deploy', `₹${deployedWk1.toLocaleString('en-IN',{maximumFractionDigits:0})}`, '#34d399', 'Tier 1 signals (top 2)'],
-                      ['Week 2 Deploy', `₹${deployedWk2.toLocaleString('en-IN',{maximumFractionDigits:0})}`, '#38bdf8', 'Tier 2 signals (top 3)'],
-                      ['Reserve', `₹${reserve.toLocaleString('en-IN',{maximumFractionDigits:0})}`, '#fbbf24', 'Never fully deploy'],
-                      ['Max Positions', '4', '#c084fc', 'Open at any time'],
-                    ].map(([label, val, color, sub]) => (
-                      <div key={label} style={{ background:'rgba(0,0,0,0.3)', borderRadius:'10px', padding:'12px', borderLeft:`3px solid ${color}` }}>
-                        <div style={{ fontSize:'0.72rem', color:'#64748b', marginBottom:'4px' }}>{label}</div>
-                        <div style={{ fontSize:'1.4rem', fontWeight:'bold', color }}>{val}</div>
-                        <div style={{ fontSize:'0.7rem', color:'#475569', marginTop:'2px' }}>{sub}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {budgetSignals.length === 0 ? (
-                  <div className="no-data" style={{ textAlign:'center', padding:'60px', color:'#64748b' }}>
-                    <div style={{ fontSize:'2rem', marginBottom:'12px' }}>📊</div>
-                    <div>No budget-friendly signals loaded yet.</div>
-                    <div style={{ fontSize:'0.85rem', marginTop:'8px', color:'#475569' }}>Visit <strong style={{color:'#38bdf8'}}>🚀 All NSE (Buy Only)</strong> or <strong style={{color:'#fbbf24'}}>🎯 High Conviction</strong> tabs first to load signal data, then return here.</div>
-                  </div>
-                ) : (
-                  <>
-                    {/* Tier 1 */}
-                    {tier1.length > 0 && (
-                      <>
-                        <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'14px' }}>
-                          <div style={{ height:'1px', flex:1, background:'#059669' }} />
-                          <span style={{ color:'#34d399', fontWeight:'bold', fontSize:'0.95rem', whiteSpace:'nowrap' }}>🥇 Tier 1 — Enter Week 1 (Score ≥ 80)</span>
-                          <div style={{ height:'1px', flex:1, background:'#059669' }} />
-                        </div>
-                        <div className="grid" style={{ marginBottom:'28px' }}>
-                          {tier1.map(s => <SignalCard key={s.symbol} s={s} />)}
-                        </div>
-                      </>
-                    )}
-
-                    {/* Tier 2 */}
-                    {tier2.length > 0 && (
-                      <>
-                        <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'14px' }}>
-                          <div style={{ height:'1px', flex:1, background:'#0284c7' }} />
-                          <span style={{ color:'#38bdf8', fontWeight:'bold', fontSize:'0.95rem', whiteSpace:'nowrap' }}>🥈 Tier 2 — Enter Week 2 if Wk1 in profit (Score 65–79)</span>
-                          <div style={{ height:'1px', flex:1, background:'#0284c7' }} />
-                        </div>
-                        <div className="grid" style={{ marginBottom:'28px' }}>
-                          {tier2.map(s => <SignalCard key={s.symbol} s={s} />)}
-                        </div>
-                      </>
-                    )}
-
-                    {/* Watchlist */}
-                    {watchlist.length > 0 && (
-                      <>
-                        <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'14px' }}>
-                          <div style={{ height:'1px', flex:1, background:'#334155' }} />
-                          <span style={{ color:'#64748b', fontWeight:'bold', fontSize:'0.95rem', whiteSpace:'nowrap' }}>👁 Watchlist — Hold, wait for better setup (Score &lt; 65)</span>
-                          <div style={{ height:'1px', flex:1, background:'#334155' }} />
-                        </div>
-                        <div className="grid">
-                          {watchlist.map(s => <SignalCard key={s.symbol} s={s} />)}
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
-              </>
-            );
-          })()}
+          {market === "BUDGET" && (
+            <BudgetPlanner
+              data={data}
+              hcData={hcData}
+              budgetCapital={budgetCapital}
+              setBudgetCapital={setBudgetCapital}
+              amountPerTrade={amountPerTrade}
+              setAmountPerTrade={setAmountPerTrade}
+              logTrade={logTrade}
+              setSelectedDetail={setSelectedDetail}
+            />
+          )}
         </>
       )}
 
