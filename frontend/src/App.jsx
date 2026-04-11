@@ -634,10 +634,15 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
     } else {
       result = histData.filter(d => d.date.startsWith(selectedMonth)).reverse();
     }
-    return result.map(item => ({
-      ...item,
-      stocks: item.stocks && item.stocks.length > 0 ? item.stocks : item.signals.map(s => s.symbol)
-    }));
+    return result.map(item => {
+      const affordableSignals = (item.signals || []).filter(s => s.entry <= (amountPerTrade || 0));
+      return {
+        ...item,
+        count: affordableSignals.length,
+        signals: item.signals, // keep full signals for modal filtering logic
+        stocks: affordableSignals.map(s => s.symbol)
+      };
+    });
   }, [histData, selectedMonth, groupBy]);
 
   const stockData = useMemo(() => {
@@ -661,17 +666,22 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
   }, [histData, selectedMonth]);
 
   const chartWidth = Math.max(1200, (groupBy === 'DATE' ? filteredHistData.length : stockData.length) * 22);
-  const monthlySignals = activeDataForStats.reduce((sum, day) => sum + ((day.signals && day.signals.length) || day.count || 0), 0);
   const safeAlloc = amountPerTrade || 0;
-  const monthlyCost = activeDataForStats.reduce((sum, day) => sum + (((day.signals && day.signals.length) || 0) * safeAlloc), 0);
-  const monthlyPnL = activeDataForStats.reduce((sum, day) => {
-    return sum + (day.signals || []).reduce((s, stock) => {
-      if (!stock.entry || stock.entry === 0) return s;
-      const qty = safeAlloc / stock.entry;
-      if (stock.status === 'TARGET HIT') return s + ((stock.target - stock.entry) * qty);
-      if (stock.status === 'SL HIT') return s + ((stock.stoploss - stock.entry) * qty);
-      return s;
-    }, 0);
+  
+  const affordableSignalsInMonth = activeDataForStats.flatMap(day => (day.signals || []).filter(s => s.entry > 0 && s.entry <= safeAlloc));
+  
+  const monthlySignals = affordableSignalsInMonth.length;
+  
+  const monthlyCost = affordableSignalsInMonth.reduce((sum, stock) => {
+    const qty = Math.floor(safeAlloc / stock.entry);
+    return sum + (qty * stock.entry);
+  }, 0);
+
+  const monthlyPnL = affordableSignalsInMonth.reduce((sum, stock) => {
+    const qty = Math.floor(safeAlloc / stock.entry);
+    if (stock.status === 'TARGET HIT') return sum + ((stock.target - stock.entry) * qty);
+    if (stock.status === 'SL HIT') return sum + ((stock.stoploss - stock.entry) * qty);
+    return sum;
   }, 0);
 
   // Calculate Dynamic Stats based on the active month
@@ -839,7 +849,9 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
             <button onClick={onClose} style={{ background:'transparent', border:'none', color:'#94a3b8', cursor:'pointer', fontSize:'1.4rem' }}>✕</button>
           </div>
           <div className="grid">
-            {selectedDate.signals.map((stock, i) => (
+            {selectedDate.signals
+              .filter(stock => stock.entry <= amountPerTrade)
+              .map((stock, i) => (
               <div className="card" key={`${stock.symbol}-${i}`} style={{ borderColor: stock.status === 'TARGET HIT' ? '#22c55e44' : stock.status === 'SL HIT' ? '#ef444444' : '#3b82f644', cursor:'pointer' }} onClick={() => onDetail && onDetail(stock.symbol)}>
                 <div className="card-header">
                   <h2>{stock.symbol}</h2>
