@@ -662,11 +662,12 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
 
   const chartWidth = Math.max(1200, (groupBy === 'DATE' ? filteredHistData.length : stockData.length) * 22);
   const monthlySignals = activeDataForStats.reduce((sum, day) => sum + ((day.signals && day.signals.length) || day.count || 0), 0);
-  const monthlyCost = activeDataForStats.reduce((sum, day) => sum + (((day.signals && day.signals.length) || 0) * amountPerTrade), 0);
+  const safeAlloc = amountPerTrade || 0;
+  const monthlyCost = activeDataForStats.reduce((sum, day) => sum + (((day.signals && day.signals.length) || 0) * safeAlloc), 0);
   const monthlyPnL = activeDataForStats.reduce((sum, day) => {
     return sum + (day.signals || []).reduce((s, stock) => {
       if (!stock.entry || stock.entry === 0) return s;
-      const qty = amountPerTrade / stock.entry;
+      const qty = safeAlloc / stock.entry;
       if (stock.status === 'TARGET HIT') return s + ((stock.target - stock.entry) * qty);
       if (stock.status === 'SL HIT') return s + ((stock.stoploss - stock.entry) * qty);
       return s;
@@ -898,6 +899,7 @@ function App() {
   const [budgetRiskPct, setBudgetRiskPct] = useState(2);
   const [experienceMode, setExperienceMode] = useState(true);
   const [showExperienceIntro, setShowExperienceIntro] = useState(true);
+  const [pointer, setPointer] = useState({ x: 50, y: 50 });
   const [activeChapter, setActiveChapter] = useState("regime");
 
   // Load adaptive status from backend
@@ -1234,6 +1236,8 @@ function App() {
                 TooltipComponent={HCTooltip}
                 onLogTrade={logTrade}
                 onDetail={setSelectedDetail}
+                amountPerTrade={amountPerTrade}
+                setAmountPerTrade={setAmountPerTrade}
               />
 
               {!selectedHcDate && (
@@ -1292,6 +1296,8 @@ function App() {
                 TooltipComponent={CustomTooltip}
                 onLogTrade={logTrade}
                 onDetail={setSelectedDetail}
+                amountPerTrade={amountPerTrade}
+                setAmountPerTrade={setAmountPerTrade}
               />
               {!selectedHistDate && (
                 <div className="grid">
