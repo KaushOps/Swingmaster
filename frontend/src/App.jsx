@@ -887,7 +887,7 @@ function App() {
     {showExperienceIntro && (
       <div className="experience-intro">
         <div className="experience-intro-card">
-          <p className="experience-kicker">OmniQuant v2.4.1</p>
+          <p className="experience-kicker">OmniQuant v2.5.0</p>
           <h2>Start Interactive Experience?</h2>
           <p>A cinematic layer on top of your existing dashboard. You can switch off anytime.</p>
           <div className="experience-actions">
