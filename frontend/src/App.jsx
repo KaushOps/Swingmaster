@@ -442,12 +442,16 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
     return Object.values(counts).sort((a,b) => b.total - a.total).slice(0, 40); // Top 40
   }, [histData, selectedMonth, groupBy]);
 
+  const activeDataForStats = useMemo(() => {
+    return selectedMonth === 'All' ? histData : histData.filter(d => d.date.startsWith(selectedMonth));
+  }, [histData, selectedMonth]);
+
   const chartWidth = Math.max(1200, (groupBy === 'DATE' ? filteredHistData.length : stockData.length) * 22);
-  const monthlySignals = filteredHistData.reduce((sum, day) => sum + day.count, 0);
+  const monthlySignals = activeDataForStats.reduce((sum, day) => sum + ((day.signals && day.signals.length) || day.count || 0), 0);
   const allocPerTrade = 10000; // Simulated constant allocation per trade for realistic P&L
-  const monthlyCost = filteredHistData.reduce((sum, day) => sum + (day.signals.length * allocPerTrade), 0);
-  const monthlyPnL = filteredHistData.reduce((sum, day) => {
-    return sum + day.signals.reduce((s, stock) => {
+  const monthlyCost = activeDataForStats.reduce((sum, day) => sum + (((day.signals && day.signals.length) || 0) * allocPerTrade), 0);
+  const monthlyPnL = activeDataForStats.reduce((sum, day) => {
+    return sum + (day.signals || []).reduce((s, stock) => {
       if (!stock.entry || stock.entry === 0) return s;
       const qty = allocPerTrade / stock.entry;
       if (stock.status === 'TARGET HIT') return s + ((stock.target - stock.entry) * qty);
@@ -458,7 +462,7 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
 
   // Calculate Dynamic Stats based on the active month
   let d_total = 0, d_wins = 0, d_loss = 0, d_days = 0;
-  filteredHistData.forEach(day => {
+  activeDataForStats.forEach(day => {
     (day.signals || []).forEach(s => {
       d_total++;
       if (s.status === 'TARGET HIT') { d_wins++; d_days += (s.days_in_trade || 0); }
@@ -565,13 +569,11 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
                 {months.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
               
-              {selectedMonth !== 'All' && (
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-bright)', display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
-                  <span>Signals: <strong style={{color:accentColor}}>{monthlySignals}</strong></span>
-                  <span>Cost (10k/Trade): <strong style={{color:accentColor}}>₹{monthlyCost.toLocaleString('en-IN')}</strong></span>
-                  <span>Est. P&L: <strong style={{color: monthlyPnL >= 0 ? '#4ade80' : '#f87171'}}>{monthlyPnL > 0 ? '+' : ''}₹{monthlyPnL.toLocaleString('en-IN', {minimumFractionDigits:0, maximumFractionDigits:0})}</strong></span>
-                </div>
-              )}
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-bright)', display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                <span>Signals: <strong style={{color:accentColor}}>{monthlySignals}</strong></span>
+                <span>Cost (10k/Trade): <strong style={{color:accentColor}}>₹{monthlyCost.toLocaleString('en-IN')}</strong></span>
+                <span>Est. P&L: <strong style={{color: monthlyPnL >= 0 ? '#4ade80' : '#f87171'}}>{monthlyPnL > 0 ? '+' : ''}₹{monthlyPnL.toLocaleString('en-IN', {minimumFractionDigits:0, maximumFractionDigits:0})}</strong></span>
+              </div>
               <span style={{ fontSize:'0.85rem', color:accentColor }}>← Scroll → • Click bar</span>
             </div>
           </div>
