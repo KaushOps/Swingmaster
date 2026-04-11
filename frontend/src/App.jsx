@@ -573,10 +573,18 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
                   <span style={{ color:'#94a3b8', fontSize:'0.75rem' }}>₹/Trade:</span>
                   <input 
                     type="number" 
-                    value={amountPerTrade} 
-                    onChange={e => setAmountPerTrade(Number(e.target.value))} 
+                    defaultValue={amountPerTrade} 
+                    onKeyDown={e => { if(e.key==='Enter') setAmountPerTrade(Number(e.target.value)) }}
+                    onBlur={e => setAmountPerTrade(Number(e.target.value))}
                     style={{ width:'70px', background:'transparent', border:'none', color:'#38bdf8', fontWeight:'bold', fontSize:'0.85rem', outline:'none' }}
                   />
+                  <button 
+                    onClick={(e) => {
+                      const input = e.currentTarget.previousSibling;
+                      setAmountPerTrade(Number(input.value));
+                    }}
+                    style={{ background:'rgba(56,189,248,0.2)', border:'none', color:'#38bdf8', padding:'2px 6px', borderRadius:'4px', fontSize:'0.7rem', cursor:'pointer', fontWeight:'bold' }}
+                  >Apply</button>
                 </div>
                 <span>Signals: <strong style={{color:accentColor}}>{monthlySignals}</strong></span>
                 <span>Cost: <strong style={{color:accentColor}}>₹{monthlyCost.toLocaleString('en-IN')}</strong></span>
@@ -1366,8 +1374,18 @@ function App() {
                     </div>
                     <div>
                       <label style={{ fontSize:'0.8rem', color:'#6ee7b7', display:'block', marginBottom:'6px' }}>Amount Per Trade (₹)</label>
-                      <input type="number" value={amountPerTrade} onChange={e => setAmountPerTrade(Number(e.target.value))} min={500} step={500}
-                        style={{ width:'100%', padding:'10px 14px', background:'#0f172a', border:'1px solid #059669', borderRadius:'8px', color:'#f8fafc', fontSize:'1rem', boxSizing:'border-box', outline:'none' }} />
+                      <div style={{ display:'flex', gap:'8px' }}>
+                        <input type="number" defaultValue={amountPerTrade} 
+                          onKeyDown={e => { if(e.key==='Enter') setAmountPerTrade(Number(e.target.value)) }}
+                          style={{ flex:1, padding:'10px 14px', background:'#0f172a', border:'1px solid #059669', borderRadius:'8px', color:'#f8fafc', fontSize:'1rem', boxSizing:'border-box', outline:'none' }} />
+                        <button 
+                          onClick={(e) => {
+                            const input = e.currentTarget.previousSibling;
+                            setAmountPerTrade(Number(input.value));
+                          }}
+                          style={{ padding:'0 15px', background:'rgba(52,211,153,0.15)', color:'#34d399', border:'1px solid #34d39944', borderRadius:'8px', cursor:'pointer', fontWeight:'bold' }}
+                        >Apply</button>
+                      </div>
                     </div>
                     <div style={{ display:'flex', flexDirection:'column', justifyContent:'flex-end' }}>
                       <div style={{ background:'rgba(52,211,153,0.08)', border:'1px solid #34d39933', borderRadius:'10px', padding:'10px 14px' }}>
