@@ -909,8 +909,8 @@ function App() {
   const [budgetCapital, setBudgetCapital] = useState(30000);
   const [amountPerTrade, setAmountPerTrade] = useState(10000);
   const [budgetRiskPct, setBudgetRiskPct] = useState(2);
-  const [experienceMode, setExperienceMode] = useState(true);
-  const [showExperienceIntro, setShowExperienceIntro] = useState(true);
+  const [experienceMode, setExperienceMode] = useState(false);
+  const [showExperienceIntro, setShowExperienceIntro] = useState(false);
   const [pointer, setPointer] = useState({ x: 50, y: 50 });
   const [activeChapter, setActiveChapter] = useState("regime");
 
