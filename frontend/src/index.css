@@ -1,55 +1,92 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+}
 
 :root {
-  --bg-deep: #06080f;
-  --bg-color: #0a0e18;
-  --panel-bg: rgba(22, 30, 46, 0.72);
-  --panel-elevated: rgba(30, 41, 59, 0.85);
-  --border-color: rgba(94, 234, 212, 0.22);
-  --border-subtle: rgba(148, 163, 184, 0.12);
-  --accent-color: #5eead4;
-  --accent-soft: rgba(94, 234, 212, 0.14);
-  --accent-glow: rgba(45, 212, 191, 0.35);
-  --gold: #fbbf24;
-  --text-main: #cbd5e1;
-  --text-dim: #64748b;
-  --text-bright: #f1f5f9;
-  --up-color: #4ade80;
-  --down-color: #fb7185;
-  --wait-color: #fbbf24;
-  --font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-  --radius-lg: 20px;
-  --radius-pill: 999px;
-  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
-  --shadow-hover: 0 20px 48px rgba(0, 0, 0, 0.45), 0 0 40px rgba(45, 212, 191, 0.08);
+  /* ─── Default (Light) Tokens ─── */
+  --bg-base:        #f8fafc;
+  --bg-sidebar:     var(--bg-base);
+  --bg-elevated:    #ffffff;
+  --bg-card:        #ffffff;
+  --border-subtle:  #e2e8f0;
+  --border-muted:   #cbd5e1;
+  --text-main:      #334155;
+  --text-dim:       #64748b;
+  --text-bright:    #0f172a;
+  
+  --bg-header:      #0f172a;
+  --text-header:    #f1f5f9;
+
+  --accent-purple:  #4f46e5;
+  --accent-purple-hover: #4338ca;
+  
+  --up-color:       #10b981;
+  --down-color:     #ef4444;
+  
+  --bg-card-top:    #1e293b;
+  --text-card-top:  #f8fafc;
+
+  /* ─── Layout ─── */
+  --sidebar-w:      220px;
+  --topbar-h:       70px;
+
+  /* ─── Radii & Shadows ─── */
+  --radius-sm:      8px;
+  --radius-md:      12px;
+  --radius-lg:      16px;
+  --radius-pill:    9999px;
+  --shadow-card:    0 4px 14px rgba(0,0,0,0.05);
+  --shadow-hover:   0 12px 24px rgba(0,0,0,0.08);
+
+  --panel-bg:       var(--bg-elevated);
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+[data-theme='dark'] {
+  /* ─── Dark Theme Tokens ─── */
+  --bg-base:        #080e1a;
+  --bg-sidebar:     #0d1629;
+  --bg-elevated:    #111e35;
+  --bg-card:        rgba(13, 22, 41, 0.85);
+  --border-subtle:  rgba(148, 163, 184, 0.1);
+  --border-muted:   rgba(148, 163, 184, 0.18);
+  --text-main:      #94a3b8;
+  --text-dim:       #475569;
+  --text-bright:    #f1f5f9;
+  
+  --bg-header:      #080e1a;
+  --text-header:    #f1f5f9;
+
+  --accent-purple:  #4f46e5;
+  --accent-purple-hover: #6366f1;
+  
+  --up-color:       #4ade80;
+  --down-color:     #f87171;
+
+  --bg-card-top:    #0f172a;
+  --text-card-top:  #f8fafc;
+
+  --shadow-card:    0 4px 24px rgba(0,0,0,0.35);
+  --shadow-hover:   0 12px 40px rgba(0,0,0,0.5);
 }
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
 
 body {
-  font-family: var(--font);
-  background-color: var(--bg-deep);
+  margin: 0;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-base);
   color: var(--text-main);
-  min-height: 100vh;
-  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  background-image:
-    radial-gradient(ellipse 100% 80% at 50% -30%, rgba(45, 212, 191, 0.12), transparent 55%),
-    radial-gradient(ellipse 60% 50% at 100% 0%, rgba(99, 102, 241, 0.08), transparent 45%),
-    radial-gradient(ellipse 50% 40% at 0% 100%, rgba(251, 191, 36, 0.06), transparent 45%),
-    linear-gradient(180deg, var(--bg-deep) 0%, var(--bg-color) 45%, #070b14 100%);
-  background-attachment: fixed;
+  min-height: 100dvh;
 }
 
-#root {
-  width: 100%;
-}
-
-::selection {
-  background: rgba(45, 212, 191, 0.35);
-  color: var(--text-bright);
-}
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.3); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.5); }
