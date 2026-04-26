@@ -290,6 +290,33 @@ class PerformanceMonitor:
         except Exception as e:
             return False
 
+    @classmethod
+    def check_circuit_breaker(cls) -> bool:
+        """Returns True if the circuit breaker should HALT signal generation."""
+        try:
+            # Check manual kill switch override first
+            kill_switch_file = os.path.join(DATA_DIR, 'kill_switch.json')
+            if os.path.exists(kill_switch_file):
+                with open(kill_switch_file, 'r') as f:
+                    data = json.load(f)
+                    if data.get('halted', False):
+                        logger.error("Manual kill switch is ACTIVE. Circuit breaker tripped.")
+                        return True
+
+            if not os.path.exists(OUTCOME_LOG_FILE):
+                return False
+            df = pd.read_csv(OUTCOME_LOG_FILE)
+            if len(df) < 20:
+                return False
+            recent = df.tail(20)
+            win_rate = recent['outcome'].mean()
+            if win_rate < 0.40: # If 20-trade win rate drops below 40%, HALT
+                logger.error(f"CIRCUIT BREAKER: 20-trade win rate dropped to {win_rate:.2f}. Halting signals.")
+                return True
+            return False
+        except Exception as e:
+            return False
+
 
 class MultibaggerFeedback:
     """Calculates mb_affinity bonus"""

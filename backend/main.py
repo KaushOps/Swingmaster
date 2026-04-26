@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException, Security
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security.api_key import APIKeyHeader
 from typing import List, Dict, Any
 from datetime import datetime
 import pandas as pd
@@ -79,9 +80,20 @@ def build_signal_frozen(frozen_sig, date_str, df, sym, latest_close):
 
 app = FastAPI()
 
+API_KEY = os.getenv("API_KEY", "dev_secret_key")
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+async def get_api_key(api_key: str = Security(api_key_header)):
+    if os.getenv("API_KEY_ENABLED", "false").lower() == "true":
+        if api_key != API_KEY:
+            raise HTTPException(status_code=403, detail="Could not validate API key")
+    return api_key
+
+origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000,http://omniquant.duckdns.org,https://omniquant.duckdns.org").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -250,6 +262,11 @@ def update_universe_cache():
     if GLOBAL_BUY_CACHE["is_scanning"]:
         return
         
+    # Circuit Breaker Check
+    if PerformanceMonitor.check_circuit_breaker():
+        print("CIRCUIT BREAKER TRIGGERED: Win rate < 40% or Kill Switch Active. Halting scans.")
+        return
+
     GLOBAL_BUY_CACHE["is_scanning"] = True
     print(f"Starting background scan of {len(NSE_UNIVERSE)} NSE Universe stocks for BUY signals...")
     
@@ -294,8 +311,12 @@ def update_universe_cache():
             model = IntradayModel()
             model.train(df[:-1])
             
-            df['prob_up'] = model.predict_proba(df)
+            # Use out-of-sample prob_up for backtest to avoid leakage
+            df['prob_up'] = model.predict_proba_walk_forward(df)
             bt_stats = run_backtest(df, sl_atr_mult=2.0, tp_atr_mult=5.0, init_cash=100000)
+            
+            # Predict the current (latest) bar explicitly for the actual signal using the fully trained model
+            df['prob_up'] = model.predict_proba(df)
             latest_close = float(df['close'].iloc[-1])
             
             entries = df[(df['prob_up'] > std_prob) & (df['volume_ratio'] > std_vol)]
@@ -378,6 +399,16 @@ def update_universe_cache():
             adjusted_prob = min(prob_up + mb_bonus, 0.99)
 
             if adjusted_prob > std_prob and vol_ratio > std_vol and market_bullish and passes_quality_gates(latest, gates=_adaptive_gates) and weekly_ok and delivery_ok:
+                from portfolio_manager import PortfolioManager
+                pm = PortfolioManager()
+                sizing = pm.calculate_position_size(
+                    account_size=100000, 
+                    entry_price=entry_price, 
+                    stoploss_price=stoploss, 
+                    win_rate=bt_stats['win_rate'] / 100 if bt_stats['win_rate'] > 0 else 0.5,
+                    reward_risk_ratio=2.5
+                )
+                
                 buys.append({
                     "symbol": sym,
                     "action": "BUY",
@@ -388,10 +419,21 @@ def update_universe_cache():
                     "volume_ratio": round(vol_ratio, 2),
                     "delivery_pct": round(delivery_pct, 1) if delivery_pct is not None else None,
                     "mb_affinity": round(mb_bonus * 100, 1) if mb_bonus > 0 else None,
-                    "backtest": bt_stats
+                    "backtest": bt_stats,
+                    "recommended_sizing": sizing
                 })
             
             if adjusted_prob > hc_prob and vol_ratio > hc_vol and atr_pct > HC_ATR_FILTER and market_bullish and passes_quality_gates(latest, gates=_adaptive_gates) and weekly_ok and delivery_ok:
+                from portfolio_manager import PortfolioManager
+                pm = PortfolioManager()
+                sizing = pm.calculate_position_size(
+                    account_size=100000, 
+                    entry_price=entry_price, 
+                    stoploss_price=stoploss, 
+                    win_rate=bt_stats['win_rate'] / 100 if bt_stats['win_rate'] > 0 else 0.65,
+                    reward_risk_ratio=2.5
+                )
+
                 hc_buys.append({
                     "symbol": sym,
                     "action": "STRONG BUY",
@@ -401,7 +443,8 @@ def update_universe_cache():
                     "stoploss": round(stoploss, 2),
                     "volume_ratio": round(vol_ratio, 2),
                     "mb_affinity": round(mb_bonus * 100, 1) if mb_bonus > 0 else None,
-                    "backtest": bt_stats
+                    "backtest": bt_stats,
+                    "recommended_sizing": sizing
                 })
         except Exception as e:
             continue
@@ -521,8 +564,19 @@ def high_conviction_buys() -> Dict[str, Any]:
         "backtest_summary": HC_CACHE["backtest_summary"]
     }
 
-@app.get("/api/scan")
+@app.post("/api/kill_switch", dependencies=[Depends(get_api_key)])
+def toggle_kill_switch(halt: bool = True) -> Dict[str, Any]:
+    from adaptive_engine import DATA_DIR
+    kill_switch_file = os.path.join(DATA_DIR, 'kill_switch.json')
+    with open(kill_switch_file, 'w') as f:
+        json.dump({'halted': halt}, f)
+    return {"status": "success", "halted": halt}
+
+@app.get("/api/scan", dependencies=[Depends(get_api_key)])
 def scan_markets(market: str = "IN") -> Dict[str, Any]:
+    if PerformanceMonitor.check_circuit_breaker():
+        return {"status": "error", "message": "Circuit Breaker Active - Scanning halted."}
+        
     in_stocks, us_stocks = get_stocks_from_sheet()
     
     stocks_to_scan = in_stocks if market == "IN" else us_stocks
@@ -542,8 +596,12 @@ def scan_markets(market: str = "IN") -> Dict[str, Any]:
             model = IntradayModel()
             model.train(df[:-1])
             
-            df['prob_up'] = model.predict_proba(df)
+            # Out-of-sample backtest scoring
+            df['prob_up'] = model.predict_proba_walk_forward(df)
             bt_stats = run_backtest(df, sl_atr_mult=2.0, tp_atr_mult=5.0, init_cash=init_cash)
+            
+            # Explicit real-time prediction
+            df['prob_up'] = model.predict_proba(df)
             
             latest = df.iloc[-1]
             entry_price = float(latest['close'])

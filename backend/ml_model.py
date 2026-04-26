@@ -76,17 +76,23 @@ def create_labels(df: pd.DataFrame, target_atr_mult=2.0, sl_atr_mult=1.5, lookah
     df['label'] = 0
 
     closes = df['close'].values
+    if 'open' in df.columns:
+        opens = df['open'].values
+    else:
+        opens = closes # fallback if open is missing
+        
     highs = df['high'].values
     lows = df['low'].values
     atrs = df['atr'].values
 
     labels = np.zeros(len(df))
 
-    for i in range(len(df)):
+    for i in range(len(df) - 1): # stop 1 bar early
         if np.isnan(atrs[i]):
             continue
 
-        entry = closes[i]
+        # Use next-bar open as realistic execution price
+        entry = opens[i + 1]
         target = entry + (target_atr_mult * atrs[i])
         stoploss = entry - (sl_atr_mult * atrs[i])
 
@@ -202,6 +208,48 @@ class IntradayModel:
         X = df[self.features].fillna(0)
         probs = self.model.predict_proba(X)[:, 1]
         return pd.Series(index=df.index, data=probs)
+
+    def predict_proba_walk_forward(self, df: pd.DataFrame, min_train: int = 50, gap: int = 20, stride: int = 1) -> pd.Series:
+        """
+        Performs walk-forward out-of-sample predictions to avoid in-sample leakage.
+        Trains on data up to (i - gap), predicts on bar i.
+        """
+        probs = pd.Series(index=df.index, data=0.0)
+        available = [f for f in self.features if f in df.columns]
+        X = df[available].fillna(0)
+        y = df['label']
+        
+        if len(df) <= min_train + gap:
+            return self.predict_proba(df) # fallback if not enough data
+            
+        for i in range(min_train + gap, len(df), stride):
+            train_end = i - gap
+            X_train = X.iloc[:train_end]
+            y_train = y.iloc[:train_end]
+            
+            # Avoid single-class failure
+            if len(np.unique(y_train)) <= 1:
+                continue
+                
+            # Use a fresh, slightly smaller model to train quickly on expanding window
+            if _USE_XGB:
+                from xgboost import XGBClassifier
+                temp_model = XGBClassifier(
+                    n_estimators=100, max_depth=4, learning_rate=0.05,
+                    use_label_encoder=False, eval_metric='logloss', verbosity=0, random_state=42
+                )
+            else:
+                from sklearn.ensemble import RandomForestClassifier
+                temp_model = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
+                
+            temp_model.fit(X_train, y_train)
+            
+            score_end = min(len(df), i + stride)
+            X_test = X.iloc[i:score_end]
+            preds = temp_model.predict_proba(X_test)[:, 1]
+            probs.iloc[i:score_end] = preds
+            
+        return probs
 
     def predict_latest(self, df: pd.DataFrame):
         latest = df.iloc[[-1]]
