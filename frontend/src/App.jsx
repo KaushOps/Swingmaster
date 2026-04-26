@@ -632,6 +632,16 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
                 <option value="All">All Time</option>
                 {months.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
+              <input type="date" value={selectedDate || ''} onChange={(e) => {
+                const dateVal = e.target.value;
+                if (dateVal) {
+                  const m = dateVal.substring(0, 7);
+                  if (months.includes(m)) setSelectedMonth(m);
+                  onSelect(dateVal);
+                } else {
+                  onSelect(null);
+                }
+              }} style={{ padding:'3px 8px', borderRadius:'6px', background:'var(--bg-base)', color:'var(--text-bright)', border:`1px solid ${accentColor}44`, outline:'none', cursor:'pointer', colorScheme:'dark', fontFamily:'inherit' }} />
               <div style={{ fontSize:'0.85rem', color:'var(--text-bright)', display:'flex', gap:'15px', flexWrap:'wrap', alignItems:'center' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:'6px', background:'rgba(56,189,248,0.06)', padding:'4px 10px', borderRadius:'8px', border:'1px solid rgba(56,189,248,0.15)' }}>
                   <span style={{ color:'#94a3b8', fontSize:'0.75rem' }}>₹/Trade:</span>
@@ -800,7 +810,7 @@ function App() {
       if (hcData.length === 0) {
         fetch(`${baseUrl}/api/high_conviction`).then(r => r.json()).then(result => {
           setHcData(result.data || []);
-          if (result.historical) setHcHistorical(result.historical.slice(-120));
+          if (result.historical) setHcHistorical(result.historical);
           if (result.backtest_summary) setHcStats(result.backtest_summary);
           if (typeof result.market_bullish === 'boolean') setNiftyBullish(result.market_bullish);
           if (result.last_updated) setUniverseScanAt(formatScanTimestamp(result.last_updated));
@@ -809,7 +819,7 @@ function App() {
       if (nseStats === null) {
         fetch(`${baseUrl}/api/scan_universe_buys`).then(r => r.json()).then(result => {
           setData(result.data || []);
-          if (result.historical) setHistoricalData(result.historical.slice(-120));
+          if (result.historical) setHistoricalData(result.historical);
           if (result.backtest_summary) setNseStats(result.backtest_summary);
           if (typeof result.market_bullish === 'boolean') setNiftyBullish(result.market_bullish);
           if (result.last_updated) setUniverseScanAt(formatScanTimestamp(result.last_updated));
@@ -843,8 +853,8 @@ function App() {
       if (typeof result.market_bullish === 'boolean') setNiftyBullish(result.market_bullish);
       if (result.last_updated) setUniverseScanAt(formatScanTimestamp(result.last_updated));
       if (result.historical) {
-        if (isHC)      { setHcHistorical(result.historical.slice(-120)); setHcStats(result.backtest_summary || null); }
-        else if (isNSEBuys) { setHistoricalData(result.historical.slice(-120)); setNseStats(result.backtest_summary || null); }
+        if (isHC)      { setHcHistorical(result.historical); setHcStats(result.backtest_summary || null); }
+        else if (isNSEBuys) { setHistoricalData(result.historical); setNseStats(result.backtest_summary || null); }
       }
       setIsScanningBackground(!!(result.is_scanning && (result.data || []).length === 0));
       setLoading(false);
@@ -877,6 +887,9 @@ function App() {
         mbLoading={mbLoading}
         loadMultibagger={loadMultibagger}
         niftyBullish={niftyBullish}
+        hcCount={hcData.length}
+        nseCount={data.length}
+        activeCount={activeSignals.length}
       />
 
       {/* Top navigation bar */}

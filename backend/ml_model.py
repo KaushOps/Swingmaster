@@ -68,7 +68,7 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     return df.dropna()
 
 
-def create_labels(df: pd.DataFrame, target_atr_mult=2.0, sl_atr_mult=1.5, lookahead=40) -> pd.DataFrame:
+def create_labels(df: pd.DataFrame, target_atr_mult=5.0, sl_atr_mult=2.0, lookahead=60) -> pd.DataFrame:
     """
     Look ahead logic: Does the price hit Target before Stoploss within lookahead window?
     """

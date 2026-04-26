@@ -248,6 +248,12 @@ def compute_hc_historical_stats(historical_map):
     closed = wins + losses
     win_rate = round(wins / closed * 100, 1) if closed > 0 else 0
     avg_days = round(total_days / closed) if closed > 0 else 0
+    # R-based metrics: TP = 5×ATR = 2.5R reward, SL = 2×ATR = 1.0R risk
+    avg_r_win = 2.5
+    avg_r_loss = 1.0
+    wr_frac = wins / closed if closed > 0 else 0
+    expectancy_r = round((wr_frac * avg_r_win) - ((1 - wr_frac) * avg_r_loss), 2) if closed > 0 else 0
+    profit_factor_r = round((wins * avg_r_win) / (losses * avg_r_loss), 2) if losses > 0 else (None if wins > 0 else 0)
     return {
         "total_signals": total,
         "target_hit": wins,
@@ -255,7 +261,9 @@ def compute_hc_historical_stats(historical_map):
         "active": active,
         "win_rate_pct": win_rate,
         "avg_days_to_close": avg_days,
-        "closed_trades": closed
+        "closed_trades": closed,
+        "expectancy_r": expectancy_r,
+        "profit_factor_r": profit_factor_r,
     }
 
 def update_universe_cache():
@@ -311,13 +319,19 @@ def update_universe_cache():
             model = IntradayModel()
             model.train(df[:-1])
             
-            # Use out-of-sample prob_up for backtest to avoid leakage
-            df['prob_up'] = model.predict_proba_walk_forward(df)
+            # Use out-of-sample prob_up for backtest and historical ledger entries
+            df['prob_up_wf'] = model.predict_proba_walk_forward(df)
             bt_stats = run_backtest(df, sl_atr_mult=2.0, tp_atr_mult=5.0, init_cash=100000)
             
-            # Predict the current (latest) bar explicitly for the actual signal using the fully trained model
-            df['prob_up'] = model.predict_proba(df)
+            # In-sample prediction for the latest (today's) bar only
+            df['prob_up_insample'] = model.predict_proba(df)
             latest_close = float(df['close'].iloc[-1])
+            
+            # For seed runs (historical backfill): use walk-forward probs to avoid leakage
+            # For daily runs (latest bar only): use in-sample prob (fully trained model)
+            df['prob_up'] = df['prob_up_wf']  # default to walk-forward
+            # Override ONLY the latest bar with in-sample prediction
+            df.iloc[-1, df.columns.get_loc('prob_up')] = df['prob_up_insample'].iloc[-1]
             
             entries = df[(df['prob_up'] > std_prob) & (df['volume_ratio'] > std_vol)]
             hc_entries = df[

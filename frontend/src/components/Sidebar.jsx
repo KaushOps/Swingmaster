@@ -1,27 +1,28 @@
-const NAV_ITEMS = [
-  {
-    group: 'SCANNER',
-    items: [
-      { id: 'HC',            label: 'High Conviction',  icon: '🎯', badge: '4' },
-      { id: 'NSE_BUYS',      label: 'All NSE Buys',     icon: '🚀', badge: '12' },
-      { id: 'ACTIVE_SIGNALS',label: 'Active Signals',   icon: '📡' },
-      { id: 'MULTIBAGGER',   label: 'Multibagger',      icon: '🏆', badge: 'New', isNew: true },
-      { id: 'IN',            label: 'India Full Grid',  icon: '🇮🇳' },
-      { id: 'US',            label: 'USA Full Grid',    icon: '🇺🇸' },
-    ],
-  },
-  {
-    group: 'TOOLS',
-    items: [
-      { id: 'ADAPTIVE',       label: 'Model Performance', icon: '📊' },
-      { id: 'BUDGET',         label: 'My Watchlist',      icon: '⭐' },
-      { id: 'PORTFOLIO',      label: 'Signal History',    icon: '📜' },
-      { id: 'SETTINGS',       label: 'Settings',          icon: '⚙️' },
-    ],
-  },
-];
+export default function Sidebar({ market, setMarket, mbData, mbLoading, loadMultibagger, hcCount, nseCount, activeCount }) {
 
-export default function Sidebar({ market, setMarket, mbData, mbLoading, loadMultibagger }) {
+  const NAV_ITEMS = [
+    {
+      group: 'SCANNER',
+      items: [
+        { id: 'HC',            label: 'High Conviction',  icon: '🎯', badge: hcCount > 0 ? String(hcCount) : null },
+        { id: 'NSE_BUYS',      label: 'All NSE Buys',     icon: '🚀', badge: nseCount > 0 ? String(nseCount) : null },
+        { id: 'ACTIVE_SIGNALS',label: 'Active Signals',   icon: '📡', badge: activeCount > 0 ? String(activeCount) : null },
+        { id: 'MULTIBAGGER',   label: 'Multibagger',      icon: '🏆', badge: 'New', isNew: true },
+        { id: 'IN',            label: 'India Full Grid',  icon: '🇮🇳' },
+        { id: 'US',            label: 'USA Full Grid',    icon: '🇺🇸' },
+      ],
+    },
+    {
+      group: 'TOOLS',
+      items: [
+        { id: 'ADAPTIVE',       label: 'Model Performance', icon: '📊' },
+        { id: 'BUDGET',         label: 'My Watchlist',      icon: '⭐' },
+        { id: 'PORTFOLIO',      label: 'Signal History',    icon: '📜' },
+        { id: 'SETTINGS',       label: 'Settings',          icon: '⚙️' },
+      ],
+    },
+  ];
+
   return (
     <aside className="sidebar-aside" style={{
       position: 'fixed',
