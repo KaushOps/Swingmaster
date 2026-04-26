@@ -522,10 +522,12 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
     let result = [];
     if (selectedMonth === 'All') {
       const g = histData.reduce((acc, obj) => {
+        if (!obj.date) return acc;
         const d = obj.date.slice(0, 7);
         if (!acc[d]) acc[d] = { date: d, count: 0, signals: [], stocks: [] };
-        acc[d].count += obj.count;
-        acc[d].signals.push(...obj.signals);
+        const sigs = obj.signals || [];
+        acc[d].count += sigs.length;
+        acc[d].signals.push(...sigs);
         if (obj.stocks) acc[d].stocks.push(...obj.stocks);
         return acc;
       }, {});
@@ -544,7 +546,7 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
     let d = selectedMonth === 'All' ? histData : histData.filter(h => h.date.startsWith(selectedMonth));
     const counts = {};
     d.forEach(day => {
-      day.signals.forEach(s => {
+      (day.signals || []).forEach(s => {
         if (!counts[s.symbol]) counts[s.symbol] = { symbol: s.symbol, tp: 0, sl: 0, active: 0, total: 0 };
         counts[s.symbol].total++;
         if (s.status === 'TARGET HIT') counts[s.symbol].tp++;
@@ -690,7 +692,7 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
             <button onClick={onClose} style={{ background:'transparent', border:'none', color:'#94a3b8', cursor:'pointer', fontSize:'1.4rem' }}>✕</button>
           </div>
           <div className="grid">
-            {selectedDate.signals
+            {(selectedDate.signals || [])
               .filter(stock => stock.entry <= amountPerTrade)
               .map((stock, i) => (
                 <StockCard
@@ -777,7 +779,7 @@ function App() {
 
   useEffect(() => {
     const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
-    fetch(`${baseUrl}/api/trending_sectors`).then(r => r.json()).then(res => { if (res.status === 'success') setTrendingSectors(res.data) }).catch(console.error);
+    fetch(`${baseUrl}/api/trending_sectors`).then(r => r.json()).then(res => { if (res.status === 'success') setTrendingSectors(res.data || []) }).catch(console.error);
   }, []);
 
   useEffect(() => { localStorage.setItem('swing_portfolio', JSON.stringify(portfolio)); }, [portfolio]);
@@ -925,10 +927,27 @@ function App() {
 
         {loading ? (
           <div className="loader">Scanning Markets… This may take a moment.</div>
-        ) : isScanningBackground ? (
-          <div className="loader">🤖 AI is crunching 60+ NSE Stocks…<br /><span style={{fontSize:'1rem',opacity:0.6}}>Refresh in ~1 minute when caching completes.</span></div>
         ) : (
           <>
+            {isScanningBackground && (
+               <div style={{
+                 padding: '12px 20px', 
+                 background: 'var(--bg-card-top)', 
+                 borderRadius: '12px', 
+                 marginBottom: '20px', 
+                 border: '1px solid var(--border-subtle)',
+                 display: 'flex',
+                 alignItems: 'center',
+                 gap: '12px',
+                 boxShadow: 'var(--shadow-card)'
+               }}>
+                 <div className="pulse-dot"></div>
+                 <span style={{ fontSize: '0.9rem', color: 'var(--text-bright)' }}>
+                   <strong>Scanning Markets:</strong> AI is currently analyzing latest NSE data. New signals will appear shortly.
+                 </span>
+               </div>
+            )}
+
             {/* ── HIGH CONVICTION ── */}
             {market === "HC" && (
               <>

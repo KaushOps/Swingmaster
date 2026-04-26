@@ -24,13 +24,104 @@ from adaptive_engine import (
 import json
 import os
 
-LEDGER_FILE = "data/signals_ledger.json"
+LEDGER_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "signals_ledger.json")
+
+def compute_hc_historical_stats(historical_map):
+    """Given the HC historical signal map, compute aggregate backtest stats."""
+    total = wins = losses = active = total_days = 0
+    if not historical_map:
+        return {
+            "total_signals": 0, "target_hit": 0, "sl_hit": 0, "active": 0,
+            "win_rate_pct": 0, "avg_days_to_close": 0, "closed_trades": 0,
+            "expectancy_r": 0, "profit_factor_r": 0
+        }
+
+    for d, sigs in historical_map.items():
+        # Handle both dict {sym: data} and list [data_dict, ...]
+        iterator = sigs.values() if isinstance(sigs, dict) else sigs
+        for s in iterator:
+            if not isinstance(s, dict): continue
+            total += 1
+            status = s.get('status', 'ACTIVE')
+            if status == 'TARGET HIT': 
+                wins += 1
+                total_days += s.get('days_in_trade', 0)
+            elif status == 'SL HIT': 
+                losses += 1
+                total_days += s.get('days_in_trade', 0)
+            else: 
+                active += 1
+    
+    closed = wins + losses
+    win_rate = round(wins / closed * 100, 1) if closed > 0 else 0
+    avg_days = round(total_days / closed) if closed > 0 else 0
+    avg_r_win, avg_r_loss = 2.5, 1.0
+    wr_frac = wins / closed if closed > 0 else 0
+    expectancy_r = round((wr_frac * avg_r_win) - ((1 - wr_frac) * avg_r_loss), 2) if closed > 0 else 0
+    profit_factor_r = round((wins * avg_r_win) / (losses * avg_r_loss), 2) if losses > 0 else (None if wins > 0 else 0)
+    
+    res = {
+        "total_signals": total,
+        "target_hit": wins,
+        "sl_hit": losses,
+        "active": active,
+        "win_rate_pct": win_rate,
+        "avg_days_to_close": avg_days,
+        "closed_trades": closed,
+        "expectancy_r": expectancy_r,
+        "profit_factor_r": profit_factor_r
+    }
+    return res
 
 def load_ledger():
+    global GLOBAL_BUY_CACHE, HC_CACHE
+    ledger = {"NSE_BUYS": {}, "HIGH_CONVICTION": {}}
     if os.path.exists(LEDGER_FILE):
         with open(LEDGER_FILE, "r") as f:
-            return json.load(f)
-    return {"NSE_BUYS": {}, "HIGH_CONVICTION": {}}
+            ledger = json.load(f)
+            
+    # Pre-populate historical maps on boot so the UI doesn't hang
+    hist_map = {}
+    hc_hist_map = {}
+    
+    for date_str, sigs in ledger.get("NSE_BUYS", {}).items():
+        hist_map[date_str] = []
+        for sym, s in sigs.items():
+            hist_map[date_str].append({
+                "symbol": sym,
+                "date": date_str,
+                "entry": s['entry'],
+                "close": s['entry'],
+                "status": "ACTIVE", # Defaults until first scan completes
+                "target": s['target'],
+                "stoploss": s['stoploss'],
+                "confidence": s['confidence'],
+                "volume_ratio": s.get('volume_ratio', 1.0)
+            })
+            
+    for date_str, sigs in ledger.get("HIGH_CONVICTION", {}).items():
+        hc_hist_map[date_str] = []
+        for sym, s in sigs.items():
+            hc_hist_map[date_str].append({
+                "symbol": sym,
+                "date": date_str,
+                "entry": s['entry'],
+                "close": s['entry'],
+                "status": "ACTIVE",
+                "target": s['target'],
+                "stoploss": s['stoploss'],
+                "confidence": s['confidence'],
+                "volume_ratio": s.get('volume_ratio', 1.0)
+            })
+            
+    GLOBAL_BUY_CACHE["historical"] = sorted([{"date": k, "signals": v} for k, v in hist_map.items()], key=lambda x: x["date"])
+    HC_CACHE["historical"] = sorted([{"date": k, "signals": v} for k, v in hc_hist_map.items()], key=lambda x: x["date"])
+    
+    # Pre-calculate stats so summary cards work on boot
+    GLOBAL_BUY_CACHE["backtest_summary"] = compute_hc_historical_stats(hist_map)
+    HC_CACHE["backtest_summary"] = compute_hc_historical_stats(hc_hist_map)
+    
+    return ledger
 
 def save_ledger(ledger):
     with open(LEDGER_FILE, "w") as f:
@@ -69,6 +160,7 @@ def build_signal_frozen(frozen_sig, date_str, df, sym, latest_close):
     return {
         "symbol": sym,
         "entry": round(entry_price, 2),
+        "close": round(latest_close, 2),
         "target": round(target, 2),
         "stoploss": round(stoploss, 2),
         "status": status,
@@ -144,6 +236,9 @@ HC_CACHE = {
     "backtest_summary": {},
     "is_scanning": False
 }
+
+# --- Initialize historical data on boot from the persistent ledger ---
+_startup_ledger = load_ledger()
 
 # HC Thresholds — defaults, overridden by ThresholdCalibrator after scan
 HC_PROB_UP    = 0.72   # at least 72% ML confidence
@@ -230,42 +325,6 @@ def is_nifty_bullish() -> bool:
     except Exception:
         return True  # fail open
 
-
-def compute_hc_historical_stats(historical_map):
-    """Given the HC historical signal map, compute aggregate backtest stats."""
-    total = wins = losses = active = total_days = 0
-    for d, sigs in historical_map.items():
-        for s in sigs:
-            total += 1
-            if s['status'] == 'TARGET HIT': 
-                wins += 1
-                total_days += s.get('days_in_trade', 0)
-            elif s['status'] == 'SL HIT': 
-                losses += 1
-                total_days += s.get('days_in_trade', 0)
-            else: 
-                active += 1
-    closed = wins + losses
-    win_rate = round(wins / closed * 100, 1) if closed > 0 else 0
-    avg_days = round(total_days / closed) if closed > 0 else 0
-    # R-based metrics: TP = 5×ATR = 2.5R reward, SL = 2×ATR = 1.0R risk
-    avg_r_win = 2.5
-    avg_r_loss = 1.0
-    wr_frac = wins / closed if closed > 0 else 0
-    expectancy_r = round((wr_frac * avg_r_win) - ((1 - wr_frac) * avg_r_loss), 2) if closed > 0 else 0
-    profit_factor_r = round((wins * avg_r_win) / (losses * avg_r_loss), 2) if losses > 0 else (None if wins > 0 else 0)
-    return {
-        "total_signals": total,
-        "target_hit": wins,
-        "sl_hit": losses,
-        "active": active,
-        "win_rate_pct": win_rate,
-        "avg_days_to_close": avg_days,
-        "closed_trades": closed,
-        "expectancy_r": expectancy_r,
-        "profit_factor_r": profit_factor_r,
-    }
-
 def update_universe_cache():
     if GLOBAL_BUY_CACHE["is_scanning"]:
         return
@@ -314,7 +373,10 @@ def update_universe_cache():
             if len(df) < 100: continue
             
             df = add_features(df)
+            if len(df) < 80: continue  # guard: add_features drops NaN rows
+            
             df = create_labels(df)
+            if len(df) < 50: continue  # guard: create_labels with 60-day lookahead can shrink df heavily
             
             model = IntradayModel()
             model.train(df[:-1])
@@ -331,7 +393,7 @@ def update_universe_cache():
             # For daily runs (latest bar only): use in-sample prob (fully trained model)
             df['prob_up'] = df['prob_up_wf']  # default to walk-forward
             # Override ONLY the latest bar with in-sample prediction
-            df.iloc[-1, df.columns.get_loc('prob_up')] = df['prob_up_insample'].iloc[-1]
+            df.loc[df.index[-1], 'prob_up'] = float(df['prob_up_insample'].iloc[-1])
             
             entries = df[(df['prob_up'] > std_prob) & (df['volume_ratio'] > std_vol)]
             hc_entries = df[
@@ -553,6 +615,17 @@ def scheduled_scan():
 scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Kolkata'))
 scheduler.add_job(scheduled_scan, 'cron', day_of_week='mon-fri', hour=9, minute=15)
 scheduler.start()
+
+# Pre-warm caches with ledger data so UI loads instantly (no scan wait required)
+try:
+    load_ledger()
+    print(f"Boot cache loaded: HC={len(HC_CACHE['historical'])} days, NSE={len(GLOBAL_BUY_CACHE['historical'])} days from {LEDGER_FILE}")
+except Exception as _e:
+    print(f"Boot cache load failed: {_e}")
+
+@app.get("/api/health")
+def health_check():
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 @app.get("/api/scan_universe_buys")
 def scan_universe_buys() -> Dict[str, Any]:
