@@ -1160,16 +1160,16 @@ function App() {
             <div style={{ marginBottom: '24px', padding: '24px', background: 'linear-gradient(135deg, rgba(30,27,75,0.7) 0%, rgba(15,23,42,0.9) 100%)', borderRadius: '16px', border: '1px solid #6366f144', position: 'relative', overflow: 'hidden' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px' }}>
                 <div>
-                  <h2 style={{ color: '#818cf8', margin: '0 0 6px 0', fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h2 style={{ color: '#c7d2fe', margin: '0 0 6px 0', fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
                     <span style={{ fontSize: '1.8rem' }}>🧠</span> Adaptive ML Engine
-                    {adaptiveStatus && (<span style={{ fontSize: '0.75rem', background: 'rgba(99,102,241,0.1)', color: '#a5b4fc', padding: '3px 8px', borderRadius: '12px', border: '1px solid #6366f133', marginLeft: '8px' }}>v{adaptiveStatus.engine_version || '1.0.0'}</span>)}
+                    {adaptiveStatus && (<span style={{ fontSize: '0.75rem', background: 'rgba(99,102,241,0.2)', color: '#c7d2fe', padding: '3px 8px', borderRadius: '12px', border: '1px solid #6366f155', marginLeft: '8px' }}>v{adaptiveStatus.engine_version || '1.0.0'}</span>)}
                   </h2>
-                  <p style={{ color: 'rgba(255,255,255,0.85)', margin: '0', fontSize: '0.9rem', maxWidth: '600px' }}>The quantitative engine continuously learns from closed trades. Probability thresholds and filter gates automatically calibrate daily to optimize the profit factor and win-rate.</p>
+                  <p style={{ color: 'rgba(255,255,255,0.9)', margin: '0', fontSize: '0.9rem', maxWidth: '600px' }}>The quantitative engine continuously learns from closed trades. Probability thresholds and filter gates automatically calibrate daily to optimize the profit factor and win-rate.</p>
                 </div>
                 {adaptiveStatus && adaptiveStatus.outcome_stats && (
                   <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                    <div style={{ background: 'rgba(0,0,0,0.5)', padding: '10px 16px', borderRadius: '12px', border: '1px solid #1e293b', textAlign: 'center' }}><div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Data Points</div><div style={{ color: '#e2e8f0', fontSize: '1.2rem', fontWeight: 'bold' }}>{adaptiveStatus.outcome_stats.total_trades_logged || 0}</div></div>
-                    <div style={{ background: 'rgba(0,0,0,0.5)', padding: '10px 16px', borderRadius: '12px', border: '1px solid #1e293b', textAlign: 'center' }}><div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Overall WR</div><div style={{ color: '#fbbf24', fontSize: '1.2rem', fontWeight: 'bold' }}>{adaptiveStatus.outcome_stats.overall_win_rate || 0}%</div></div>
+                    <div style={{ background: 'rgba(0,0,0,0.6)', padding: '10px 16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.15)', textAlign: 'center', boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.05)' }}><div style={{ fontSize: '0.7rem', color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 'bold' }}>Data Points</div><div style={{ color: '#ffffff', fontSize: '1.2rem', fontWeight: 'bold' }}>{adaptiveStatus.outcome_stats.total_trades_logged || 0}</div></div>
+                    <div style={{ background: 'rgba(0,0,0,0.6)', padding: '10px 16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.15)', textAlign: 'center', boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.05)' }}><div style={{ fontSize: '0.7rem', color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 'bold' }}>Overall WR</div><div style={{ color: '#fbbf24', fontSize: '1.2rem', fontWeight: 'bold' }}>{adaptiveStatus.outcome_stats.overall_win_rate || 0}%</div></div>
                   </div>
                 )}
               </div>
