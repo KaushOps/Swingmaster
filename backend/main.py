@@ -416,8 +416,9 @@ def update_universe_cache():
     print(f"Adaptive gates: {_adaptive_gates}")
 
     # Pre-fetch NSE Bhavcopy delivery % data once (cached per day)
-    from data_fetcher import _fetch_nse_delivery_pct
+    from data_fetcher import _fetch_nse_delivery_pct, fetch_macro_data
     _fetch_nse_delivery_pct()  # warms up the cache for all symbols
+    macro_df = fetch_macro_data(years=2)
     
     ledger = load_ledger()
     needs_save = False
@@ -429,14 +430,14 @@ def update_universe_cache():
             df = fetch_daily_data(symbol, years=2)
             if len(df) < 100: continue
             
-            df = add_features(df)
+            df = add_features(df, macro_df)
             if len(df) < 80: continue  # guard: add_features drops NaN rows
             
             df = create_labels(df)
             if len(df) < 50: continue  # guard: create_labels with 60-day lookahead can shrink df heavily
             
             model = IntradayModel()
-            model.train(df[:-1])
+            model.train(df[:-60])
             
             # Use out-of-sample prob_up for backtest and historical ledger entries
             df['prob_up_wf'] = model.predict_proba_walk_forward(df)

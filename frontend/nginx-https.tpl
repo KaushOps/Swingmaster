@@ -21,6 +21,9 @@ server {
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
+    auth_basic "OmniQuant Secured Access";
+    auth_basic_user_file /etc/nginx/.htpasswd;
+
     location / {
         root /usr/share/nginx/html;
         index index.html index.htm;

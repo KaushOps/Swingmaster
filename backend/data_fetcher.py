@@ -18,6 +18,35 @@ def fetch_daily_data(symbol: str, years: int = 2) -> pd.DataFrame:
     df.columns = [c.lower() for c in df.columns]
     return df
 
+_macro_cache = None
+
+def fetch_macro_data(years: int = 2) -> pd.DataFrame:
+    """Fetches daily macro features (India VIX, USD/INR, Brent Oil) to pass to ML model."""
+    global _macro_cache
+    if _macro_cache is not None:
+        return _macro_cache
+    try:
+        # Download all 3 tickers at once. Using ^INDIAVIX for VIX, USDINR=X for currency, BZ=F for Brent
+        tickers = ["^INDIAVIX", "USDINR=X", "BZ=F"]
+        df = yf.download(tickers, period=f"{years}y", interval="1d", progress=False)['Close']
+        if df.empty:
+            return pd.DataFrame()
+        # yf.download returns a MultiIndex column if multiple tickers, or single index if one fails.
+        # Clean up column names based on available data
+        col_map = {"^INDIAVIX": "macro_vix", "USDINR=X": "macro_usdinr", "BZ=F": "macro_brent"}
+        df.rename(columns=col_map, inplace=True)
+        # Forward fill missing days (e.g. market holidays that don't overlap)
+        df.ffill(inplace=True)
+        # Ensure timezone unaware so it merges easily with stock data
+        if df.index.tz is not None:
+            df.index = df.index.tz_localize(None)
+        _macro_cache = df
+        return df
+    except Exception as e:
+        print(f"Failed to fetch macro data: {e}")
+        return pd.DataFrame()
+
+
 
 def fetch_weekly_data(symbol: str) -> pd.DataFrame:
     """

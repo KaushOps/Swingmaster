@@ -1,0 +1,22 @@
+[
+  {
+    "symbol": "HCLTECH",
+    "date": "2026-04-07",
+    "outcome": "LOSS",
+    "postmortem": "No indicators were available to assess the trade. The trade resulted in a loss, but without indicator data, it's unclear which signals were correct or false. This trade will not provide actionable insight for future model training.",
+    "timestamp": "2026-05-02T11:09:58.273781"
+  },
+  {
+    "symbol": "THERMAX",
+    "date": "2026-04-07",
+    "outcome": "WIN",
+    "postmortem": "Trade in THERMAX resulted in an 18.3% gain. No indicator signals are available for analysis. This win will be used to improve future model training.",
+    "timestamp": "2026-05-02T11:09:59.034214"
+  },
+  {
+    "type": "batch_insights",
+    "insights": "Patterns predicting wins: \n- Low volume ratio (<0.7) \n- High confidence (>0.6) \nNo ADX or RSI data available for analysis.",
+    "timestamp": "2026-05-02T11:09:59.852344",
+    "trades": 2
+  }
+]

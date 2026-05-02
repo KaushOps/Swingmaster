@@ -24,6 +24,7 @@ FROM nginx:alpine
 COPY nginx-http.tpl /etc/nginx/conf.d/nginx-http.tpl
 COPY nginx-https.tpl /etc/nginx/conf.d/nginx-https.tpl
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY .htpasswd /etc/nginx/.htpasswd
 
 # Normalize line endings and make entrypoint executable
 RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh && chmod +x /usr/local/bin/docker-entrypoint.sh

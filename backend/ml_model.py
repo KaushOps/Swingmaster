@@ -20,9 +20,15 @@ except ImportError:
     from sklearn.ensemble import RandomForestClassifier
     _USE_XGB = False
 
-def add_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Adds technical indicators to the dataframe."""
+def add_features(df: pd.DataFrame, macro_df: pd.DataFrame = None) -> pd.DataFrame:
+    """Adds technical indicators and macro features to the dataframe."""
     df = df.copy()
+    if macro_df is not None and not macro_df.empty:
+        # Merge macro features using index (date)
+        df = df.merge(macro_df, left_index=True, right_index=True, how='left')
+        # Forward fill any missing macro data (e.g. holidays) and then backward fill the start
+        df.ffill(inplace=True)
+        df.bfill(inplace=True)
 
     # --- Existing features ---
     # RSI
@@ -193,7 +199,8 @@ class IntradayModel:
             'atr_pct', 'volume_ratio', 'returns',           # atr_pct replaces raw atr
             'above_ema20', 'above_ema50', 'ema_spread',
             'bb_pct', 'adx', 'stoch_k', 'stoch_d',
-            'roc5', 'roc10', 'pct_from_high'
+            'roc5', 'roc10', 'pct_from_high',
+            'macro_vix', 'macro_usdinr', 'macro_brent'
         ]
 
     def train(self, df: pd.DataFrame, sample_weights: np.ndarray = None):
@@ -284,7 +291,7 @@ class IntradayModel:
         probs = self.model.predict_proba(X)[:, 1]
         return pd.Series(index=df.index, data=probs)
 
-    def predict_proba_walk_forward(self, df: pd.DataFrame, min_train: int = 50, gap: int = 5, stride: int = 1) -> pd.Series:
+    def predict_proba_walk_forward(self, df: pd.DataFrame, min_train: int = 50, gap: int = 60, stride: int = 10) -> pd.Series:
         """
         Performs walk-forward out-of-sample predictions to avoid in-sample leakage.
         Trains on data up to (i - gap), predicts on bar i.
