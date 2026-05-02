@@ -23,6 +23,9 @@ except ImportError:
 def add_features(df: pd.DataFrame, macro_df: pd.DataFrame = None) -> pd.DataFrame:
     """Adds technical indicators and macro features to the dataframe."""
     df = df.copy()
+    if df.index.tz is not None:
+        df.index = df.index.tz_localize(None)
+        
     if macro_df is not None and not macro_df.empty:
         # Merge macro features using index (date)
         df = df.merge(macro_df, left_index=True, right_index=True, how='left')

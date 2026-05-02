@@ -763,6 +763,9 @@ def scan_markets(market: str = "IN") -> Dict[str, Any]:
     stocks_to_scan = in_stocks if market == "IN" else us_stocks
     init_cash = 100000 if market == "IN" else 1200
     
+    from data_fetcher import fetch_macro_data
+    macro_df = fetch_macro_data(years=2)
+    
     results = []
     
     for symbol in stocks_to_scan:
@@ -771,11 +774,11 @@ def scan_markets(market: str = "IN") -> Dict[str, Any]:
             if len(df) < 100:
                 continue
                 
-            df = add_features(df)
+            df = add_features(df, macro_df)
             df = create_labels(df)
             
             model = IntradayModel()
-            model.train(df[:-1])
+            model.train(df[:-60])
             
             # Out-of-sample backtest scoring
             df['prob_up'] = model.predict_proba_walk_forward(df)
