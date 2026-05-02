@@ -1190,10 +1190,10 @@ function App() {
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Logistic Regression updated</div>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: '10px', position: 'relative' }}><div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginBottom: '6px' }}>Standard Probability</div><div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#38bdf8' }}>≥ {adaptiveStatus.calibrated_thresholds?.STD_PROB_UP?.toFixed(2)}</div><div style={{ position: 'absolute', top: '14px', right: '14px', fontSize: '0.65rem', color: '#38bdf8', background: 'rgba(56,189,248,0.1)', padding: '2px 6px', borderRadius: '4px' }}>Base</div></div>
-                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: '10px', position: 'relative' }}><div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginBottom: '6px' }}>High Conviction Prob</div><div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#fbbf24' }}>≥ {adaptiveStatus.calibrated_thresholds?.HC_PROB_UP?.toFixed(2)}</div><div style={{ position: 'absolute', top: '14px', right: '14px', fontSize: '0.65rem', color: '#fbbf24', background: 'rgba(251,191,36,0.1)', padding: '2px 6px', borderRadius: '4px' }}>Strict</div></div>
-                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: '10px' }}><div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginBottom: '6px' }}>Standard Vol Spike</div><div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#38bdf8' }}>≥ {adaptiveStatus.calibrated_thresholds?.STD_VOL_RATIO?.toFixed(1)}x</div></div>
-                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: '10px' }}><div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginBottom: '6px' }}>HC Vol Spike</div><div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#fbbf24' }}>≥ {adaptiveStatus.calibrated_thresholds?.HC_VOL_RATIO?.toFixed(1)}x</div></div>
+                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: '10px', position: 'relative' }}><div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginBottom: '6px' }}>Standard Probability</div><div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: 'var(--text-bright)' }}>≥ {adaptiveStatus.calibrated_thresholds?.STD_PROB_UP?.toFixed(2)}</div><div style={{ position: 'absolute', top: '14px', right: '14px', fontSize: '0.65rem', color: 'var(--text-main)', background: 'var(--border-subtle)', padding: '2px 6px', borderRadius: '4px' }}>Base</div></div>
+                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: '10px', position: 'relative' }}><div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginBottom: '6px' }}>High Conviction Prob</div><div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: 'var(--accent-purple)' }}>≥ {adaptiveStatus.calibrated_thresholds?.HC_PROB_UP?.toFixed(2)}</div><div style={{ position: 'absolute', top: '14px', right: '14px', fontSize: '0.65rem', color: 'var(--accent-purple)', background: 'rgba(99,102,241,0.1)', padding: '2px 6px', borderRadius: '4px' }}>Strict</div></div>
+                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: '10px' }}><div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginBottom: '6px' }}>Standard Vol Spike</div><div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: 'var(--text-bright)' }}>≥ {adaptiveStatus.calibrated_thresholds?.STD_VOL_RATIO?.toFixed(1)}x</div></div>
+                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: '10px' }}><div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginBottom: '6px' }}>HC Vol Spike</div><div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: 'var(--accent-purple)' }}>≥ {adaptiveStatus.calibrated_thresholds?.HC_VOL_RATIO?.toFixed(1)}x</div></div>
                   </div>
                 </div>
 
@@ -1203,18 +1203,18 @@ function App() {
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Grid-Search updated</div>
                   </div>
                   <div style={{ marginBottom: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}><span style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>RSI Sweet Spot</span><span style={{ fontSize: '0.85rem', color: '#a5b4fc', fontWeight: 'bold' }}>{adaptiveStatus.optimized_gates?.rsi_min} — {adaptiveStatus.optimized_gates?.rsi_max}</span></div>
-                    <div style={{ height: '6px', background: '#1e293b', borderRadius: '3px', position: 'relative' }}><div style={{ position: 'absolute', left: `${adaptiveStatus.optimized_gates?.rsi_min}%`, width: `${(adaptiveStatus.optimized_gates?.rsi_max || 100) - (adaptiveStatus.optimized_gates?.rsi_min || 0)}%`, height: '100%', background: 'linear-gradient(90deg, #6366f1, #8b5cf6)', borderRadius: '3px' }} /></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}><span style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>RSI Sweet Spot</span><span style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 'bold' }}>{adaptiveStatus.optimized_gates?.rsi_min} — {adaptiveStatus.optimized_gates?.rsi_max}</span></div>
+                    <div style={{ height: '6px', background: 'var(--border-subtle)', borderRadius: '3px', position: 'relative' }}><div style={{ position: 'absolute', left: `${adaptiveStatus.optimized_gates?.rsi_min}%`, width: `${(adaptiveStatus.optimized_gates?.rsi_max || 100) - (adaptiveStatus.optimized_gates?.rsi_min || 0)}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent-purple), #8b5cf6)', borderRadius: '3px' }} /></div>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(0,0,0,0.4)', border: '1px solid #334155', borderRadius: '8px', marginBottom: '10px' }}><div><div style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: 600 }}>Trend Strength (ADX)</div><div style={{ fontSize: '0.7rem', color: '#64748b' }}>Minimum directional movement</div></div><div style={{ color: '#a5b4fc', fontWeight: 'bold' }}>≥ {adaptiveStatus.optimized_gates?.adx_min}</div></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(0,0,0,0.4)', border: '1px solid #334155', borderRadius: '8px' }}><div><div style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: 600 }}>MACD Required</div><div style={{ fontSize: '0.7rem', color: '#64748b' }}>Must show bullish histogram</div></div><div style={{ color: adaptiveStatus.optimized_gates?.macd_positive ? '#4ade80' : '#64748b', fontWeight: 'bold' }}>{adaptiveStatus.optimized_gates?.macd_positive ? 'True ✅' : 'False'}</div></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: '8px', marginBottom: '10px' }}><div><div style={{ fontSize: '0.85rem', color: 'var(--text-bright)', fontWeight: 600 }}>Trend Strength (ADX)</div><div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>Minimum directional movement</div></div><div style={{ color: 'var(--accent-purple)', fontWeight: 'bold' }}>≥ {adaptiveStatus.optimized_gates?.adx_min}</div></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: '8px' }}><div><div style={{ fontSize: '0.85rem', color: 'var(--text-bright)', fontWeight: 600 }}>MACD Required</div><div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>Must show bullish histogram</div></div><div style={{ color: adaptiveStatus.optimized_gates?.macd_positive ? 'var(--up-color)' : 'var(--text-dim)', fontWeight: 'bold' }}>{adaptiveStatus.optimized_gates?.macd_positive ? 'True ✅' : 'False'}</div></div>
                 </div>
               </div>
             )}
             
             {/* LLM Postmortems Section */}
             <div style={{ marginTop: '30px' }}>
-              <h3 style={{ color: '#818cf8', fontSize: '1.2rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h3 style={{ color: 'var(--accent-purple)', fontSize: '1.2rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '1.4rem' }}>🤖</span> LLM Trade Post-Mortems
               </h3>
               {postmortems.length > 0 ? (
@@ -1224,7 +1224,7 @@ function App() {
                       {pm.type === "batch_insights" ? (
                         <>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                            <strong style={{ fontSize: '1.1rem', color: '#fbbf24' }}>Batch Learning Insights ({pm.trades} trades)</strong>
+                            <strong style={{ fontSize: '1.1rem', color: 'var(--text-bright)' }}>Batch Learning Insights ({pm.trades} trades)</strong>
                             <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
                               {pm.timestamp ? new Date(pm.timestamp).toLocaleDateString() : ''}
                             </div>
@@ -1238,7 +1238,7 @@ function App() {
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                               <strong style={{ fontSize: '1.2rem', color: 'var(--text-bright)' }}>{pm.symbol}</strong>
-                              <span style={{ fontSize: '0.8rem', padding: '4px 10px', borderRadius: '6px', fontWeight: 'bold', background: pm.outcome === 'WIN' ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.15)', color: pm.outcome === 'WIN' ? '#4ade80' : '#f87171' }}>
+                              <span style={{ fontSize: '0.8rem', padding: '4px 10px', borderRadius: '6px', fontWeight: 'bold', background: pm.outcome === 'WIN' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: pm.outcome === 'WIN' ? 'var(--up-color)' : 'var(--down-color)' }}>
                                 {pm.outcome}
                               </span>
                             </div>
