@@ -944,7 +944,7 @@ function App() {
                  boxShadow: 'var(--shadow-card)'
                }}>
                  <div className="pulse-dot"></div>
-                 <span style={{ fontSize: '0.9rem', color: 'var(--text-bright)' }}>
+                  <span style={{ fontSize: '0.9rem', color: 'var(--text-card-top)' }}>
                    <strong>Scanning Markets:</strong> AI is currently analyzing latest NSE data. New signals will appear shortly.
                  </span>
                </div>
@@ -1164,7 +1164,7 @@ function App() {
                     <span style={{ fontSize: '1.8rem' }}>🧠</span> Adaptive ML Engine
                     {adaptiveStatus && (<span style={{ fontSize: '0.75rem', background: 'rgba(99,102,241,0.1)', color: '#a5b4fc', padding: '3px 8px', borderRadius: '12px', border: '1px solid #6366f133', marginLeft: '8px' }}>v{adaptiveStatus.engine_version || '1.0.0'}</span>)}
                   </h2>
-                  <p style={{ color: '#94a3b8', margin: '0', fontSize: '0.9rem', maxWidth: '600px' }}>The quantitative engine continuously learns from closed trades. Probability thresholds and filter gates automatically calibrate daily to optimize the profit factor and win-rate.</p>
+                  <p style={{ color: 'rgba(255,255,255,0.85)', margin: '0', fontSize: '0.9rem', maxWidth: '600px' }}>The quantitative engine continuously learns from closed trades. Probability thresholds and filter gates automatically calibrate daily to optimize the profit factor and win-rate.</p>
                 </div>
                 {adaptiveStatus && adaptiveStatus.outcome_stats && (
                   <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
@@ -1190,10 +1190,10 @@ function App() {
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Logistic Regression updated</div>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: '10px', position: 'relative' }}><div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginBottom: '6px' }}>Standard Probability</div><div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: 'var(--text-bright)' }}>≥ {adaptiveStatus.calibrated_thresholds?.STD_PROB_UP?.toFixed(2)}</div><div style={{ position: 'absolute', top: '14px', right: '14px', fontSize: '0.65rem', color: 'var(--text-main)', background: 'var(--border-subtle)', padding: '2px 6px', borderRadius: '4px' }}>Base</div></div>
-                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: '10px', position: 'relative' }}><div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginBottom: '6px' }}>High Conviction Prob</div><div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: 'var(--accent-purple)' }}>≥ {adaptiveStatus.calibrated_thresholds?.HC_PROB_UP?.toFixed(2)}</div><div style={{ position: 'absolute', top: '14px', right: '14px', fontSize: '0.65rem', color: 'var(--accent-purple)', background: 'rgba(99,102,241,0.1)', padding: '2px 6px', borderRadius: '4px' }}>Strict</div></div>
-                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: '10px' }}><div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginBottom: '6px' }}>Standard Vol Spike</div><div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: 'var(--text-bright)' }}>≥ {adaptiveStatus.calibrated_thresholds?.STD_VOL_RATIO?.toFixed(1)}x</div></div>
-                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: '10px' }}><div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginBottom: '6px' }}>HC Vol Spike</div><div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: 'var(--accent-purple)' }}>≥ {adaptiveStatus.calibrated_thresholds?.HC_VOL_RATIO?.toFixed(1)}x</div></div>
+                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: '10px', position: 'relative' }}><div style={{ fontSize: '0.75rem', color: 'var(--text-main)', marginBottom: '6px', fontWeight: 500 }}>Standard Probability</div><div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: 'var(--text-bright)' }}>≥ {adaptiveStatus.calibrated_thresholds?.STD_PROB_UP?.toFixed(2)}</div><div style={{ position: 'absolute', top: '14px', right: '14px', fontSize: '0.65rem', color: 'var(--text-main)', background: 'var(--border-subtle)', padding: '2px 6px', borderRadius: '4px' }}>Base</div></div>
+                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: '10px', position: 'relative' }}><div style={{ fontSize: '0.75rem', color: 'var(--text-main)', marginBottom: '6px', fontWeight: 500 }}>High Conviction Prob</div><div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: 'var(--accent-purple)' }}>≥ {adaptiveStatus.calibrated_thresholds?.HC_PROB_UP?.toFixed(2)}</div><div style={{ position: 'absolute', top: '14px', right: '14px', fontSize: '0.65rem', color: 'var(--accent-purple)', background: 'rgba(99,102,241,0.1)', padding: '2px 6px', borderRadius: '4px' }}>Strict</div></div>
+                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: '10px' }}><div style={{ fontSize: '0.75rem', color: 'var(--text-main)', marginBottom: '6px', fontWeight: 500 }}>Standard Vol Spike</div><div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: 'var(--text-bright)' }}>≥ {adaptiveStatus.calibrated_thresholds?.STD_VOL_RATIO?.toFixed(1)}x</div></div>
+                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: '10px' }}><div style={{ fontSize: '0.75rem', color: 'var(--text-main)', marginBottom: '6px', fontWeight: 500 }}>HC Vol Spike</div><div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: 'var(--accent-purple)' }}>≥ {adaptiveStatus.calibrated_thresholds?.HC_VOL_RATIO?.toFixed(1)}x</div></div>
                   </div>
                 </div>
 
@@ -1203,11 +1203,11 @@ function App() {
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Grid-Search updated</div>
                   </div>
                   <div style={{ marginBottom: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}><span style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>RSI Sweet Spot</span><span style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 'bold' }}>{adaptiveStatus.optimized_gates?.rsi_min} — {adaptiveStatus.optimized_gates?.rsi_max}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}><span style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: 500 }}>RSI Sweet Spot</span><span style={{ fontSize: '0.85rem', color: 'var(--accent-purple)', fontWeight: 'bold' }}>{adaptiveStatus.optimized_gates?.rsi_min} — {adaptiveStatus.optimized_gates?.rsi_max}</span></div>
                     <div style={{ height: '6px', background: 'var(--border-subtle)', borderRadius: '3px', position: 'relative' }}><div style={{ position: 'absolute', left: `${adaptiveStatus.optimized_gates?.rsi_min}%`, width: `${(adaptiveStatus.optimized_gates?.rsi_max || 100) - (adaptiveStatus.optimized_gates?.rsi_min || 0)}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent-purple), #8b5cf6)', borderRadius: '3px' }} /></div>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: '8px', marginBottom: '10px' }}><div><div style={{ fontSize: '0.85rem', color: 'var(--text-bright)', fontWeight: 600 }}>Trend Strength (ADX)</div><div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>Minimum directional movement</div></div><div style={{ color: 'var(--accent-purple)', fontWeight: 'bold' }}>≥ {adaptiveStatus.optimized_gates?.adx_min}</div></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: '8px' }}><div><div style={{ fontSize: '0.85rem', color: 'var(--text-bright)', fontWeight: 600 }}>MACD Required</div><div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>Must show bullish histogram</div></div><div style={{ color: adaptiveStatus.optimized_gates?.macd_positive ? 'var(--up-color)' : 'var(--text-dim)', fontWeight: 'bold' }}>{adaptiveStatus.optimized_gates?.macd_positive ? 'True ✅' : 'False'}</div></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: '8px', marginBottom: '10px' }}><div><div style={{ fontSize: '0.85rem', color: 'var(--text-bright)', fontWeight: 600 }}>Trend Strength (ADX)</div><div style={{ fontSize: '0.75rem', color: 'var(--text-main)' }}>Minimum directional movement</div></div><div style={{ color: 'var(--accent-purple)', fontWeight: 'bold' }}>≥ {adaptiveStatus.optimized_gates?.adx_min}</div></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: '8px' }}><div><div style={{ fontSize: '0.85rem', color: 'var(--text-bright)', fontWeight: 600 }}>MACD Required</div><div style={{ fontSize: '0.75rem', color: 'var(--text-main)' }}>Must show bullish histogram</div></div><div style={{ color: adaptiveStatus.optimized_gates?.macd_positive ? 'var(--up-color)' : 'var(--text-main)', fontWeight: 'bold' }}>{adaptiveStatus.optimized_gates?.macd_positive ? 'True ✅' : 'False'}</div></div>
                 </div>
               </div>
             )}
@@ -1255,9 +1255,9 @@ function App() {
                   ))}
                 </div>
               ) : (
-                <div style={{ background: 'var(--bg-card)', border: '1px dashed var(--border-subtle)', borderRadius: '12px', padding: '30px', textAlign: 'center' }}>
-                  <span style={{ fontSize: '2rem', opacity: 0.5 }}>🕵️‍♂️</span>
-                  <p style={{ color: 'var(--text-dim)', marginTop: '12px' }}>No trades have closed yet. Once a trade hits its target or stoploss, the LLM will analyze the outcome and post its insights here.</p>
+                <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-muted)', borderRadius: '12px', padding: '30px', textAlign: 'center' }}>
+                  <span style={{ fontSize: '2rem', opacity: 0.8 }}>🕵️‍♂️</span>
+                  <p style={{ color: 'var(--text-main)', marginTop: '12px', fontSize: '0.95rem', fontWeight: 500 }}>No trades have closed yet. Once a trade hits its target or stoploss, the LLM will analyze the outcome and post its insights here.</p>
                 </div>
               )}
             </div>
