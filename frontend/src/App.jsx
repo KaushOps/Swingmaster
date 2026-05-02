@@ -748,6 +748,7 @@ function App() {
   const [budgetRiskPct, setBudgetRiskPct]       = useState(2)
   const [theme, setTheme]                       = useState(() => localStorage.getItem('swing_theme') || 'light')
   const [adaptiveStatus, setAdaptiveStatus]     = useState(null)
+  const [postmortems, setPostmortems]           = useState([])
 
   // Theme application
   useEffect(() => {
@@ -763,6 +764,7 @@ function App() {
   useEffect(() => {
     const baseUrl = import.meta.env.PROD ? '' : 'http://localhost:8000';
     fetch(`${baseUrl}/api/adaptive_status`).then(r => r.json()).then(setAdaptiveStatus).catch(console.error);
+    fetch(`${baseUrl}/api/postmortems`).then(r => r.json()).then(res => { if (res.status === 'success') setPostmortems(res.data || []); }).catch(console.error);
   }, []);
 
   const loadMultibagger = useCallback((refresh = false) => {
@@ -1209,7 +1211,73 @@ function App() {
                 </div>
               </div>
             )}
+            
+            {/* LLM Postmortems Section */}
+            {postmortems.length > 0 && (
+              <div style={{ marginTop: '30px' }}>
+                <h3 style={{ color: '#818cf8', fontSize: '1.2rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '1.4rem' }}>🤖</span> LLM Trade Post-Mortems
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+                  {postmortems.map((pm, i) => (
+                    <div key={i} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '20px' }}>
+                      {pm.type === "batch_insights" ? (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                            <strong style={{ fontSize: '1.1rem', color: '#fbbf24' }}>Batch Learning Insights ({pm.trades} trades)</strong>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+                              {pm.timestamp ? new Date(pm.timestamp).toLocaleDateString() : ''}
+                            </div>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-main)', lineHeight: '1.6' }}>
+                            {pm.insights}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <strong style={{ fontSize: '1.2rem', color: 'var(--text-bright)' }}>{pm.symbol}</strong>
+                              <span style={{ fontSize: '0.8rem', padding: '4px 10px', borderRadius: '6px', fontWeight: 'bold', background: pm.outcome === 'WIN' ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.15)', color: pm.outcome === 'WIN' ? '#4ade80' : '#f87171' }}>
+                                {pm.outcome}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+                              {pm.timestamp ? new Date(pm.timestamp).toLocaleDateString() : ''}
+                            </div>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-main)', lineHeight: '1.6' }}>
+                            {pm.postmortem || "No analysis available."}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            )}
+            
           </div>
+        )}
+        
+        {/* ── SETTINGS ── */}
+        {market === "SETTINGS" && (
+          <div className="feature-panel" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+              <span style={{ fontSize: '1.8rem' }}>⚙️</span>
+              <div>
+                <h2 style={{ margin: 0, color: 'var(--text-bright)' }}>System Settings</h2>
+                <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: '0.85rem' }}>Configure API keys, risk limits, and global application behavior.</p>
+              </div>
+            </div>
+            
+            <div style={{ padding: '40px', textAlign: 'center', background: 'var(--bg-elevated)', borderRadius: '12px', border: '1px dashed var(--border-subtle)' }}>
+              <h3 style={{ color: 'var(--text-main)', marginBottom: '8px' }}>Settings coming soon</h3>
+              <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>The configuration options are currently managed via the backend `.env` file for security purposes.</p>
+            </div>
+          </div>
+        )}
         )}
       </main>
 

@@ -1,6 +1,16 @@
 import pandas as pd
 import ta
 import numpy as np
+import os
+import pickle
+import logging
+from typing import Optional
+
+logger = logging.getLogger("ml_model")
+
+# Model persistence directory
+MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "models")
+os.makedirs(MODEL_DIR, exist_ok=True)
 
 # Use XGBoost with fallback to RandomForest if not installed
 try:
@@ -64,6 +74,15 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     # 52-week high proximity (price strength gate)
     df['high_52w'] = df['high'].rolling(252).max()
     df['pct_from_high'] = (df['close'] / df['high_52w'])
+
+    # ── Stationary / normalized features ──────────────────────────────────────
+    # Normalise MACD by price so values are comparable across ₹50 and ₹5000 stocks
+    df['macd_norm']        = df['macd']        / df['close'].replace(0, np.nan)
+    df['macd_signal_norm'] = df['macd_signal'] / df['close'].replace(0, np.nan)
+    # ATR as % of price (already computed in main but duplicate here for feature list)
+    df['atr_pct'] = df['atr'] / df['close'].replace(0, np.nan)
+    # Rolling z-score of RSI over 20 bars — captures RSI momentum relative to recent history
+    df['rsi_zscore'] = (df['rsi'] - df['rsi'].rolling(20).mean()) / (df['rsi'].rolling(20).std() + 1e-9)
 
     return df.dropna()
 
@@ -169,39 +188,95 @@ class IntradayModel:
             self.model = RandomForestClassifier(n_estimators=200, max_depth=6, random_state=42)
 
         self.features = [
-            'rsi', 'macd', 'macd_signal', 'macd_hist',
-            'atr', 'volume_ratio', 'returns',
+            'rsi', 'rsi_zscore',
+            'macd_norm', 'macd_signal_norm', 'macd_hist',  # normalised versions
+            'atr_pct', 'volume_ratio', 'returns',           # atr_pct replaces raw atr
             'above_ema20', 'above_ema50', 'ema_spread',
             'bb_pct', 'adx', 'stoch_k', 'stoch_d',
             'roc5', 'roc10', 'pct_from_high'
         ]
 
-    def train(self, df: pd.DataFrame):
+    def train(self, df: pd.DataFrame, sample_weights: np.ndarray = None):
+        """
+        Full (re)train on a DataFrame.
+        Automatically corrects class imbalance via scale_pos_weight / class_weight.
+        Optionally accepts sample_weights for regime-aware recentness bias.
+        """
         available = [f for f in self.features if f in df.columns]
         X = df[available].fillna(0)
         y = df['label']
-        if not _USE_XGB:
-            self.model.warm_start = True
-        self.model.fit(X, y)
+
+        # ── Class imbalance correction ─────────────────────────────────────────
+        neg = int((y == 0).sum())
+        pos = int((y == 1).sum())
+        if pos == 0:
+            return  # nothing to train on
+        spw = neg / pos  # e.g. 4.0 for 80%/20% split
+
+        if _USE_XGB:
+            # Re-init with correct scale_pos_weight each time (avoids stale value)
+            from xgboost import XGBClassifier
+            self.model = XGBClassifier(
+                n_estimators=200,
+                max_depth=5,
+                learning_rate=0.05,
+                subsample=0.8,
+                colsample_bytree=0.8,
+                eval_metric='logloss',
+                scale_pos_weight=spw,   # ← corrects class imbalance
+                random_state=42,
+                verbosity=0,
+            )
+        else:
+            from sklearn.ensemble import RandomForestClassifier
+            self.model = RandomForestClassifier(
+                n_estimators=200, max_depth=6,
+                class_weight='balanced', random_state=42
+            )
+
+        self.model.fit(X, y, sample_weight=sample_weights)
         self.features = available
 
-    def incremental_train(self, df: pd.DataFrame):
-        """Warm-starts the model with new data for online learning."""
+    def incremental_train(self, df: pd.DataFrame, regime: str = "UNKNOWN"):
+        """
+        Warm-start / incremental update with new data.
+        Applies regime-aware sample weighting:
+          - TRENDING  → weight recent bars 3× (momentum works, recency matters)
+          - VOLATILE  → weight recent bars 0.5× (noisy, discount recent)
+          - CHOPPY    → uniform weights (mean-reversion, no recency bias)
+        """
         available = [f for f in self.features if f in df.columns]
         X = df[available].fillna(0)
         y = df['label']
-        
+
+        if len(np.unique(y)) <= 1:
+            return  # can't train on single-class batch
+
+        # ── Regime-aware temporal weighting ───────────────────────────────────
+        n = len(df)
+        if regime == "TRENDING":
+            # Linearly increase weight toward recent bars (recency bonus)
+            weights = np.linspace(1.0, 3.0, n)
+        elif regime == "VOLATILE":
+            # Discount recent noisy bars
+            weights = np.linspace(1.0, 0.5, n)
+        else:
+            weights = np.ones(n)  # CHOPPY / UNKNOWN — uniform
+
         if _USE_XGB:
             try:
                 booster = self.model.get_booster()
-                self.model.fit(X, y, xgb_model=booster)
+                neg = int((y == 0).sum())
+                pos = int((y == 1).sum())
+                spw = neg / pos if pos > 0 else 1.0
+                self.model.set_params(scale_pos_weight=spw)
+                self.model.fit(X, y, xgb_model=booster, sample_weight=weights)
             except Exception:
-                # If get_booster fails (e.g. not trained yet), just fit
-                self.model.fit(X, y)
+                self.train(df)  # full retrain as fallback
         else:
             self.model.n_estimators += 10
-            self.model.fit(X, y)
-            
+            self.model.fit(X, y, sample_weight=weights)
+
         self.features = available
 
     def predict_proba(self, df: pd.DataFrame) -> pd.Series:
@@ -209,7 +284,7 @@ class IntradayModel:
         probs = self.model.predict_proba(X)[:, 1]
         return pd.Series(index=df.index, data=probs)
 
-    def predict_proba_walk_forward(self, df: pd.DataFrame, min_train: int = 50, gap: int = 20, stride: int = 1) -> pd.Series:
+    def predict_proba_walk_forward(self, df: pd.DataFrame, min_train: int = 50, gap: int = 5, stride: int = 1) -> pd.Series:
         """
         Performs walk-forward out-of-sample predictions to avoid in-sample leakage.
         Trains on data up to (i - gap), predicts on bar i.
@@ -250,6 +325,37 @@ class IntradayModel:
             probs.iloc[i:score_end] = preds
             
         return probs
+
+    def save(self, symbol: str):
+        """Persist this model to disk so the next scan cycle can warm-start from it."""
+        path = os.path.join(MODEL_DIR, f"{symbol}.pkl")
+        try:
+            with open(path, "wb") as f:
+                pickle.dump({"model": self.model, "features": self.features}, f)
+            logger.debug(f"Model saved: {symbol}")
+        except Exception as e:
+            logger.warning(f"Model save failed for {symbol}: {e}")
+
+    @classmethod
+    def load(cls, symbol: str) -> Optional["IntradayModel"]:
+        """
+        Load a previously persisted model from disk.
+        Returns None if no saved model exists or load fails.
+        """
+        path = os.path.join(MODEL_DIR, f"{symbol}.pkl")
+        if not os.path.exists(path):
+            return None
+        try:
+            with open(path, "rb") as f:
+                data = pickle.load(f)
+            instance = cls()
+            instance.model    = data["model"]
+            instance.features = data["features"]
+            logger.debug(f"Model loaded: {symbol}")
+            return instance
+        except Exception as e:
+            logger.warning(f"Model load failed for {symbol}: {e}")
+            return None
 
     def predict_latest(self, df: pd.DataFrame):
         latest = df.iloc[[-1]]

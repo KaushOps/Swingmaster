@@ -13,3 +13,5 @@ xgboost
 yahooquery
 scipy
 shap
+python-dotenv
+slowapi

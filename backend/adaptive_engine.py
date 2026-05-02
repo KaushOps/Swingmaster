@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 import logging
+import threading
 
 try:
     import shap
@@ -22,25 +23,84 @@ DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
 
-LEDGER_FILE = os.path.join(DATA_DIR, 'signals_ledger.json')
-OUTCOME_LOG_FILE = os.path.join(DATA_DIR, 'outcome_log.csv')
-ADAPTIVE_GATES_FILE = os.path.join(DATA_DIR, 'adaptive_gates.json')
-MB_AFFINITY_FILE = os.path.join(DATA_DIR, 'mb_affinity.json')
-SHAP_HISTORY_FILE = os.path.join(DATA_DIR, 'shap_history.json')
+LEDGER_FILE          = os.path.join(DATA_DIR, 'signals_ledger.json')
+OUTCOME_LOG_FILE     = os.path.join(DATA_DIR, 'outcome_log.csv')
+ADAPTIVE_GATES_FILE  = os.path.join(DATA_DIR, 'adaptive_gates.json')
+MB_AFFINITY_FILE     = os.path.join(DATA_DIR, 'mb_affinity.json')
+SHAP_HISTORY_FILE    = os.path.join(DATA_DIR, 'shap_history.json')
+FEATURE_SNAPSHOT_FILE = os.path.join(DATA_DIR, 'feature_snapshots.json')
+POSTMORTEM_LOG_FILE  = os.path.join(DATA_DIR, 'postmortem_log.json')
+
+class FeatureSnapshotStore:
+    """
+    Stores the full indicator snapshot at the moment a signal is generated.
+    This allows OutcomeTracker to later retrieve what the model SAW at entry,
+    enabling LLM post-mortems and regime-tagged incremental retraining.
+    """
+
+    @classmethod
+    def save(cls, date_str: str, symbol: str, features: dict, regime: str = "UNKNOWN"):
+        """
+        Save a feature snapshot for a signal. Called from main.py at signal generation time.
+        """
+        try:
+            store = cls._load()
+            key = f"{date_str}_{symbol}"
+            store[key] = {
+                "date": date_str,
+                "symbol": symbol,
+                "regime": regime,
+                "features": features,
+                "saved_at": datetime.now().isoformat(),
+            }
+            # Keep only last 2000 snapshots to avoid unbounded growth
+            if len(store) > 2000:
+                old_keys = sorted(store.keys())[:len(store) - 2000]
+                for k in old_keys:
+                    del store[k]
+            cls._write(store)
+        except Exception as e:
+            logger.warning(f"FeatureSnapshotStore.save failed: {e}")
+
+    @classmethod
+    def get(cls, date_str: str, symbol: str) -> dict:
+        """Retrieve a feature snapshot. Returns empty dict if not found."""
+        try:
+            store = cls._load()
+            return store.get(f"{date_str}_{symbol}", {})
+        except Exception:
+            return {}
+
+    @classmethod
+    def _load(cls) -> dict:
+        if not os.path.exists(FEATURE_SNAPSHOT_FILE):
+            return {}
+        try:
+            with open(FEATURE_SNAPSHOT_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    @classmethod
+    def _write(cls, store: dict):
+        with open(FEATURE_SNAPSHOT_FILE, 'w') as f:
+            json.dump(store, f, indent=2)
+
 
 
 class OutcomeTracker:
-    """Scans the ledger for closed trades and logs them to outcome_log.csv."""
-    
+    """Scans the ledger for closed trades, logs them to outcome_log.csv,
+    triggers incremental model retraining, and fires LLM post-mortems."""
+
     @classmethod
-    def update(cls):
+    def update(cls, current_regime: str = "UNKNOWN"):
         try:
             if not os.path.exists(LEDGER_FILE):
                 return
-            
+
             with open(LEDGER_FILE, 'r') as f:
                 ledger = json.load(f)
-            
+
             buys = ledger.get("NSE_BUYS", {})
             if not buys:
                 return
@@ -48,81 +108,183 @@ class OutcomeTracker:
             records = []
             if os.path.exists(OUTCOME_LOG_FILE):
                 existing_df = pd.read_csv(OUTCOME_LOG_FILE)
-                # Ensure date is string to avoid type matching issues
                 existing_df['date'] = existing_df['date'].astype(str)
             else:
-                existing_df = pd.DataFrame(columns=['date', 'symbol', 'entry', 'target', 'stoploss', 'confidence', 'volume_ratio', 'outcome', 'days_held'])
-                
+                existing_df = pd.DataFrame(columns=[
+                    'date', 'symbol', 'entry', 'target', 'stoploss',
+                    'confidence', 'volume_ratio', 'outcome', 'days_held',
+                    'regime', 'rsi', 'adx', 'macd_hist'
+                ])
+
             existing_combinations = set(zip(existing_df['date'], existing_df['symbol']))
-            
-            # Look back up to 30 days for closed trades
             cutoff_date = datetime.now() - timedelta(days=30)
-            
+            newly_closed = []
+
             for date_str, symbols in buys.items():
                 date_obj = datetime.strptime(date_str, "%Y-%m-%d")
                 if date_obj < cutoff_date:
                     continue
-                
+
                 for symbol, data in symbols.items():
                     if (date_str, symbol) in existing_combinations:
                         continue
-                    
-                    # Need to check outcome
-                    df = fetch_daily_data(symbol + ".NS" if not symbol.endswith(".NS") else symbol, years=1)
+
+                    df = fetch_daily_data(
+                        symbol + ".NS" if not symbol.endswith(".NS") else symbol, years=1
+                    )
                     if df.empty:
                         continue
-                        
-                    # Filter data after entry date
-                    # tz localize to match df index if df is tz-aware
+
                     if df.index.tz is not None:
                         date_obj_tz = pd.to_datetime(date_str).tz_localize(df.index.tz)
                         post_entry = df[df.index > date_obj_tz]
                     else:
                         post_entry = df[df.index > pd.to_datetime(date_str)]
-                        
+
                     if post_entry.empty:
                         continue
-                        
-                    entry_price = data['entry']
-                    target_price = data['target']
+
+                    entry_price    = data['entry']
+                    target_price   = data['target']
                     stoploss_price = data['stoploss']
-                    
-                    outcome = None
-                    days_held = 0
-                    
+                    outcome        = None
+                    days_held      = 0
+                    exit_price     = entry_price
+
                     for idx, row in post_entry.iterrows():
                         days_held += 1
                         if row['low'] <= stoploss_price:
-                            outcome = 0
+                            outcome    = 0
+                            exit_price = stoploss_price
                             break
                         elif row['high'] >= target_price:
-                            outcome = 1
+                            outcome    = 1
+                            exit_price = target_price
                             break
-                    
+
                     if outcome is not None:
-                        records.append({
-                            'date': date_str,
-                            'symbol': symbol,
-                            'entry': entry_price,
-                            'target': target_price,
-                            'stoploss': stoploss_price,
-                            'confidence': data['confidence'],
+                        snap            = FeatureSnapshotStore.get(date_str, symbol)
+                        snap_features   = snap.get("features", {})
+                        regime_at_entry = snap.get("regime", current_regime)
+
+                        record = {
+                            'date':         date_str,
+                            'symbol':       symbol,
+                            'entry':        entry_price,
+                            'target':       target_price,
+                            'stoploss':     stoploss_price,
+                            'confidence':   data['confidence'],
                             'volume_ratio': data['volume_ratio'],
-                            'outcome': outcome,
-                            'days_held': days_held
+                            'outcome':      outcome,
+                            'days_held':    days_held,
+                            'regime':       regime_at_entry,
+                            'rsi':          snap_features.get('rsi'),
+                            'adx':          snap_features.get('adx'),
+                            'macd_hist':    snap_features.get('macd_hist'),
+                        }
+                        records.append(record)
+                        newly_closed.append({
+                            **record,
+                            "exit_price":        exit_price,
+                            "entry_indicators":  snap_features,
                         })
-            
+
+                        # Incremental model update for this symbol
+                        cls._retrain_symbol(symbol, df, regime_at_entry)
+
             if records:
-                new_df = pd.DataFrame(records)
+                new_df      = pd.DataFrame(records)
                 combined_df = pd.concat([existing_df, new_df], ignore_index=True)
-                # Keep last 5000
                 if len(combined_df) > 5000:
                     combined_df = combined_df.tail(5000)
                 combined_df.to_csv(OUTCOME_LOG_FILE, index=False)
                 logger.info(f"Updated outcome log with {len(records)} new closed trades.")
-                
+
+                # Fire LLM analysis in background (non-blocking)
+                if newly_closed:
+                    threading.Thread(
+                        target=cls._async_llm_analysis,
+                        args=(newly_closed, current_regime),
+                        daemon=True,
+                    ).start()
+
         except Exception as e:
             logger.error(f"Error in OutcomeTracker update: {e}")
+
+    @classmethod
+    def _retrain_symbol(cls, symbol: str, df, regime: str):
+        """Load persisted model, incrementally update it, save back to disk."""
+        try:
+            from ml_model import IntradayModel, add_features, create_labels
+            clean   = symbol.replace(".NS", "")
+            df_feat = add_features(df)
+            if len(df_feat) < 50:
+                return
+            df_feat = create_labels(df_feat)
+
+            model = IntradayModel.load(clean)
+            if model is None:
+                model = IntradayModel()
+                model.train(df_feat[:-1])
+            else:
+                model.incremental_train(df_feat, regime=regime)
+
+            model.save(clean)
+            logger.info(f"Incremental retrain complete: {clean} (regime={regime})")
+        except Exception as e:
+            logger.warning(f"Incremental retrain failed for {symbol}: {e}")
+
+    @classmethod
+    def _async_llm_analysis(cls, newly_closed: list, regime: str):
+        """Background thread: generates LLM post-mortems + batch learning insights."""
+        try:
+            from llm_analyst import get_trade_postmortem, get_learning_insights
+
+            postmortems = []
+            for trade in newly_closed:
+                pm = get_trade_postmortem(
+                    symbol           = trade["symbol"],
+                    outcome          = "WIN" if trade["outcome"] == 1 else "LOSS",
+                    entry_indicators = trade.get("entry_indicators", {}),
+                    days_held        = trade["days_held"],
+                    entry_price      = trade["entry"],
+                    exit_price       = trade["exit_price"],
+                    regime_at_entry  = trade.get("regime", regime),
+                )
+                if pm:
+                    postmortems.append({
+                        "symbol":     trade["symbol"],
+                        "date":       trade["date"],
+                        "outcome":    "WIN" if trade["outcome"] == 1 else "LOSS",
+                        "postmortem": pm,
+                        "timestamp":  datetime.now().isoformat(),
+                    })
+
+            insights = get_learning_insights(newly_closed)
+
+            history = []
+            if os.path.exists(POSTMORTEM_LOG_FILE):
+                try:
+                    with open(POSTMORTEM_LOG_FILE) as f:
+                        history = json.load(f)
+                except Exception:
+                    pass
+
+            history.extend(postmortems)
+            if insights:
+                history.append({
+                    "type":      "batch_insights",
+                    "insights":  insights,
+                    "timestamp": datetime.now().isoformat(),
+                    "trades":    len(newly_closed),
+                })
+
+            with open(POSTMORTEM_LOG_FILE, 'w') as f:
+                json.dump(history[-200:], f, indent=2)
+
+            logger.info(f"LLM post-mortems saved for {len(postmortems)} trades.")
+        except Exception as e:
+            logger.error(f"LLM async analysis failed: {e}")
 
 
 class ThresholdCalibrator:
