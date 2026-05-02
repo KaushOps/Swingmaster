@@ -491,6 +491,24 @@ def update_universe_cache():
                             "volume_ratio": float(row['volume_ratio'])
                         }
                         needs_save = True
+                        
+                        # Save feature snapshot for every ledger entry (not just live)
+                        FeatureSnapshotStore.save(
+                            date_str=date_str,
+                            symbol=sym,
+                            features={
+                                "rsi":          round(float(row.get("rsi", 0)), 2),
+                                "macd_hist":    round(float(row.get("macd_hist", 0)), 5),
+                                "adx":          round(float(row.get("adx", 0)), 2),
+                                "volume_ratio": round(float(row.get("volume_ratio", 1.0)), 2),
+                                "confidence":   round(float(row.get("prob_up", 0)) * 100, 2),
+                                "above_ema20":  int(row.get("above_ema20", 0)),
+                                "bb_pct":       round(float(row.get("bb_pct", 0)), 3),
+                                "stoch_k":      round(float(row.get("stoch_k", 0)), 2),
+                                "signal_type":  "STD",
+                            },
+                            regime=_current_regime,
+                        )
 
             for date, row in hc_entries.iterrows():
                 date_str = date.strftime("%Y-%m-%d")
@@ -510,6 +528,24 @@ def update_universe_cache():
                             "volume_ratio": float(row['volume_ratio'])
                         }
                         needs_save = True
+                        
+                        # Save feature snapshot for HC entries too
+                        FeatureSnapshotStore.save(
+                            date_str=date_str,
+                            symbol=sym,
+                            features={
+                                "rsi":          round(float(row.get("rsi", 0)), 2),
+                                "macd_hist":    round(float(row.get("macd_hist", 0)), 5),
+                                "adx":          round(float(row.get("adx", 0)), 2),
+                                "volume_ratio": round(float(row.get("volume_ratio", 1.0)), 2),
+                                "confidence":   round(float(row.get("prob_up", 0)) * 100, 2),
+                                "above_ema20":  int(row.get("above_ema20", 0)),
+                                "bb_pct":       round(float(row.get("bb_pct", 0)), 3),
+                                "stoch_k":      round(float(row.get("stoch_k", 0)), 2),
+                                "signal_type":  "HC",
+                            },
+                            regime=_current_regime,
+                        )
 
             # Populate maps for UI specifically from the immutable ledger
             for date_str, sigs in ledger["NSE_BUYS"].items():

@@ -166,6 +166,12 @@ class OutcomeTracker:
                         snap            = FeatureSnapshotStore.get(date_str, symbol)
                         snap_features   = snap.get("features", {})
                         regime_at_entry = snap.get("regime", current_regime)
+                        
+                        # Determine signal type: check if this symbol+date is also in HIGH_CONVICTION
+                        hc_ledger = ledger.get("HIGH_CONVICTION", {})
+                        signal_type = snap_features.get("signal_type", "STD")
+                        if date_str in hc_ledger and symbol in hc_ledger[date_str]:
+                            signal_type = "HC"
 
                         record = {
                             'date':         date_str,
@@ -187,6 +193,7 @@ class OutcomeTracker:
                             **record,
                             "exit_price":        exit_price,
                             "entry_indicators":  snap_features,
+                            "signal_type":       signal_type,
                         })
 
                         # Incremental model update for this symbol
@@ -252,12 +259,28 @@ class OutcomeTracker:
                     regime_at_entry  = trade.get("regime", regime),
                 )
                 if pm:
+                    pnl_pct = ((trade["exit_price"] - trade["entry"]) / trade["entry"]) * 100
+                    indicators = trade.get("entry_indicators", {})
                     postmortems.append({
-                        "symbol":     trade["symbol"],
-                        "date":       trade["date"],
-                        "outcome":    "WIN" if trade["outcome"] == 1 else "LOSS",
-                        "postmortem": pm,
-                        "timestamp":  datetime.now().isoformat(),
+                        "symbol":       trade["symbol"],
+                        "date":         trade["date"],
+                        "outcome":      "WIN" if trade["outcome"] == 1 else "LOSS",
+                        "signal_type":  trade.get("signal_type", "STD"),
+                        "postmortem":   pm,
+                        "entry_price":  round(trade["entry"], 2),
+                        "exit_price":   round(trade["exit_price"], 2),
+                        "pnl_pct":      round(pnl_pct, 1),
+                        "days_held":    trade["days_held"],
+                        "confidence":   indicators.get("confidence"),
+                        "indicators": {
+                            "rsi":          indicators.get("rsi"),
+                            "adx":          indicators.get("adx"),
+                            "macd_hist":    indicators.get("macd_hist"),
+                            "volume_ratio": indicators.get("volume_ratio"),
+                            "bb_pct":       indicators.get("bb_pct"),
+                            "stoch_k":      indicators.get("stoch_k"),
+                        },
+                        "timestamp":    datetime.now().isoformat(),
                     })
 
             insights = get_learning_insights(newly_closed)

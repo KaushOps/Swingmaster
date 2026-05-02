@@ -1235,17 +1235,86 @@ function App() {
                         </>
                       ) : (
                         <>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          {/* Header Row: Symbol + Signal Type + Outcome + Date */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                               <strong style={{ fontSize: '1.2rem', color: 'var(--text-bright)' }}>{pm.symbol}</strong>
-                              <span style={{ fontSize: '0.8rem', padding: '4px 10px', borderRadius: '6px', fontWeight: 'bold', background: pm.outcome === 'WIN' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: pm.outcome === 'WIN' ? 'var(--up-color)' : 'var(--down-color)' }}>
-                                {pm.outcome}
-                              </span>
+                              <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '5px', fontWeight: 'bold',
+                                background: pm.outcome === 'WIN' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+                                color: pm.outcome === 'WIN' ? 'var(--up-color)' : 'var(--down-color)',
+                              }}>{pm.outcome}</span>
+                              <span style={{ fontSize: '0.72rem', padding: '3px 8px', borderRadius: '5px', fontWeight: 'bold', letterSpacing: '0.5px',
+                                background: pm.signal_type === 'HC' ? 'rgba(251,191,36,0.15)' : 'rgba(96,165,250,0.15)',
+                                color: pm.signal_type === 'HC' ? '#fbbf24' : '#60a5fa',
+                              }}>{pm.signal_type === 'HC' ? '🎯 HIGH CONVICTION' : '📊 STANDARD BUY'}</span>
                             </div>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
-                              {pm.timestamp ? new Date(pm.timestamp).toLocaleDateString() : ''}
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Signal Date</div>
+                              <div style={{ fontSize: '0.9rem', color: 'var(--text-bright)', fontWeight: 600 }}>{pm.date || ''}</div>
                             </div>
                           </div>
+
+                          {/* Trade Stats Row */}
+                          {(pm.entry_price || pm.pnl_pct !== undefined) && (
+                            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '14px', padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-muted)' }}>
+                              {pm.entry_price != null && (
+                                <div style={{ minWidth: '80px' }}>
+                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Entry</div>
+                                  <div style={{ fontSize: '0.95rem', color: 'var(--text-bright)', fontWeight: 600 }}>₹{pm.entry_price}</div>
+                                </div>
+                              )}
+                              {pm.exit_price != null && (
+                                <div style={{ minWidth: '80px' }}>
+                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Exit</div>
+                                  <div style={{ fontSize: '0.95rem', color: 'var(--text-bright)', fontWeight: 600 }}>₹{pm.exit_price}</div>
+                                </div>
+                              )}
+                              {pm.pnl_pct != null && (
+                                <div style={{ minWidth: '70px' }}>
+                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>P&L</div>
+                                  <div style={{ fontSize: '0.95rem', fontWeight: 700, color: pm.pnl_pct >= 0 ? 'var(--up-color)' : 'var(--down-color)' }}>{pm.pnl_pct >= 0 ? '+' : ''}{pm.pnl_pct}%</div>
+                                </div>
+                              )}
+                              {pm.days_held != null && (
+                                <div style={{ minWidth: '60px' }}>
+                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Held</div>
+                                  <div style={{ fontSize: '0.95rem', color: 'var(--text-bright)', fontWeight: 600 }}>{pm.days_held}d</div>
+                                </div>
+                              )}
+                              {pm.confidence != null && (
+                                <div style={{ minWidth: '70px' }}>
+                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Confidence</div>
+                                  <div style={{ fontSize: '0.95rem', color: '#a78bfa', fontWeight: 600 }}>{pm.confidence}%</div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Indicators Row */}
+                          {pm.indicators && Object.values(pm.indicators).some(v => v != null) && (
+                            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                              {pm.indicators.rsi != null && (
+                                <span style={{ fontSize: '0.78rem', padding: '4px 10px', borderRadius: '6px', background: 'rgba(139,92,246,0.1)', color: '#a78bfa', fontWeight: 500 }}>RSI: {pm.indicators.rsi}</span>
+                              )}
+                              {pm.indicators.adx != null && (
+                                <span style={{ fontSize: '0.78rem', padding: '4px 10px', borderRadius: '6px', background: 'rgba(59,130,246,0.1)', color: '#60a5fa', fontWeight: 500 }}>ADX: {pm.indicators.adx}</span>
+                              )}
+                              {pm.indicators.macd_hist != null && (
+                                <span style={{ fontSize: '0.78rem', padding: '4px 10px', borderRadius: '6px', background: pm.indicators.macd_hist >= 0 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: pm.indicators.macd_hist >= 0 ? 'var(--up-color)' : 'var(--down-color)', fontWeight: 500 }}>MACD: {pm.indicators.macd_hist}</span>
+                              )}
+                              {pm.indicators.volume_ratio != null && (
+                                <span style={{ fontSize: '0.78rem', padding: '4px 10px', borderRadius: '6px', background: 'rgba(251,191,36,0.1)', color: '#fbbf24', fontWeight: 500 }}>Vol: {pm.indicators.volume_ratio}x</span>
+                              )}
+                              {pm.indicators.bb_pct != null && (
+                                <span style={{ fontSize: '0.78rem', padding: '4px 10px', borderRadius: '6px', background: 'rgba(244,114,182,0.1)', color: '#f472b6', fontWeight: 500 }}>BB%: {pm.indicators.bb_pct}</span>
+                              )}
+                              {pm.indicators.stoch_k != null && (
+                                <span style={{ fontSize: '0.78rem', padding: '4px 10px', borderRadius: '6px', background: 'rgba(34,211,238,0.1)', color: '#22d3ee', fontWeight: 500 }}>Stoch K: {pm.indicators.stoch_k}</span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* LLM Analysis Text */}
                           <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-main)', lineHeight: '1.6' }}>
                             {pm.postmortem || "No analysis available."}
                           </p>
