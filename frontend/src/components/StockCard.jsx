@@ -158,22 +158,54 @@ export default function StockCard({
           </div>
         )}
 
-        {/* Risk / Reward Bar */}
-        {variant !== 'multibagger' && gainPct > 0 && (
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: 8 }}>
-              <span>Risk / Reward</span>
-              {rrRatio && <span style={{ color: 'var(--up-color)' }}>1 : {rrRatio}</span>}
-            </div>
-            <div style={{ height: 6, borderRadius: 4, overflow: 'hidden', display: 'flex', gap: 2 }}>
-              <div style={{ width: `${redW}%`,   background: 'var(--down-color)', opacity: 0.3, borderRadius: '4px 0 0 4px' }} />
-              <div style={{ width: `${greenW}%`, background: 'var(--up-color)', borderRadius: '0 4px 4px 0' }} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem', marginTop: 4, fontWeight: 700 }}>
-              <span style={{ color: 'var(--down-color)' }}>Risk</span>
-              <span style={{ color: 'var(--up-color)' }}>Reward</span>
-            </div>
-          </div>
+        {/* Trade Progress Bar */}
+        {variant !== 'multibagger' && stock.entry && stock.target && stock.stoploss && stock.close && (
+          (() => {
+            const range = stock.target - stock.stoploss;
+            const currentPos = stock.close - stock.stoploss;
+            let progressPct = (currentPos / range) * 100;
+            progressPct = Math.max(0, Math.min(100, progressPct)); // Clamp 0 to 100
+            
+            const entryPos = stock.entry - stock.stoploss;
+            const entryPct = (entryPos / range) * 100;
+
+            const inProfit = stock.close >= stock.entry;
+            
+            return (
+              <div style={{ marginBottom: 24, position: 'relative' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: 8 }}>
+                  <span>Trade Progress</span>
+                  <span style={{ color: inProfit ? 'var(--up-color)' : 'var(--down-color)' }}>
+                    {stock.growth_pct >= 0 ? '+' : ''}{stock.growth_pct}%
+                  </span>
+                </div>
+                
+                <div style={{ position: 'relative', height: 8, borderRadius: 4, background: 'var(--border-muted)', overflow: 'hidden' }}>
+                  {/* Entry Marker Line */}
+                  <div style={{
+                    position: 'absolute',
+                    left: `${entryPct}%`,
+                    top: 0, bottom: 0, width: 2, background: 'var(--text-bright)', zIndex: 10
+                  }} />
+                  
+                  {/* Current Progress Fill */}
+                  <div style={{
+                    position: 'absolute', left: 0, top: 0, bottom: 0,
+                    width: `${progressPct}%`,
+                    background: inProfit ? 'var(--up-color)' : 'var(--down-color)',
+                    transition: 'width 0.5s ease-out, background 0.5s ease',
+                    borderRadius: progressPct === 100 ? 4 : '4px 0 0 4px'
+                  }} />
+                </div>
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', marginTop: 6, fontWeight: 700, position: 'relative' }}>
+                  <span style={{ color: 'var(--down-color)' }}>SL</span>
+                  <span style={{ color: 'var(--text-dim)', position: 'absolute', left: `calc(${entryPct}% - 15px)` }}>ENTRY</span>
+                  <span style={{ color: 'var(--up-color)' }}>TARGET</span>
+                </div>
+              </div>
+            );
+          })()
         )}
 
         {/* Spacer to push footer down if needed */}
