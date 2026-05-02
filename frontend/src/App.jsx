@@ -1213,11 +1213,11 @@ function App() {
             )}
             
             {/* LLM Postmortems Section */}
-            {postmortems.length > 0 && (
-              <div style={{ marginTop: '30px' }}>
-                <h3 style={{ color: '#818cf8', fontSize: '1.2rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '1.4rem' }}>🤖</span> LLM Trade Post-Mortems
-                </h3>
+            <div style={{ marginTop: '30px' }}>
+              <h3 style={{ color: '#818cf8', fontSize: '1.2rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1.4rem' }}>🤖</span> LLM Trade Post-Mortems
+              </h3>
+              {postmortems.length > 0 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
                   {postmortems.map((pm, i) => (
                     <div key={i} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '20px' }}>
@@ -1254,8 +1254,13 @@ function App() {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div style={{ background: 'var(--bg-card)', border: '1px dashed var(--border-subtle)', borderRadius: '12px', padding: '30px', textAlign: 'center' }}>
+                  <span style={{ fontSize: '2rem', opacity: 0.5 }}>🕵️‍♂️</span>
+                  <p style={{ color: 'var(--text-dim)', marginTop: '12px' }}>No trades have closed yet. Once a trade hits its target or stoploss, the LLM will analyze the outcome and post its insights here.</p>
+                </div>
+              )}
+            </div>
             
           </div>
         )}
