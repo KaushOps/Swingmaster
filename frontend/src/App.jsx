@@ -1277,7 +1277,6 @@ function App() {
             </div>
           </div>
         )}
-        )}
       </main>
 
       {/* Stock detail drawer */}
