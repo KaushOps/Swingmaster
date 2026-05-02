@@ -9,6 +9,7 @@ export function StatusBadge({ status }) {
     'STRONG BUY': ['#10b981', '#ffffff'],
     'BUY':        ['#3b82f6', '#ffffff'],
     'ACTIVE':     ['#3b82f6', '#ffffff'],
+    'SYNCING':    ['#64748b', '#ffffff'],
   };
   const [bg, color] = map[status] || ['#64748b', '#ffffff'];
   

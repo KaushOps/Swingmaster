@@ -109,7 +109,7 @@ def load_ledger():
                 "date": date_str,
                 "entry": s['entry'],
                 "close": s['entry'],
-                "status": "ACTIVE", # Defaults until first scan completes
+                "status": "SYNCING", # Defaults until first scan completes
                 "target": s['target'],
                 "stoploss": s['stoploss'],
                 "confidence": round(s['confidence'] * 100 if s['confidence'] <= 1.0 else s['confidence'], 1),
@@ -124,7 +124,7 @@ def load_ledger():
                 "date": date_str,
                 "entry": s['entry'],
                 "close": s['entry'],
-                "status": "ACTIVE",
+                "status": "SYNCING",
                 "target": s['target'],
                 "stoploss": s['stoploss'],
                 "confidence": round(s['confidence'] * 100 if s['confidence'] <= 1.0 else s['confidence'], 1),
