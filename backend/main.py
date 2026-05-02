@@ -149,10 +149,14 @@ def build_signal_frozen(frozen_sig, date_str, df, sym, latest_close):
     target = frozen_sig['target']
     stoploss = frozen_sig['stoploss']
     
-    try:
-        future_df = df.loc[date_str:]
-    except Exception:
-        future_df = df[df.index >= date_str]
+    # Handle timezone-aware index for accurate slicing
+    if df.index.tz is not None:
+        import pandas as pd
+        date_obj_tz = pd.to_datetime(date_str).tz_localize(df.index.tz)
+        future_df = df[df.index >= date_obj_tz]
+    else:
+        import pandas as pd
+        future_df = df[df.index >= pd.to_datetime(date_str)]
         
     status = "ACTIVE"
     days_in_trade = 0
