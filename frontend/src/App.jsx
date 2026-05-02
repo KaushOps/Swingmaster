@@ -1354,7 +1354,7 @@ function App() {
         
         {/* Footer */}
         <div style={{ textAlign: 'center', padding: '40px 0 20px', color: 'var(--text-dim)', fontSize: '0.85rem', fontWeight: 600 }}>
-          Developed by <span style={{ color: '#ef4444' }}>❤️</span> Kaushik Poojar
+          Developed by <span style={{ color: '#ef4444' }}>❤️</span> Kaushik Poojari
         </div>
       </main>
 
