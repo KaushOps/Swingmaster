@@ -51,6 +51,7 @@ _or_lock    = __import__('threading').Lock()
 
 GROQ_URL         = "https://api.groq.com/openai/v1/chat/completions"
 OPENROUTER_URL   = "https://openrouter.ai/api/v1/chat/completions"
+APP_PUBLIC_URL   = os.getenv("APP_PUBLIC_URL", "https://tradeflex.in")
 
 GROQ_MODEL       = os.getenv("GROQ_MODEL",       "llama-3.3-70b-versatile")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "anthropic/claude-3-haiku")
@@ -145,8 +146,8 @@ def _call_openrouter(system: str, user: str, max_tokens: int = 400) -> Optional[
                 headers={
                     "Authorization": f"Bearer {key}",
                     "Content-Type": "application/json",
-                    "HTTP-Referer": "https://omniquant.duckdns.org",
-                    "X-Title": "SwingMaster OmniQuant",
+                    "HTTP-Referer": APP_PUBLIC_URL,
+                    "X-Title": "TradeFlex",
                 },
                 json={
                     "model": OPENROUTER_MODEL,

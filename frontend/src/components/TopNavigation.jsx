@@ -32,7 +32,7 @@ export default function TopNavigation({
         }}>📡</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{ color: 'var(--text-header)', fontWeight: 800, fontSize: '1.05rem', letterSpacing: '-0.02em', lineHeight: 1 }}>
-            SwingMaster
+            TradeFlex
           </div>
           <div style={{ background: '#6366f1', color: '#fff', fontSize: '0.6rem', fontWeight: 800, padding: '2px 6px', borderRadius: 10 }}>
             v3

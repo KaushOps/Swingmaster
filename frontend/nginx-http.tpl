@@ -1,6 +1,6 @@
 server {
     listen 80;
-    server_name omniquant.duckdns.org;
+    server_name __SERVER_NAMES__;
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
@@ -10,4 +10,3 @@ server {
         return 301 https://$host$request_uri;
     }
 }
-

@@ -202,7 +202,7 @@ async def get_api_key(api_key: str = Security(api_key_header)):
             raise HTTPException(status_code=403, detail="Could not validate API key")
     return api_key
 
-origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000,http://omniquant.duckdns.org,https://omniquant.duckdns.org").split(",")
+origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000,http://tradeflex.in,https://tradeflex.in,http://www.tradeflex.in,https://www.tradeflex.in,http://omniquant.duckdns.org,https://omniquant.duckdns.org").split(",")
 
 app.add_middleware(
     CORSMiddleware,

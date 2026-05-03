@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TradeFlex — Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --purple: #6366f1;
+      --purple-lt: #818cf8;
+      --purple-glow: rgba(99, 102, 241, 0.35);
+      --green: #4ade80;
+      --red: #f87171;
+      --bg: #000000;
+      --card-bg: rgba(17, 17, 17, 0.82);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(99, 102, 241, 0.6);
+      --text: #fafafa;
+      --text-dim: #71717a;
+      --input-bg: rgba(255, 255, 255, 0.05);
+    }
+
+    html,
+    body {
+      height: 100%;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    /* ── Animated background ─────────────────────────── */
+    .bg-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(99, 102, 241, 0.18) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 40% at 80% 80%, rgba(74, 222, 128, 0.08) 0%, transparent 60%),
+        #000;
+    }
+
+    /* Floating orbs */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.45;
+      pointer-events: none;
+      animation: float-orb var(--dur, 12s) ease-in-out infinite alternate;
+    }
+
+    .orb-1 {
+      width: 520px;
+      height: 520px;
+      background: radial-gradient(circle, #6366f1, transparent);
+      top: -120px;
+      left: -100px;
+      --dur: 14s;
+    }
+
+    .orb-2 {
+      width: 380px;
+      height: 380px;
+      background: radial-gradient(circle, #4ade80, transparent);
+      bottom: -80px;
+      right: -60px;
+      --dur: 18s;
+      opacity: 0.2;
+    }
+
+    .orb-3 {
+      width: 280px;
+      height: 280px;
+      background: radial-gradient(circle, #818cf8, transparent);
+      bottom: 10%;
+      left: 20%;
+      --dur: 11s;
+      opacity: 0.3;
+    }
+
+    @keyframes float-orb {
+      0% {
+        transform: translate(0, 0) scale(1);
+      }
+
+      100% {
+        transform: translate(30px, 40px) scale(1.08);
+      }
+    }
+
+    /* Grid lines overlay */
+    .bg-grid {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+      background-size: 60px 60px;
+      mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 100%);
+    }
+
+    /* Animated ticker particles */
+    .particles {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .particle {
+      position: absolute;
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      opacity: 0;
+      animation: rise var(--spd, 8s) linear var(--delay, 0s) infinite;
+      white-space: nowrap;
+    }
+
+    .particle.up {
+      color: rgba(74, 222, 128, 0.35);
+    }
+
+    .particle.down {
+      color: rgba(248, 113, 113, 0.25);
+    }
+
+    @keyframes rise {
+      0% {
+        opacity: 0;
+        transform: translateY(0) translateX(0);
+      }
+
+      10% {
+        opacity: 1;
+      }
+
+      90% {
+        opacity: 0.4;
+      }
+
+      100% {
+        opacity: 0;
+        transform: translateY(-110vh) translateX(20px);
+      }
+    }
+
+    /* ── Main layout ─────────────────────────────────── */
+    .page {
+      position: relative;
+      z-index: 10;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    /* ── Card ─────────────────────────────────────────── */
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 44px 40px 40px;
+      backdrop-filter: blur(28px) saturate(1.4);
+      -webkit-backdrop-filter: blur(28px) saturate(1.4);
+      box-shadow:
+        0 0 0 1px rgba(99, 102, 241, 0.12),
+        0 32px 80px rgba(0, 0, 0, 0.7),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      animation: card-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    @keyframes card-in {
+      from {
+        opacity: 0;
+        transform: translateY(32px) scale(0.97);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    /* ── Logo mark ────────────────────────────────────── */
+    .logo-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 36px;
+      animation: card-in 0.7s 0.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .logo-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      box-shadow: 0 0 40px rgba(99, 102, 241, 0.5), 0 8px 24px rgba(0, 0, 0, 0.4);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Shimmer sweep on logo */
+    .logo-icon::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.25) 50%, transparent 65%);
+      animation: shimmer 3s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+      0% {
+        transform: translateX(-100%);
+      }
+
+      60% {
+        transform: translateX(100%);
+      }
+
+      100% {
+        transform: translateX(100%);
+      }
+    }
+
+    /* TF SVG icon */
+    .logo-icon svg {
+      width: 34px;
+      height: 34px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand-name {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #ffffff 40%, #dd930af6 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .brand-tagline {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    /* ── Heading ─────────────────────────────────────── */
+    .card-heading {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+      letter-spacing: -0.02em;
+      animation: card-in 0.7s 0.15s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .card-sub {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-bottom: 28px;
+      font-weight: 400;
+      animation: card-in 0.7s 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    /* ── Form ─────────────────────────────────────────── */
+    .form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      animation: card-in 0.7s 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .field:nth-child(2) {
+      animation-delay: 0.27s;
+    }
+
+    label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.6);
+      letter-spacing: 0.04em;
+    }
+
+    .input-wrap {
+      position: relative;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      transition: color 0.2s;
+      pointer-events: none;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 13px 14px 13px 42px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.875rem;
+      font-weight: 500;
+      outline: none;
+      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+      -webkit-appearance: none;
+    }
+
+    input::placeholder {
+      color: rgba(255, 255, 255, 0.25);
+    }
+
+    input:focus {
+      border-color: var(--border-focus);
+      background: rgba(99, 102, 241, 0.06);
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    input:focus+.input-icon,
+    .input-wrap:focus-within .input-icon {
+      color: var(--purple-lt);
+    }
+
+    /* show/hide password toggle */
+    .eye-btn {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      transition: color 0.2s;
+      padding: 4px;
+    }
+
+    .eye-btn:hover {
+      color: var(--purple-lt);
+    }
+
+    /* ── Divider ─────────────────────────────────────── */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      margin: 4px 0;
+      animation: card-in 0.7s 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .divider::before,
+    .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+    }
+
+    /* ── Button ─────────────────────────────────────── */
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: none;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, #4f46e5, #6366f1 50%, #818cf8);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4), 0 2px 6px rgba(0, 0, 0, 0.3);
+      transition: transform 0.15s, box-shadow 0.15s;
+      animation: card-in 0.7s 0.33s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .btn-primary::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), transparent);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(99, 102, 241, 0.55), 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
+
+    .btn-primary:hover::before {
+      opacity: 1;
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 10px rgba(99, 102, 241, 0.3);
+    }
+
+    /* Ripple */
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      transform: scale(0);
+      animation: ripple-anim 0.55s linear;
+      pointer-events: none;
+    }
+
+    @keyframes ripple-anim {
+      to {
+        transform: scale(4);
+        opacity: 0;
+      }
+    }
+
+    /* ── Footer ─────────────────────────────────────── */
+    .card-footer {
+      margin-top: 24px;
+      text-align: center;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      animation: card-in 0.7s 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    /* ── Market ticker strip ─────────────────────────── */
+    .ticker-strip {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      padding: 8px 0;
+      background: rgba(0, 0, 0, 0.6);
+      border-top: 1px solid var(--border);
+      backdrop-filter: blur(16px);
+      overflow: hidden;
+    }
+
+    .ticker-inner {
+      display: flex;
+      gap: 0;
+      white-space: nowrap;
+      animation: ticker-scroll 30s linear infinite;
+    }
+
+    .ticker-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 28px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      border-right: 1px solid var(--border);
+    }
+
+    .ticker-sym {
+      color: rgba(255, 255, 255, 0.55);
+      letter-spacing: 0.06em;
+    }
+
+    .ticker-price {
+      color: var(--text);
+    }
+
+    .ticker-chg.up {
+      color: var(--green);
+    }
+
+    .ticker-chg.dn {
+      color: var(--red);
+    }
+
+    @keyframes ticker-scroll {
+      0% {
+        transform: translateX(0);
+      }
+
+      100% {
+        transform: translateX(-50%);
+      }
+    }
+
+    /* ── Error shake ─────────────────────────────────── */
+    @keyframes shake {
+
+      0%,
+      100% {
+        transform: translateX(0);
+      }
+
+      20% {
+        transform: translateX(-8px);
+      }
+
+      40% {
+        transform: translateX(8px);
+      }
+
+      60% {
+        transform: translateX(-5px);
+      }
+
+      80% {
+        transform: translateX(5px);
+      }
+    }
+
+    .shake {
+      animation: shake 0.4s ease;
+    }
+
+    .error-msg {
+      font-size: 0.74rem;
+      color: #f87171;
+      background: rgba(248, 113, 113, 0.1);
+      border: 1px solid rgba(248, 113, 113, 0.25);
+      border-radius: 8px;
+      padding: 8px 12px;
+      display: none;
+    }
+
+    .error-msg.visible {
+      display: block;
+      animation: card-in 0.3s ease;
+    }
+
+    /* ── Loading spinner on button ───────────────────── */
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2.5px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Background layers -->
+  <div class="bg-canvas"></div>
+  <div class="bg-grid"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <!-- Floating ticker particles -->
+  <div class="particles" id="particles"></div>
+
+  <!-- Main -->
+  <div class="page">
+    <div class="card">
+
+      <!-- Logo -->
+      <div class="logo-wrap">
+        <div class="logo-icon" style="background: transparent; box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
+          <img src="logo.png" alt="TradeFlex Logo"
+            style="width: 100%; height: 100%; object-fit: cover; border-radius: 18px;" />
+        </div>
+        <div class="brand-name">
+          <span style="color: #f0cf9f;">Trade</span><span style="color: #eb723a;">Flex</span><span style="color: #fde047;">.in</span>
+        </div>
+        <div class="brand-tagline">AI Swing Trading Intelligence</div>
+      </div>
+
+      <!-- Heading -->
+      <div class="card-heading">Welcome back</div>
+      <div class="card-sub">Sign in to access your trading dashboard</div>
+
+      <!-- Error -->
+      <div class="error-msg" id="errorMsg">Invalid credentials. Please try again.</div>
+
+      <!-- Form -->
+      <form class="form" id="loginForm" onsubmit="handleLogin(event)">
+
+        <div class="field">
+          <label for="username">Username</label>
+          <div class="input-wrap">
+            <span class="input-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </span>
+            <input type="text" id="username" name="username" placeholder="Enter username" autocomplete="username"
+              required />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="input-wrap">
+            <span class="input-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </span>
+            <input type="password" id="password" name="password" placeholder="Enter password"
+              autocomplete="current-password" required />
+            <button type="button" class="eye-btn" id="eyeBtn" onclick="togglePwd()" aria-label="Show password">
+              <svg id="eyeOpen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              <svg id="eyeClosed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+                <path
+                  d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                <line x1="1" y1="1" x2="23" y2="23" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="divider">Secured access</div>
+
+        <button type="submit" class="btn-primary" id="submitBtn">
+          Sign In
+        </button>
+
+      </form>
+
+      <div class="card-footer">
+        Protected by Let's Encrypt · TradeFlex v3
+      </div>
+    </div>
+  </div>
+
+  <!-- Ticker strip -->
+  <div class="ticker-strip">
+    <div class="ticker-inner" id="tickerInner"></div>
+  </div>
+
+  <script>
+    // ── Ticker data ──────────────────────────────────
+    const tickers = [
+      { sym: 'RELIANCE', price: '2,918.45', chg: '+1.24%', up: true },
+      { sym: 'TCS', price: '3,782.10', chg: '-0.38%', up: false },
+      { sym: 'INFY', price: '1,452.75', chg: '+0.87%', up: true },
+      { sym: 'HDFCBANK', price: '1,678.20', chg: '+0.55%', up: true },
+      { sym: 'BAJFINANCE', price: '7,234.60', chg: '-1.02%', up: false },
+      { sym: 'WIPRO', price: '487.35', chg: '+0.29%', up: true },
+      { sym: 'NIFTY50', price: '22,450.30', chg: '+0.63%', up: true },
+      { sym: 'SENSEX', price: '73,814.85', chg: '+0.51%', up: true },
+      { sym: 'AXISBANK', price: '1,087.50', chg: '-0.44%', up: false },
+      { sym: 'LT', price: '3,521.90', chg: '+1.08%', up: true },
+    ];
+
+    function buildTicker() {
+      const inner = document.getElementById('tickerInner');
+      // Duplicate for seamless loop
+      const full = [...tickers, ...tickers];
+      inner.innerHTML = full.map(t => `
+      <div class="ticker-item">
+        <span class="ticker-sym">${t.sym}</span>
+        <span class="ticker-price">${t.price}</span>
+        <span class="ticker-chg ${t.up ? 'up' : 'dn'}">${t.chg}</span>
+      </div>
+    `).join('');
+    }
+    buildTicker();
+
+    // ── Floating particles ───────────────────────────
+    const symbols = ['+2.3%', '-0.8%', '+1.1%', 'NIFTY', 'BUY', '▲', '▼', '+0.5%', '-1.2%', 'HOLD', 'TARGET'];
+    const container = document.getElementById('particles');
+
+    function spawnParticle() {
+      const el = document.createElement('div');
+      el.className = 'particle ' + (Math.random() > 0.4 ? 'up' : 'down');
+      el.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+      el.style.left = Math.random() * 100 + 'vw';
+      el.style.bottom = '-30px';
+      el.style.setProperty('--spd', (7 + Math.random() * 8) + 's');
+      el.style.setProperty('--delay', '0s');
+      container.appendChild(el);
+      setTimeout(() => el.remove(), 16000);
+    }
+    setInterval(spawnParticle, 900);
+    // Seed initial
+    for (let i = 0; i < 8; i++) setTimeout(spawnParticle, i * 300);
+
+    // ── Password toggle ──────────────────────────────
+    function togglePwd() {
+      const inp = document.getElementById('password');
+      const open = document.getElementById('eyeOpen');
+      const closed = document.getElementById('eyeClosed');
+      if (inp.type === 'password') {
+        inp.type = 'text';
+        open.style.display = 'none';
+        closed.style.display = 'block';
+      } else {
+        inp.type = 'password';
+        open.style.display = 'block';
+        closed.style.display = 'none';
+      }
+    }
+
+    // ── Ripple effect ────────────────────────────────
+    document.getElementById('submitBtn').addEventListener('click', function (e) {
+      const btn = this;
+      const rect = btn.getBoundingClientRect();
+      const ripple = document.createElement('span');
+      ripple.className = 'ripple';
+      const size = Math.max(rect.width, rect.height);
+      ripple.style.width = ripple.style.height = size + 'px';
+      ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+      ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+      btn.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 600);
+    });
+
+    // ── Login handler ────────────────────────────────
+    async function handleLogin(e) {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      const err = document.getElementById('errorMsg');
+      const card = document.querySelector('.card');
+      const user = document.getElementById('username').value;
+      const pass = document.getElementById('password').value;
+
+      // Show loading
+      btn.innerHTML = '<span class="spinner"></span>';
+      btn.disabled = true;
+      err.classList.remove('visible');
+
+      // Use HTTP Basic Auth — the real nginx gate
+      const creds = btoa(`${user}:${pass}`);
+      try {
+        const res = await fetch('/api/scan?market=IN', {
+          headers: { 'Authorization': `Basic ${creds}` }
+        });
+
+        if (res.ok || res.status === 200) {
+          // Store creds for session and redirect
+          sessionStorage.setItem('tf_auth', creds);
+          btn.innerHTML = '✓ Authenticated';
+          btn.style.background = 'linear-gradient(135deg, #059669, #10b981)';
+          btn.style.boxShadow = '0 4px 20px rgba(16,185,129,0.4)';
+          setTimeout(() => { window.location.href = '/'; }, 800);
+        } else {
+          showError(card);
+        }
+      } catch (_) {
+        showError(card);
+      } finally {
+        if (btn.disabled) {
+          setTimeout(() => {
+            btn.innerHTML = 'Sign In';
+            btn.disabled = false;
+          }, 2000);
+        }
+      }
+    }
+
+    function showError(card) {
+      const btn = document.getElementById('submitBtn');
+      const err = document.getElementById('errorMsg');
+      btn.innerHTML = 'Sign In';
+      btn.disabled = false;
+      err.classList.add('visible');
+      card.classList.add('shake');
+      setTimeout(() => card.classList.remove('shake'), 500);
+    }
+  </script>
+</body>
+
+</html>

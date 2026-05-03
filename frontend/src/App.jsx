@@ -712,10 +712,12 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
   );
 }
 
+import LoginPage from './components/LoginPage'
+
 /* ═══════════════════════════════════════════════════════════════════════════
    APP — ROOT COMPONENT
 ═══════════════════════════════════════════════════════════════════════════ */
-function App() {
+function MainApp() {
   const [data, setData]                         = useState([])
   const [historicalData, setHistoricalData]     = useState([])
   const [nseStats, setNseStats]                 = useState(null)
@@ -1402,4 +1404,17 @@ function App() {
   );
 }
 
-export default App
+export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return sessionStorage.getItem('tf_auth') === 'true';
+  });
+
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={() => {
+      sessionStorage.setItem('tf_auth', 'true');
+      setIsAuthenticated(true);
+    }} />;
+  }
+
+  return <MainApp />;
+}

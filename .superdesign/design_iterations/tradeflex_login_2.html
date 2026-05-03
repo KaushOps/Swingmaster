@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+  <meta charset="UTF-8">
+  <title>TradeFlex - Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      overflow-x: hidden;
+    }
+
+    ::selection {
+      background: rgba(219, 74, 43, 0.22);
+      color: #1d140f;
+    }
+
+    .dark ::selection {
+      background: rgba(99, 102, 241, 0.3);
+      color: #fafafa;
+    }
+
+    .grain {
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+      background-size: 24px 24px;
+      mask-image: radial-gradient(circle at center, black, transparent 82%);
+      opacity: 0.3;
+    }
+
+    .dark .grain {
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    }
+
+    .mesh {
+      background-image:
+        radial-gradient(circle at 20% 20%, rgba(219, 74, 43, 0.18), transparent 0 30%),
+        radial-gradient(circle at 80% 18%, rgba(248, 163, 72, 0.18), transparent 0 28%),
+        radial-gradient(circle at 75% 82%, rgba(141, 87, 56, 0.12), transparent 0 26%),
+        linear-gradient(135deg, rgba(231, 225, 215, 0.96), rgba(244, 239, 231, 0.86));
+    }
+
+    .dark .mesh {
+      background-image:
+        radial-gradient(circle at 20% 20%, rgba(99, 102, 241, 0.15), transparent 0 30%),
+        radial-gradient(circle at 80% 18%, rgba(74, 222, 128, 0.1), transparent 0 28%),
+        radial-gradient(circle at 75% 82%, rgba(129, 140, 248, 0.1), transparent 0 26%),
+        linear-gradient(135deg, #050505, #000000);
+    }
+
+    .animate-float-slow {
+      animation: float-slow 14s ease-in-out infinite;
+    }
+
+    .animate-float-medium {
+      animation: float-medium 10s ease-in-out infinite;
+    }
+
+    .animate-drift {
+      animation: drift 18s linear infinite;
+    }
+
+    .animate-rise {
+      animation: rise 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .animate-sheen {
+      animation: sheen 2.8s ease-in-out infinite;
+    }
+
+    @keyframes float-slow {
+
+      0%,
+      100% {
+        transform: translate3d(0, 0, 0) scale(1);
+      }
+
+      50% {
+        transform: translate3d(18px, -22px, 0) scale(1.06);
+      }
+    }
+
+    @keyframes float-medium {
+
+      0%,
+      100% {
+        transform: translate3d(0, 0, 0) rotate(0deg);
+      }
+
+      50% {
+        transform: translate3d(-26px, 18px, 0) rotate(6deg);
+      }
+    }
+
+    @keyframes drift {
+      from {
+        transform: translateX(-4%) translateY(0);
+      }
+
+      to {
+        transform: translateX(4%) translateY(-2%);
+      }
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(22px) scale(0.985);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes sheen {
+
+      0%,
+      100% {
+        background-position: 0% 50%;
+      }
+
+      50% {
+        background-position: 100% 50%;
+      }
+    }
+
+    /* Particles from tradeflex */
+    @keyframes tf-rise {
+      0% {
+        opacity: 0;
+        transform: translateY(0);
+      }
+
+      10% {
+        opacity: 1;
+      }
+
+      90% {
+        opacity: 0.4;
+      }
+
+      100% {
+        opacity: 0;
+        transform: translateY(-110vh);
+      }
+    }
+
+    .particle {
+      position: absolute;
+      bottom: -30px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 5;
+    }
+
+    /* Ticker from tradeflex */
+    @keyframes tf-ticker {
+      0% {
+        transform: translateX(0);
+      }
+
+      100% {
+        transform: translateX(-50%);
+      }
+    }
+
+    .ticker-wrap {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 0;
+      background: rgba(255, 255, 255, 0.4);
+      border-top: 1px solid rgba(0, 0, 0, 0.06);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      overflow: hidden;
+      z-index: 20;
+    }
+
+    .dark .ticker-wrap {
+      background: rgba(0, 0, 0, 0.6);
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .ticker-content {
+      display: flex;
+      white-space: nowrap;
+      animation: tf-ticker 40s linear infinite;
+    }
+  </style>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+</head>
+
+<body class="bg-[#e7dfd1] text-[#1d140f] dark:bg-black dark:text-[#fafafa] antialiased"
+  onpointermove="handlePointerMove(event)" onpointerleave="handlePointerLeave()">
+
+  <!-- Theme Toggle -->
+  <button onclick="toggleTheme()"
+    class="fixed top-6 right-6 z-50 rounded-full p-3 bg-white/50 dark:bg-black/50 border border-black/10 dark:border-white/10 backdrop-blur-md transition-all hover:scale-110">
+    <!-- Sun Icon for Dark Mode -->
+    <svg class="w-5 h-5 text-yellow-500 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z">
+      </path>
+    </svg>
+    <!-- Moon Icon for Light Mode -->
+    <svg class="w-5 h-5 text-slate-800 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+    </svg>
+  </button>
+
+  <!-- Pointer tracking background -->
+  <div id="pointerBg" class="fixed inset-0 transition-[background] duration-300 z-0"></div>
+  <div class="fixed inset-0 mesh opacity-95 z-0"></div>
+  <div class="fixed inset-0 grain mix-blend-soft-light z-0"></div>
+
+  <!-- Floating Orbs -->
+  <div
+    class="fixed -left-28 top-[-8rem] h-[30rem] w-[30rem] rounded-full bg-[#db4a2b]/35 dark:bg-[#6366f1]/25 blur-3xl animate-float-slow z-0 transition-colors duration-500">
+  </div>
+  <div
+    class="fixed right-[-10rem] top-[8%] h-[26rem] w-[26rem] rounded-full bg-[#f8a348]/35 dark:bg-[#4ade80]/15 blur-3xl animate-float-medium z-0 transition-colors duration-500">
+  </div>
+  <div
+    class="fixed bottom-[-8rem] left-[20%] h-[22rem] w-[22rem] rounded-full bg-[#8d5738]/20 dark:bg-[#818cf8]/20 blur-3xl animate-drift z-0 transition-colors duration-500">
+  </div>
+
+  <!-- Accent Lines -->
+  <div
+    class="fixed inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-black/10 dark:via-white/70 to-transparent z-0 transition-colors duration-500">
+  </div>
+  <div
+    class="fixed inset-y-0 left-[58%] hidden w-px bg-gradient-to-b from-transparent via-[#c97b53]/35 dark:via-white/10 to-transparent lg:block z-0 transition-colors duration-500">
+  </div>
+
+  <!-- Particles Container -->
+  <div id="particles" class="fixed inset-0 overflow-hidden pointer-events-none z-10"></div>
+
+  <main class="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl items-center px-6 py-10 lg:px-12 pb-24">
+    <div class="grid w-full gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+
+      <!-- Left Side -->
+      <section class="max-w-2xl animate-rise">
+        <div class="flex items-center gap-4 text-[#6f574b] dark:text-gray-400">
+          <div
+            class="w-12 h-12 rounded-[14px] overflow-hidden shadow-lg border border-black/10 dark:border-white/10 bg-white dark:bg-transparent transition-colors duration-500">
+            <img src="logo.png" alt="TradeFlex Logo" class="w-full h-full object-cover" />
+          </div>
+          <div
+            class="text-2xl font-bold tracking-tight flex items-center bg-black dark:bg-[#111] px-4 py-2 rounded-xl shadow-inner border border-black/10 dark:border-white/5 transition-colors duration-500">
+            <span style="color: #E6CFB3;">Trade</span><span style="color: #F37B03;">Flex</span><span
+              style="color: #FEC104;">.in</span>
+          </div>
+        </div>
+
+        <h1
+          class="mt-10 text-6xl font-bold leading-[0.88] tracking-[-0.04em] text-[#1d140f] dark:text-[#E6CFB3] sm:text-7xl lg:text-[6.5rem] transition-colors duration-500">
+          Trading through a warmer lens.
+        </h1>
+        <p
+          class="mt-8 max-w-xl text-lg leading-8 text-[#5c4b40] dark:text-[#E6CFB3] font-medium transition-colors duration-500">
+          A fluid, editorial interface for AI-powered swing trading. Precision analytics wrapped in an elegant, calming
+          workspace.
+        </p>
+        <p
+          class="mt-8 max-w-lg text-sm uppercase tracking-[0.28em] text-[#8b6f60] dark:text-[#E6CFB3] font-bold transition-colors duration-500">
+          Calm motion. Quiet contrast. Immediate focus.
+        </p>
+      </section>
+
+      <!-- Right Side (Card) -->
+      <section class="relative lg:justify-self-end w-full max-w-md mx-auto lg:mx-0">
+        <div
+          class="absolute -inset-8 rounded-[2.75rem] bg-white/30 dark:bg-black/40 blur-3xl transition-colors duration-500">
+        </div>
+        <div
+          class="relative overflow-hidden rounded-[2.25rem] border border-white/60 dark:border-white/10 bg-[rgba(255,250,244,0.65)] dark:bg-[rgba(17,17,17,0.82)] p-8 shadow-[0_30px_120px_rgba(56,30,14,0.18)] dark:shadow-[0_32px_80px_rgba(0,0,0,0.7)] backdrop-blur-3xl animate-rise [animation-delay:140ms] sm:p-10 transition-colors duration-500">
+
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <p
+                class="text-xs uppercase tracking-[0.45em] text-[#8a6a5c] dark:text-gray-500 font-bold transition-colors duration-500">
+                Secure access</p>
+              <h2
+                class="mt-3 text-3xl font-bold tracking-[-0.04em] text-[#1e1612] dark:text-[#fafafa] transition-colors duration-500">
+                Welcome back
+              </h2>
+            </div>
+            <div
+              class="flex h-12 w-12 items-center justify-center rounded-full border border-[#d6b9a6]/60 dark:border-white/10 bg-white/70 dark:bg-white/5 shadow-sm text-[#a86a50] dark:text-gray-300 transition-colors duration-500">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="5" y="10" width="14" height="10" rx="3" />
+                <path d="M8 10V8a4 4 0 0 1 8 0v2" />
+              </svg>
+            </div>
+          </div>
+
+          <form class="mt-10 space-y-7" onsubmit="event.preventDefault(); alert('Login submitted!');">
+            <div class="space-y-3">
+              <label for="username"
+                class="text-sm font-bold text-[#4f3f36] dark:text-[rgba(255,255,255,0.6)] transition-colors duration-500">
+                Username
+              </label>
+              <div class="relative">
+                <span
+                  class="absolute left-0 top-1/2 -translate-y-1/2 text-[#8b6f60] dark:text-[#52525b] pl-1 transition-colors duration-500">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                </span>
+                <input id="username" name="username" type="text" autocomplete="username" placeholder="Enter username"
+                  class="w-full border-b-2 border-[#c9ac98]/70 dark:border-white/10 bg-transparent py-3 pl-9 text-base text-[#1e1612] dark:text-[#fafafa] placeholder:text-[#8b6f60]/60 dark:placeholder:text-[#71717a] outline-none transition-colors duration-300 focus:border-[#d95d31] dark:focus:border-[#6366f1] font-semibold"
+                  required />
+              </div>
+            </div>
+
+            <div class="space-y-3">
+              <div class="flex items-end justify-between gap-4">
+                <label for="password"
+                  class="text-sm font-bold text-[#4f3f36] dark:text-[rgba(255,255,255,0.6)] transition-colors duration-500">
+                  Password
+                </label>
+                <button type="button"
+                  class="text-sm font-bold text-[#8b6f60] dark:text-[#52525b] transition-colors duration-300 hover:text-[#d95d31] dark:hover:text-[#fafafa]">
+                  Forgot?
+                </button>
+              </div>
+              <div class="relative">
+                <span
+                  class="absolute left-0 top-1/2 -translate-y-1/2 text-[#8b6f60] dark:text-[#52525b] pl-1 transition-colors duration-500">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                </span>
+                <input id="password" name="password" type="password" autocomplete="current-password"
+                  placeholder="••••••••"
+                  class="w-full border-b-2 border-[#c9ac98]/70 dark:border-white/10 bg-transparent py-3 pl-9 text-base text-[#1e1612] dark:text-[#fafafa] placeholder:text-[#8b6f60]/60 dark:placeholder:text-[#71717a] outline-none transition-colors duration-300 focus:border-[#d95d31] dark:focus:border-[#6366f1] font-bold"
+                  required />
+              </div>
+            </div>
+
+            <button type="submit"
+              class="group relative inline-flex w-full mt-6 items-center justify-center overflow-hidden rounded-full bg-[linear-gradient(120deg,#1e1612_10%,#b94a2c_46%,#ef9d44_86%)] dark:bg-[linear-gradient(135deg,#4f46e5,#6366f1_50%,#818cf8)] bg-[length:200%_200%] px-6 py-4 text-sm font-bold uppercase tracking-[0.2em] text-[#fff8f1] shadow-[0_16px_40px_rgba(146,66,33,0.3)] dark:shadow-[0_4px_20px_rgba(99,102,241,0.4)] transition-all duration-300 hover:-translate-y-0.5 animate-sheen">
+              <span class="relative z-10">Sign In</span>
+              <span
+                class="absolute inset-0 bg-[linear-gradient(120deg,transparent_25%,rgba(255,255,255,0.26)_50%,transparent_75%)] opacity-0 transition-opacity duration-500 group-hover:opacity-100"></span>
+            </button>
+          </form>
+          <div
+            class="mt-8 text-center text-xs font-bold text-[#8b6f60]/80 dark:text-[#71717a] transition-colors duration-500">
+            Protected by Let's Encrypt · TradeFlex v3
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Ticker Strip from TradeFlex -->
+  <div class="ticker-wrap transition-colors duration-500">
+    <div class="ticker-content" id="ticker"></div>
+  </div>
+
+  <script>
+    // Theme Toggle Logic
+    function toggleTheme() {
+      document.documentElement.classList.toggle('dark');
+      updatePointerBg(52, 34); // Reset/reapply gradient for new theme
+      renderTicker(); // Re-render ticker to apply right colors
+    }
+
+    // 1. Pointer Tracking
+    const pointerBg = document.getElementById('pointerBg');
+    function updatePointerBg(x, y) {
+      const isDark = document.documentElement.classList.contains('dark');
+      if (isDark) {
+        pointerBg.style.background = `radial-gradient(circle at ${x}% ${y}%, rgba(99,102,241,0.15) 0%, transparent 40%), radial-gradient(circle at 18% 20%, rgba(99,102,241,0.1), transparent 30%), radial-gradient(circle at 82% 80%, rgba(74,222,128,0.08), transparent 26%)`;
+      } else {
+        pointerBg.style.background = `radial-gradient(circle at ${x}% ${y}%, rgba(255,255,255,0.5), transparent 18%), radial-gradient(circle at 18% 20%, rgba(219,74,43,0.25), transparent 30%), radial-gradient(circle at 82% 80%, rgba(248,163,72,0.22), transparent 26%)`;
+      }
+    }
+
+    function handlePointerMove(e) {
+      const rect = document.body.getBoundingClientRect();
+      const x = Math.min(100, Math.max(0, (e.clientX / rect.width) * 100));
+      const y = Math.min(100, Math.max(0, (e.clientY / rect.height) * 100));
+      updatePointerBg(x, y);
+    }
+    function handlePointerLeave() {
+      updatePointerBg(52, 34);
+    }
+
+    // Initialize bg
+    updatePointerBg(52, 34);
+
+    // 2. Ticker Data
+    const TICKERS = [
+      { sym: 'RELIANCE', price: '2,918.45', chg: '+1.24%', up: true },
+      { sym: 'TCS', price: '3,782.10', chg: '-0.38%', up: false },
+      { sym: 'INFY', price: '1,452.75', chg: '+0.87%', up: true },
+      { sym: 'HDFCBANK', price: '1,678.20', chg: '+0.55%', up: true },
+      { sym: 'BAJFINANCE', price: '7,234.60', chg: '-1.02%', up: false },
+      { sym: 'WIPRO', price: '487.35', chg: '+0.29%', up: true },
+      { sym: 'NIFTY50', price: '22,450.30', chg: '+0.63%', up: true },
+      { sym: 'SENSEX', price: '73,814.85', chg: '+0.51%', up: true },
+      { sym: 'AXISBANK', price: '1,087.50', chg: '-0.44%', up: false },
+      { sym: 'LT', price: '3,521.90', chg: '+1.08%', up: true },
+    ];
+
+    const tickerContent = document.getElementById('ticker');
+    function renderTicker() {
+      const isDark = document.documentElement.classList.contains('dark');
+      const allTickers = [...TICKERS, ...TICKERS, ...TICKERS];
+      tickerContent.innerHTML = allTickers.map(t => `
+        <div class="inline-flex items-center gap-3 px-8 text-sm font-bold border-r ${isDark ? 'border-white/10' : 'border-black/5'}">
+          <span class="tracking-widest ${isDark ? 'text-white/40' : 'text-black/50'}">${t.sym}</span>
+          <span class="${isDark ? 'text-white' : 'text-[#1d140f]'}">${t.price}</span>
+          <span class="${t.up ? (isDark ? 'text-[#4ade80]' : 'text-[#059669]') : (isDark ? 'text-[#f87171]' : 'text-[#dc2626]')}">${t.chg}</span>
+        </div>
+      `).join('');
+    }
+    renderTicker();
+
+    // 3. Particles
+    const PARTICLES = ['+2.3%', '-0.8%', '+1.1%', 'NIFTY', 'BUY', '▲', '▼', '+0.5%', '-1.2%', 'TARGET'];
+    const pContainer = document.getElementById('particles');
+
+    function spawnParticle() {
+      const text = PARTICLES[Math.floor(Math.random() * PARTICLES.length)];
+      const left = Math.random() * 100;
+      const speed = 7 + Math.random() * 8;
+      const up = Math.random() > 0.4;
+
+      const el = document.createElement('div');
+      el.className = 'particle';
+      el.innerText = text;
+
+      const isDark = document.documentElement.classList.contains('dark');
+      if (isDark) {
+        el.style.color = up ? 'rgba(74, 222, 128, 0.35)' : 'rgba(248, 113, 113, 0.25)';
+      } else {
+        el.style.color = up ? 'rgba(5, 150, 105, 0.45)' : 'rgba(220, 38, 38, 0.4)';
+      }
+
+      el.style.left = left + 'vw';
+      el.style.animation = `tf-rise ${speed}s linear forwards`;
+
+      pContainer.appendChild(el);
+
+      setTimeout(() => {
+        if (el.parentNode) el.remove();
+      }, speed * 1000);
+    }
+
+    for (let i = 0; i < 8; i++) {
+      setTimeout(spawnParticle, i * 300);
+    }
+    setInterval(spawnParticle, 900);
+  </script>
+</body>
+
+</html>
