@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { BarChart, Bar, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts'
+/* recharts removed — heatmap grid replaces bar chart */
 import './App.css'
 import Sidebar from './components/Sidebar'
 import TopNavigation from './components/TopNavigation'
@@ -536,30 +536,35 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
       result = histData.filter(d => d.date.startsWith(selectedMonth)).reverse();
     }
     return result.map(item => {
-      const affordableSignals = (item.signals || []).filter(s => s.entry <= (amountPerTrade || 0));
-      return { ...item, count: affordableSignals.length, signals: item.signals, stocks: affordableSignals.map(s => s.symbol) };
+      // Only filter by amount if user has set a trade amount (> 1000)
+      const effectiveAmount = (amountPerTrade && amountPerTrade > 1000) ? amountPerTrade : Infinity;
+      const affordableSignals = (item.signals || []).filter(s => s.entry <= effectiveAmount);
+      return { ...item, count: affordableSignals.length, signals: affordableSignals, stocks: affordableSignals.map(s => s.symbol) };
     });
   }, [histData, selectedMonth, groupBy]);
 
   const stockData = useMemo(() => {
     if (groupBy !== 'STOCK') return [];
     let d = selectedMonth === 'All' ? histData : histData.filter(h => h.date.startsWith(selectedMonth));
+    // Only filter by amount if user has set a trade amount (> 1000)
+    const effectiveAmount = (amountPerTrade && amountPerTrade > 1000) ? amountPerTrade : Infinity;
     const counts = {};
     d.forEach(day => {
-      (day.signals || []).forEach(s => {
-        if (!counts[s.symbol]) counts[s.symbol] = { symbol: s.symbol, tp: 0, sl: 0, active: 0, total: 0 };
-        counts[s.symbol].total++;
-        if (s.status === 'TARGET HIT') counts[s.symbol].tp++;
-        else if (s.status === 'SL HIT') counts[s.symbol].sl++;
-        else counts[s.symbol].active++;
-      });
+      (day.signals || [])
+        .filter(s => s.entry <= effectiveAmount)
+        .forEach(s => {
+          if (!counts[s.symbol]) counts[s.symbol] = { symbol: s.symbol, tp: 0, sl: 0, active: 0, total: 0 };
+          counts[s.symbol].total++;
+          if (s.status === 'TARGET HIT') counts[s.symbol].tp++;
+          else if (s.status === 'SL HIT') counts[s.symbol].sl++;
+          else counts[s.symbol].active++;
+        });
     });
     return Object.values(counts).sort((a,b) => b.total - a.total).slice(0, 40);
-  }, [histData, selectedMonth, groupBy]);
+  }, [histData, selectedMonth, groupBy, amountPerTrade]);
 
   const activeDataForStats = useMemo(() => selectedMonth === 'All' ? histData : histData.filter(d => d.date.startsWith(selectedMonth)), [histData, selectedMonth]);
 
-  const chartWidth = Math.max(1200, (groupBy === 'DATE' ? filteredHistData.length : stockData.length) * 22);
   const safeAlloc  = amountPerTrade || 0;
 
   const affordableSignalsInMonth = activeDataForStats.flatMap(day => (day.signals || []).filter(s => s.entry > 0 && s.entry <= safeAlloc));
@@ -657,29 +662,105 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
               <span style={{ fontSize:'0.85rem', color:accentColor }}>← Scroll → • Click bar</span>
             </div>
           </div>
-          <div style={{ overflowX:'auto', paddingBottom:'4px' }}>
+          {/* Legend */}
+          <div style={{ display:'flex', gap:'20px', marginBottom:'14px', alignItems:'center', flexWrap:'wrap' }}>
+            {[['#3b82f6','Active'],['#22c55e','Target Hit'],['#ef4444','Stop Loss']].map(([c,l]) => (
+              <span key={l} style={{ display:'flex', alignItems:'center', gap:'6px', fontSize:'0.78rem', color:'var(--text-main)', fontWeight:600 }}>
+                <span style={{ width:10, height:10, borderRadius:'50%', background:c, display:'inline-block', boxShadow:`0 0 6px ${c}55` }}></span> {l}
+              </span>
+            ))}
+            <span style={{ marginLeft:'auto', fontSize:'0.78rem', color:accentColor, fontWeight:600 }}>Click cell to expand</span>
+          </div>
+
+          {/* Heatmap grid */}
+          <div style={{ overflowX:'auto', overflowY:'auto', maxHeight:'460px', paddingBottom:'6px', borderRadius:'10px' }}>
             {groupBy === 'DATE' ? (
-              <BarChart width={chartWidth} height={210} data={filteredHistData} margin={{ top:5, right:10, left:0, bottom:0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} tickFormatter={(t) => t.slice(5)} tickMargin={8} />
-                <YAxis stroke="#94a3b8" fontSize={11} allowDecimals={false} width={28} />
-                <ChartTooltip content={<TooltipComponent />} cursor={{ fill:'#334155', opacity:0.4 }} />
-                <Bar dataKey="count" radius={[4,4,0,0]} maxBarSize={36} onClick={(d) => onSelect(d.payload)} style={{cursor:'pointer'}}>
-                  {filteredHistData.map((entry, i) => (
-                    <Cell key={`cell-${i}`} fill={selectedDate && selectedDate.date === entry.date ? '#fbbf24' : accentColor} />
-                  ))}
-                </Bar>
-              </BarChart>
+              <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:'3px', minWidth: Math.max(500, filteredHistData.length * 52) + 'px' }}>
+                <tbody>
+                  <tr>
+                    {filteredHistData.map((entry, i) => {
+                      const sigs = entry.signals || [];
+                      const tp = sigs.filter(s => s.status === 'TARGET HIT').length;
+                      const sl = sigs.filter(s => s.status === 'SL HIT').length;
+                      const act = sigs.filter(s => s.status === 'ACTIVE').length;
+                      const total = tp + sl + act;
+                      const maxSigs = Math.max(...filteredHistData.map(e => (e.signals || []).length), 1);
+                      const intensity = total / maxSigs;
+                      const dominant = total === 0 ? 'none' : tp >= sl && tp >= act ? 'tp' : sl > tp && sl >= act ? 'sl' : 'active';
+                      const colors = { tp: { bg: `rgba(34,197,94,${0.08 + intensity * 0.45})`, border: '#22c55e', text: '#4ade80' }, sl: { bg: `rgba(239,68,68,${0.08 + intensity * 0.45})`, border: '#ef4444', text: '#f87171' }, active: { bg: `rgba(59,130,246,${0.06 + intensity * 0.35})`, border: '#3b82f6', text: '#60a5fa' }, none: { bg: 'var(--bg-elevated)', border: 'var(--border-subtle)', text: 'var(--text-dim)' } };
+                      const c = colors[dominant];
+                      const isSelected = selectedDate && selectedDate.date === entry.date;
+                      return (
+                        <td key={i} onClick={() => total > 0 && onSelect(entry)}
+                          title={`${entry.date} — ${total} signals\nTP: ${tp}  SL: ${sl}  Active: ${act}`}
+                          style={{
+                            background: c.bg, border: isSelected ? '2px solid #fbbf24' : `1px solid ${c.border}22`,
+                            borderRadius: '8px', padding: '8px 4px', cursor: total > 0 ? 'pointer' : 'default',
+                            textAlign: 'center', verticalAlign: 'top', transition: 'all 0.15s ease',
+                            minWidth: '48px', position: 'relative'
+                          }}
+                          onMouseEnter={e => { if(total > 0) { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow=`0 6px 20px ${c.border}33`; }}}
+                          onMouseLeave={e => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='none'; }}
+                        >
+                          <div style={{ fontSize:'0.65rem', color:'var(--text-bright)', fontWeight:700, marginBottom:'4px', letterSpacing:'0.03em', textShadow: '0 0 8px rgba(99,102,241,0.6), 0 0 16px rgba(99,102,241,0.4), 0 0 24px rgba(99,102,241,0.2)' }}>{entry.date.slice(5)}</div>
+                          {total > 0 ? (
+                            <>
+                              <div style={{ fontSize:'1.15rem', fontWeight:800, color: c.text, lineHeight:1, marginBottom:'5px' }}>{total}</div>
+                              {/* Mini stacked bar */}
+                              <div style={{ display:'flex', height:'4px', borderRadius:'2px', overflow:'hidden', gap:'1px', margin:'0 2px' }}>
+                                {tp > 0 && <div style={{ flex: tp, background:'#22c55e', borderRadius:'2px' }} />}
+                                {act > 0 && <div style={{ flex: act, background:'#3b82f6', borderRadius:'2px' }} />}
+                                {sl > 0 && <div style={{ flex: sl, background:'#ef4444', borderRadius:'2px' }} />}
+                              </div>
+                            </>
+                          ) : (
+                            <div style={{ fontSize:'0.7rem', color:'var(--text-dim)', opacity:0.4, lineHeight:1.8 }}>—</div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tbody>
+              </table>
             ) : (
-              <BarChart width={chartWidth} height={210} data={stockData} margin={{ top:5, right:10, left:0, bottom:0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                <XAxis dataKey="symbol" stroke="#94a3b8" fontSize={9} tickFormatter={t => t.replace('.NS','')} tickMargin={8} interval={0} angle={-35} textAnchor="end" height={50} />
-                <YAxis stroke="#94a3b8" fontSize={11} allowDecimals={false} width={28} />
-                <ChartTooltip content={<StockTooltip />} cursor={{ fill:'#334155', opacity:0.4 }} />
-                <Bar dataKey="tp"     stackId="a" fill="#4ade80" onClick={d => d && onDetail && onDetail(d.payload.symbol)} style={{cursor:'pointer'}} />
-                <Bar dataKey="active" stackId="a" fill="#38bdf8" onClick={d => d && onDetail && onDetail(d.payload.symbol)} style={{cursor:'pointer'}} />
-                <Bar dataKey="sl"     stackId="a" fill="#f87171" radius={[4,4,0,0]} onClick={d => d && onDetail && onDetail(d.payload.symbol)} style={{cursor:'pointer'}} />
-              </BarChart>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(110px, 1fr))', gap:'8px' }}>
+                {stockData.map((s, i) => {
+                  const total = s.tp + s.sl + s.active;
+                  const wr = (s.tp + s.sl) > 0 ? (s.tp / (s.tp + s.sl) * 100) : 0;
+                  const dominant = s.tp >= s.sl && s.tp >= s.active ? 'tp' : s.sl > s.tp && s.sl >= s.active ? 'sl' : 'active';
+                  const maxTotal = Math.max(...stockData.map(x => x.tp + x.sl + x.active), 1);
+                  const intensity = total / maxTotal;
+                  const colors = { tp: { bg: `rgba(34,197,94,${0.06 + intensity * 0.35})`, border: '#22c55e44', text: '#4ade80' }, sl: { bg: `rgba(239,68,68,${0.06 + intensity * 0.35})`, border: '#ef444444', text: '#f87171' }, active: { bg: `rgba(59,130,246,${0.05 + intensity * 0.3})`, border: '#3b82f644', text: '#60a5fa' } };
+                  const c = colors[dominant];
+                  return (
+                    <div key={i} onClick={() => onDetail && onDetail(s.symbol)}
+                      title={`${s.symbol}\nTP: ${s.tp}  SL: ${s.sl}  Active: ${s.active}\nWin Rate: ${wr.toFixed(0)}%`}
+                      style={{
+                        background: c.bg, border: `1px solid ${c.border}`,
+                        borderRadius: '10px', padding: '12px 10px', cursor: 'pointer',
+                        textAlign: 'center', transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow='0 6px 20px rgba(0,0,0,0.25)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='none'; }}
+                    >
+                      <div style={{ fontSize:'0.75rem', fontWeight:800, color:'var(--text-bright)', marginBottom:'6px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{s.symbol.replace('.NS','')}</div>
+                      <div style={{ fontSize:'1.2rem', fontWeight:800, color: c.text, marginBottom:'6px' }}>{total}</div>
+                      {/* Stacked bar */}
+                      <div style={{ display:'flex', height:'5px', borderRadius:'3px', overflow:'hidden', gap:'1px', marginBottom:'6px' }}>
+                        {s.tp > 0 && <div style={{ flex: s.tp, background:'#22c55e', borderRadius:'3px' }} />}
+                        {s.active > 0 && <div style={{ flex: s.active, background:'#3b82f6', borderRadius:'3px' }} />}
+                        {s.sl > 0 && <div style={{ flex: s.sl, background:'#ef4444', borderRadius:'3px' }} />}
+                      </div>
+                      <div style={{ display:'flex', justifyContent:'center', gap:'6px' }}>
+                        {s.tp > 0 && <span style={{ fontSize:'0.65rem', color:'#4ade80', fontWeight:700 }}>{s.tp}T</span>}
+                        {s.sl > 0 && <span style={{ fontSize:'0.65rem', color:'#f87171', fontWeight:700 }}>{s.sl}S</span>}
+                        {s.active > 0 && <span style={{ fontSize:'0.65rem', color:'#60a5fa', fontWeight:700 }}>{s.active}A</span>}
+                      </div>
+                      {(s.tp + s.sl) > 0 && <div style={{ fontSize:'0.65rem', color:'var(--text-dim)', marginTop:'4px', fontWeight:600 }}>{wr.toFixed(0)}% WR</div>}
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>
@@ -717,7 +798,38 @@ import LoginPage from './components/LoginPage'
 /* ═══════════════════════════════════════════════════════════════════════════
    APP — ROOT COMPONENT
 ═══════════════════════════════════════════════════════════════════════════ */
-function MainApp() {
+const SECTOR_ICONS = {
+  'NIFTY IT': '💻',
+  'NIFTY PHARMA': '💊',
+  'NIFTY ENERGY': '⚡',
+  'NIFTY AUTO': '🚗',
+  'NIFTY INFRA': '🏗️',
+  'NIFTY BANK': '🏦',
+  'NIFTY FMCG': '🛒',
+  'NIFTY METAL': '⚙️',
+  'NIFTY REALTY': '🏠',
+  'NIFTY MEDIA': '🎬',
+  'NIFTY PSE': '🏢',
+  'NIFTY FINANCIAL SERVICES': '💰',
+  'NIFTY HEALTHCARE': '🏥',
+  'NIFTY CONSUMER DURABLES': '📺',
+  'NIFTY OIL & GAS': '🛢️',
+  'NIFTY COMMODITIES': '🌾',
+  'NIFTY PRIVATE BANK': '💳',
+  'NIFTY PSU BANK': '🏦',
+  'NIFTY MIDCAP': '📈',
+  'NIFTY SMALLCAP': '📊',
+};
+
+function getSectorIcon(sectorName) {
+  const upper = (sectorName || '').toUpperCase();
+  for (const [key, icon] of Object.entries(SECTOR_ICONS)) {
+    if (upper.includes(key) || upper.includes(key.replace('NIFTY ', ''))) return icon;
+  }
+  return '📁';
+}
+
+function MainApp({ onLogout }) {
   const [data, setData]                         = useState([])
   const [historicalData, setHistoricalData]     = useState([])
   const [nseStats, setNseStats]                 = useState(null)
@@ -751,6 +863,7 @@ function MainApp() {
   const [theme, setTheme]                       = useState(() => localStorage.getItem('swing_theme') || 'light')
   const [adaptiveStatus, setAdaptiveStatus]     = useState(null)
   const [postmortems, setPostmortems]           = useState([])
+  const [activeFilter, setActiveFilter]         = useState('ALL') // 'NSE', 'HC', or 'ALL'
 
   // Theme application
   useEffect(() => {
@@ -775,11 +888,16 @@ function MainApp() {
     fetch(`${baseUrl}/api/multibagger/live${refresh ? '?refresh=true' : ''}`)
       .then(r => r.json())
       .then(res => {
-        if (res.status === 'success') { setMbData(res.data || []); if (res.last_updated) setMbLastUpdated(res.last_updated); setMbRemoteScanning(!!res.is_scanning); }
+        if (res.status === 'success') { setMbData(res.data || []); if (res.timestamp || res.last_updated) setMbLastUpdated(res.timestamp || res.last_updated); setMbRemoteScanning(!!res.is_scanning); }
         setMbLoading(false);
       })
       .catch(() => setMbLoading(false));
   }, []);
+
+  // Load initial multibagger data on mount
+  useEffect(() => {
+    loadMultibagger(false);
+  }, [loadMultibagger]);
 
   useEffect(() => {
     const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
@@ -872,15 +990,20 @@ function MainApp() {
   const currency = market === "US" ? "$" : "₹";
   const capLabel  = market === "US" ? "$1.2K Cap" : "₹1L Cap";
 
-  const activeSignals = Object.values(
-    [...historicalData, ...hcHistorical]
-      .flatMap(day => (day.signals || []).map(s => ({ ...s, signalDate: day.date })))
-      .filter(s => s.status === 'ACTIVE')
-      .reduce((acc, s) => {
-        if (!acc[s.symbol] || s.signalDate > acc[s.symbol].signalDate) acc[s.symbol] = s;
-        return acc;
-      }, {})
-  ).sort((a, b) => b.growth_pct - a.growth_pct);
+  const activeSignals = useMemo(() => {
+    // Determine which data sources to include based on filter
+    let sources = [];
+    if (activeFilter === 'ALL') sources = [...historicalData, ...hcHistorical];
+    else if (activeFilter === 'NSE') sources = historicalData;
+    else if (activeFilter === 'HC') sources = hcHistorical;
+    
+    return Object.values(
+      sources
+        .flatMap(day => (day.signals || []).map(s => ({ ...s, signalDate: day.date })))
+        .filter(s => s.status === 'ACTIVE')
+        .reduce((acc, s) => { acc[s.symbol] = s; return acc; }, {})
+    ).sort((a, b) => (b.growth_pct || 0) - (a.growth_pct || 0));
+  }, [historicalData, hcHistorical, activeFilter]);
 
   /* ─── Render ─── */
   return (
@@ -904,6 +1027,7 @@ function MainApp() {
         toggleTheme={toggleTheme}
         universeScanAt={universeScanAt}
         searchBar={<SearchBar onSelect={symbol => setSelectedDetail(symbol)} />}
+        onLogout={onLogout}
       />
 
       {/* Main content area */}
@@ -923,7 +1047,7 @@ function MainApp() {
                   fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', whiteSpace: 'nowrap'
                 }}
               >
-                {sector.sector} <span style={{ opacity: 0.8 }}>{'⚡'}</span>
+                {sector.sector} <span style={{ opacity: 0.8 }}>{getSectorIcon(sector.sector)}</span>
               </button>
             ))}
           </div>
@@ -1064,18 +1188,25 @@ function MainApp() {
                   </div>
 
                   {mbView === 'live' && (
-                    <div className="mb-toolbar">
-                      <span className="mb-scan-meta">{mbLastUpdated ? <><>Last multibagger scan: </><strong style={{ color: '#e2e8f0' }}>{formatScanTimestamp(mbLastUpdated)}</strong></> : 'No multibagger scan yet — click Refresh to run.'}</span>
-                      <button type="button" className="mb-refresh-btn" disabled={mbLoading} onClick={() => loadMultibagger(true)}>{mbLoading ? 'Scanning…' : 'Refresh scan'}</button>
-                      {mbRemoteScanning && <span className="mb-scan-meta">A full scan is still running on the server — you can refresh again shortly.</span>}
+                    <div style={{ display:'flex', alignItems:'center', gap:'16px', flexWrap:'wrap', marginTop:'12px', padding:'12px 16px', background:'rgba(168,85,247,0.08)', borderRadius:'10px', border:'1px solid #7c3aed33' }}>
+                      <span style={{ fontSize:'0.85rem', color:'#c084fc' }}>
+                        {mbLastUpdated ? <><span style={{ color:'#94a3b8' }}>Last scan: </span><strong style={{ color: '#c084fc' }}>{formatScanTimestamp(mbLastUpdated)}</strong></> : <span style={{ color:'#94a3b8' }}>No scan yet — click Refresh to run.</span>}
+                      </span>
+                      <button type="button" disabled={mbLoading} onClick={() => loadMultibagger(true)} style={{ marginLeft:'auto', padding:'8px 18px', borderRadius:'8px', border:'1px solid #a855f7', background: mbLoading ? '#334155' : 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)', color:'#fff', cursor: mbLoading ? 'not-allowed' : 'pointer', fontSize:'0.85rem', fontWeight:'700', boxShadow:'0 4px 14px rgba(124,58,237,0.3)', opacity: mbLoading ? 0.6 : 1 }}>{mbLoading ? 'Scanning…' : '↻ Refresh Scan'}</button>
+                      {mbRemoteScanning && <span style={{ fontSize:'0.8rem', color:'#c084fc', width:'100%' }}>⏳ A full scan is still running on the server — refresh again shortly.</span>}
                     </div>
                   )}
 
                   {mbView === 'backtest' && (
-                    <div style={{ display:'flex', gap:'8px', marginBottom:'16px' }}>
-                      {[1, 2, 3].map(y => (
-                        <button key={y} onClick={() => { setMbYearsAgo(y); setMbBacktest(null); setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${y}`).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); }} style={{ padding:'6px 14px', borderRadius:'8px', border: mbYearsAgo===y ? '1px solid #a855f7' : '1px solid #334155', background: mbYearsAgo===y ? 'rgba(168,85,247,0.2)' : 'transparent', color: mbYearsAgo===y ? '#c084fc' : '#64748b', cursor:'pointer', fontSize:'0.8rem' }}>{y} Year{y>1?'s':''} Ago</button>
-                      ))}
+                    <div style={{ display:'flex', alignItems:'center', gap:'16px', flexWrap:'wrap', marginTop:'12px' }}>
+                      <span style={{ fontSize:'0.85rem', color:'#c084fc' }}>
+                        {mbLastUpdated ? <><span style={{ color:'#94a3b8' }}>Last live scan: </span><strong style={{ color: '#c084fc' }}>{formatScanTimestamp(mbLastUpdated)}</strong></> : <span style={{ color:'#94a3b8' }}>No live scan yet — switch to Live Predictions to run.</span>}
+                      </span>
+                      <div style={{ display:'flex', gap:'8px', marginLeft:'auto' }}>
+                        {[1, 2, 3].map(y => (
+                          <button key={y} onClick={() => { setMbYearsAgo(y); setMbBacktest(null); setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${y}`).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); }} style={{ padding:'6px 14px', borderRadius:'8px', border: mbYearsAgo===y ? '1px solid #a855f7' : '1px solid #334155', background: mbYearsAgo===y ? 'rgba(168,85,247,0.2)' : 'transparent', color: mbYearsAgo===y ? '#c084fc' : '#64748b', cursor:'pointer', fontSize:'0.8rem' }}>{y} Year{y>1?'s':''} Ago</button>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -1111,14 +1242,21 @@ function MainApp() {
               </>
             )}
 
-            {/* ── ACTIVE SIGNALS ── */}
+            {/* ── ACTIVE_SIGNALS ── */}
             {market === "ACTIVE_SIGNALS" && (
               <>
                 <div style={{ marginBottom:'24px', padding:'20px', backgroundColor:'#0d1f12', borderRadius:'15px', border:'1px solid #166534', display:'flex', flexWrap:'wrap', gap:'20px', alignItems:'center' }}>
                   <div style={{textAlign:'center'}}><div style={{fontSize:'2rem', fontWeight:'800', color:'#4ade80'}}>{activeSignals.length}</div><div style={{fontSize:'0.8rem', color:'#86efac', opacity:0.8}}>Open Positions</div></div>
                   <div style={{textAlign:'center'}}><div style={{fontSize:'2rem', fontWeight:'800', color:'#4ade80'}}>{activeSignals.filter(s=>s.growth_pct>=0).length}</div><div style={{fontSize:'0.8rem', color:'#86efac', opacity:0.8}}>In Profit</div></div>
                   <div style={{textAlign:'center'}}><div style={{fontSize:'2rem', fontWeight:'800', color:'#f87171'}}>{activeSignals.filter(s=>s.growth_pct<0).length}</div><div style={{fontSize:'0.8rem', color:'#fca5a5', opacity:0.8}}>Below Entry</div></div>
-                  <div style={{fontSize:'0.85rem', color:'#86efac', marginLeft:'auto', opacity:0.7}}>Signals still open (no TP/SL hit). Sorted best to worst.</div>
+                  <div style={{ marginLeft:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'8px' }}>
+                    <div style={{ display:'flex', gap:'6px', background:'rgba(0,0,0,0.3)', padding:'4px', borderRadius:'8px' }}>
+                      <button onClick={() => setActiveFilter('NSE')} style={{ padding:'6px 12px', borderRadius:'6px', border:'none', background: activeFilter==='NSE' ? '#22c55e' : 'transparent', color: activeFilter==='NSE' ? '#fff' : '#86efac', cursor:'pointer', fontSize:'0.75rem', fontWeight:'700' }}>NSE Only</button>
+                      <button onClick={() => setActiveFilter('HC')} style={{ padding:'6px 12px', borderRadius:'6px', border:'none', background: activeFilter==='HC' ? '#fbbf24' : 'transparent', color: activeFilter==='HC' ? '#000' : '#86efac', cursor:'pointer', fontSize:'0.75rem', fontWeight:'700' }}>HC Only</button>
+                      <button onClick={() => setActiveFilter('ALL')} style={{ padding:'6px 12px', borderRadius:'6px', border:'none', background: activeFilter==='ALL' ? '#3b82f6' : 'transparent', color: activeFilter==='ALL' ? '#fff' : '#86efac', cursor:'pointer', fontSize:'0.75rem', fontWeight:'700' }}>Both</button>
+                    </div>
+                    <div style={{ fontSize:'0.8rem', color:'#86efac', opacity:0.7 }}>Signals still open (no TP/SL hit). Sorted best to worst.</div>
+                  </div>
                 </div>
                 {activeSignals.length === 0 ? (
                   <div className="no-data" style={{textAlign:'center', padding:'60px'}}>Loading active signals... Switch to All NSE or HC tab first so data can load.</div>
@@ -1338,18 +1476,79 @@ function MainApp() {
         
         {/* ── SETTINGS ── */}
         {market === "SETTINGS" && (
-          <div className="feature-panel" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-              <span style={{ fontSize: '1.8rem' }}>⚙️</span>
-              <div>
-                <h2 style={{ margin: 0, color: 'var(--text-bright)' }}>System Settings</h2>
-                <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: '0.85rem' }}>Configure API keys, risk limits, and global application behavior.</p>
+          <div style={{ animation: 'fade-in 0.4s ease-out', display: 'grid', gap: '24px', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
+            {/* Trading Parameters */}
+            <div className="card-plain" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-card)' }}>
+              <h3 style={{ margin: '0 0 20px', color: 'var(--accent-purple)', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>💰 Trading Parameters</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)', display: 'block', marginBottom: '6px', fontWeight: 600 }}>Total Portfolio Capital (₹)</label>
+                  <input type="number" value={budgetCapital} onChange={e => setBudgetCapital(Number(e.target.value))} style={{ width: '100%', padding: '10px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: '8px', color: 'var(--text-bright)', fontSize: '1rem', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)', display: 'block', marginBottom: '6px', fontWeight: 600 }}>Amount Per Trade (₹)</label>
+                  <input type="number" value={amountPerTrade} onChange={e => setAmountPerTrade(Number(e.target.value))} style={{ width: '100%', padding: '10px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: '8px', color: 'var(--text-bright)', fontSize: '1rem', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)', display: 'block', marginBottom: '6px', fontWeight: 600 }}>Risk Per Trade (%)</label>
+                  <input type="number" value={budgetRiskPct} onChange={e => setBudgetRiskPct(Number(e.target.value))} min={0.5} max={10} step={0.5} style={{ width: '100%', padding: '10px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: '8px', color: 'var(--text-bright)', fontSize: '1rem', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '8px' }}>
+                  <div style={{ background: 'var(--bg-elevated)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>Max Positions</div>
+                    <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: 'var(--accent-purple)' }}>{Math.floor(budgetCapital / amountPerTrade)}</div>
+                  </div>
+                  <div style={{ background: 'var(--bg-elevated)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>Risk Amount</div>
+                    <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: 'var(--down-color)' }}>₹{Math.round(amountPerTrade * budgetRiskPct / 100)}</div>
+                  </div>
+                </div>
               </div>
             </div>
-            
-            <div style={{ padding: '40px', textAlign: 'center', background: 'var(--bg-elevated)', borderRadius: '12px', border: '1px dashed var(--border-subtle)' }}>
-              <h3 style={{ color: 'var(--text-main)', marginBottom: '8px' }}>Settings coming soon</h3>
-              <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>The configuration options are currently managed via the backend `.env` file for security purposes.</p>
+
+            {/* Display Preferences */}
+            <div className="card-plain" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-card)' }}>
+              <h3 style={{ margin: '0 0 20px', color: 'var(--accent-purple)', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>🎨 Display & Preferences</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                  <div><div style={{ fontSize: '0.9rem', color: 'var(--text-bright)', fontWeight: 600 }}>Theme</div><div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Switch between light and dark</div></div>
+                  <button onClick={toggleTheme} style={{ padding: '6px 16px', borderRadius: '8px', background: 'var(--accent-purple)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>{theme === 'dark' ? '☀️ Light' : '🌙 Dark'}</button>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                  <div><div style={{ fontSize: '0.9rem', color: 'var(--text-bright)', fontWeight: 600 }}>Default Market</div><div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Starting scanner tab</div></div>
+                  <span style={{ color: 'var(--accent-purple)', fontWeight: 'bold' }}>High Conviction</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                  <div><div style={{ fontSize: '0.9rem', color: 'var(--text-bright)', fontWeight: 600 }}>Currency</div><div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Display currency for prices</div></div>
+                  <span style={{ color: 'var(--accent-purple)', fontWeight: 'bold' }}>₹ INR</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Data Management */}
+            <div className="card-plain" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-card)' }}>
+              <h3 style={{ margin: '0 0 20px', color: 'var(--accent-purple)', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>🗄️ Data Management</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                  <div><div style={{ fontSize: '0.9rem', color: 'var(--text-bright)', fontWeight: 600 }}>Portfolio Entries</div><div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Locally stored trade logs</div></div>
+                  <span style={{ color: 'var(--text-bright)', fontWeight: 'bold' }}>{portfolio.length}</span>
+                </div>
+                <button onClick={() => { if (confirm('Clear all portfolio data? This cannot be undone.')) { setPortfolio([]); localStorage.removeItem('swing_portfolio'); } }} style={{ padding: '10px', borderRadius: '8px', background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>Clear Portfolio Data</button>
+                <button onClick={() => { sessionStorage.removeItem('tf_auth'); window.location.reload(); }} style={{ padding: '10px', borderRadius: '8px', background: 'rgba(239,68,68,0.06)', color: '#f87171', border: '1px solid rgba(239,68,68,0.15)', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>Sign Out</button>
+              </div>
+            </div>
+
+            {/* App Info */}
+            <div className="card-plain" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-card)' }}>
+              <h3 style={{ margin: '0 0 20px', color: 'var(--accent-purple)', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>ℹ️ About TradeFlex</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {[['Version', 'v5.0'], ['Engine', 'Adaptive ML + LLM Post-Mortem'], ['Markets', 'NSE (India), US Equities'], ['Data Source', 'Yahoo Finance + Google Sheets'], ['AI Models', 'Groq LLaMA 3.3 70B + OpenRouter Claude'], ['SSL', "Let's Encrypt"]].map(([k, v]) => (
+                  <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>{k}</span>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-bright)', fontWeight: 600 }}>{v}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -1409,6 +1608,11 @@ export default function App() {
     return sessionStorage.getItem('tf_auth') === 'true';
   });
 
+  const handleLogout = () => {
+    sessionStorage.removeItem('tf_auth');
+    setIsAuthenticated(false);
+  };
+
   if (!isAuthenticated) {
     return <LoginPage onLogin={() => {
       sessionStorage.setItem('tf_auth', 'true');
@@ -1416,5 +1620,5 @@ export default function App() {
     }} />;
   }
 
-  return <MainApp />;
+  return <MainApp onLogout={handleLogout} />;
 }

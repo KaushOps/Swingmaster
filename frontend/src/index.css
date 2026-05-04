@@ -8,28 +8,28 @@
 }
 
 :root {
-  /* ─── Default (Light) Tokens ─── */
-  --bg-base:        #f8fafc;
-  --bg-sidebar:     var(--bg-base);
-  --bg-elevated:    #ffffff;
-  --bg-card:        #ffffff;
-  --border-subtle:  #e2e8f0;
-  --border-muted:   #cbd5e1;
-  --text-main:      #334155;
-  --text-dim:       #64748b;
-  --text-bright:    #0f172a;
+  /* ─── Default (Light) Tokens — warm cream to match login ─── */
+  --bg-base:        #e7dfd1;
+  --bg-sidebar:     rgba(231, 223, 209, 0.92);
+  --bg-elevated:    rgba(255, 250, 244, 0.75);
+  --bg-card:        rgba(255, 250, 244, 0.65);
+  --border-subtle:  rgba(0, 0, 0, 0.08);
+  --border-muted:   rgba(0, 0, 0, 0.12);
+  --text-main:      #5c4b40;
+  --text-dim:       #8b6f60;
+  --text-bright:    #1d140f;
   
-  --bg-header:      #0f172a;
-  --text-header:    #f1f5f9;
+  --bg-header:      #1e1612;
+  --text-header:    #E6CFB3;
 
-  --accent-purple:  #4f46e5;
-  --accent-purple-hover: #4338ca;
+  --accent-purple:  #b94a2c;
+  --accent-purple-hover: #d95d31;
   
-  --up-color:       #10b981;
-  --down-color:     #ef4444;
+  --up-color:       #059669;
+  --down-color:     #dc2626;
   
-  --bg-card-top:    #1e293b;
-  --text-card-top:  #f8fafc;
+  --bg-card-top:    #1e1612;
+  --text-card-top:  #E6CFB3;
 
   /* ─── Layout ─── */
   --sidebar-w:      220px;
@@ -40,18 +40,18 @@
   --radius-md:      12px;
   --radius-lg:      16px;
   --radius-pill:    9999px;
-  --shadow-card:    0 4px 14px rgba(0,0,0,0.05);
-  --shadow-hover:   0 12px 24px rgba(0,0,0,0.08);
+  --shadow-card:    0 4px 14px rgba(56, 30, 14, 0.08);
+  --shadow-hover:   0 12px 24px rgba(56, 30, 14, 0.12);
 
   --panel-bg:       var(--bg-elevated);
 }
 
 [data-theme='dark'] {
-  /* ─── AMOLED Black Theme Tokens ─── */
+  /* ─── AMOLED Dark — matches login page ─── */
   --bg-base:        #000000;
   --bg-sidebar:     #0a0a0a;
-  --bg-elevated:    #111111;
-  --bg-card:        rgba(17, 17, 17, 0.92);
+  --bg-elevated:    rgba(17, 17, 17, 0.85);
+  --bg-card:        rgba(17, 17, 17, 0.82);
   --border-subtle:  rgba(255, 255, 255, 0.08);
   --border-muted:   rgba(255, 255, 255, 0.12);
   --text-main:      #a1a1aa;
@@ -59,7 +59,7 @@
   --text-bright:    #fafafa;
   
   --bg-header:      #000000;
-  --text-header:    #fafafa;
+  --text-header:    #E6CFB3;
 
   --accent-purple:  #6366f1;
   --accent-purple-hover: #818cf8;
@@ -82,9 +82,21 @@ body {
   margin: 0;
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   background-color: var(--bg-base);
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(219, 74, 43, 0.22), transparent 45%),
+    radial-gradient(circle at 80% 18%, rgba(248, 163, 72, 0.20), transparent 40%),
+    radial-gradient(circle at 75% 82%, rgba(141, 87, 56, 0.14), transparent 35%);
+  background-attachment: fixed;
   color: var(--text-main);
   -webkit-font-smoothing: antialiased;
   min-height: 100dvh;
+}
+
+[data-theme='dark'] body {
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(99, 102, 241, 0.18), transparent 45%),
+    radial-gradient(circle at 80% 18%, rgba(74, 222, 128, 0.12), transparent 40%),
+    radial-gradient(circle at 75% 82%, rgba(129, 140, 248, 0.12), transparent 35%);
 }
 
 /* Scrollbar */

@@ -42,6 +42,10 @@ except Exception:
     LLM_COMMENTARY_ENABLED = False
 
 LEDGER_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "signals_ledger.json")
+TICKER_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "ticker_cache.json")
+
+# Default ticker symbols to display
+TICKER_SYMBOLS = ["NIFTY 50", "BANKNIFTY", "SENSEX", "RELIANCE", "TCS", "HDFCBANK", "ICICIBANK", "INFY", "SBIN", "ITC", "LT", "KOTAKBANK", "BAJFINANCE"]
 
 def compute_hc_historical_stats(historical_map):
     """Given the HC historical signal map, compute aggregate backtest stats."""
@@ -856,6 +860,10 @@ def scan_markets(market: str = "IN") -> Dict[str, Any]:
             continue
             
     results.sort(key=lambda x: x['confidence'], reverse=True)
+    
+    # Save to ticker cache for login page display (only for IN market)
+    if market == "IN":
+        save_ticker_cache(results, _nifty_bullish)
             
     return {
         "status": "success", 
@@ -1253,6 +1261,73 @@ def get_postmortems(limit: int = 20):
         }
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+def save_ticker_cache(scan_results: list, nifty_bullish: bool = True):
+    """Save scan results to ticker cache file for login page display."""
+    try:
+        # Build ticker data from scan results
+        ticker_data = []
+        for item in scan_results:
+            symbol = item.get("symbol", "")
+            if symbol in TICKER_SYMBOLS:
+                ticker_data.append({
+                    "sym": symbol,
+                    "price": f"{item.get('entry', 0):,.2f}",
+                    "chg": "—",  # Will be calculated if we have prev close
+                    "up": True
+                })
+        
+        # Also try to get index data from _nifty_bullish context or calculate
+        # For now, indices show as cached data
+        
+        cache = {
+            "timestamp": datetime.now().isoformat(),
+            "data": ticker_data
+        }
+        os.makedirs(os.path.dirname(TICKER_FILE), exist_ok=True)
+        with open(TICKER_FILE, "w") as f:
+            json.dump(cache, f)
+    except Exception as e:
+        print(f"Failed to save ticker cache: {e}")
+
+def load_ticker_cache():
+    """Load cached ticker data. Returns empty list if no cache."""
+    try:
+        if os.path.exists(TICKER_FILE):
+            with open(TICKER_FILE, "r") as f:
+                cache = json.load(f)
+                return cache.get("data", [])
+    except Exception:
+        pass
+    return []
+
+@app.get("/api/market_ticker")
+async def market_ticker():
+    """
+    Returns cached market data from the last daily scan.
+    Shows last fetched prices even on weekends/market holidays.
+    """
+    cached = load_ticker_cache()
+    
+    # If no cache, return fallback with — (will be populated after first scan)
+    if not cached:
+        return {
+            "status": "success", 
+            "data": [{"sym": s, "price": "—", "chg": "—", "up": True} for s in TICKER_SYMBOLS],
+            "cached": False
+        }
+    
+    # Merge cached data with full symbol list (fill missing with —)
+    cached_map = {item["sym"]: item for item in cached}
+    results = []
+    for sym in TICKER_SYMBOLS:
+        if sym in cached_map:
+            results.append(cached_map[sym])
+        else:
+            results.append({"sym": sym, "price": "—", "chg": "—", "up": True})
+    
+    return {"status": "success", "data": results, "cached": True}
 
 
 if __name__ == "__main__":

@@ -1,20 +1,23 @@
 import { useState, useEffect, useRef } from 'react';
 
-/* ── Ticker data ─────────────────────────────────────────── */
-const TICKERS = [
-  { sym: 'RELIANCE', price: '2,918.45', chg: '+1.24%', up: true },
-  { sym: 'TCS', price: '3,782.10', chg: '-0.38%', up: false },
-  { sym: 'INFY', price: '1,452.75', chg: '+0.87%', up: true },
-  { sym: 'HDFCBANK', price: '1,678.20', chg: '+0.55%', up: true },
-  { sym: 'BAJFINANCE', price: '7,234.60', chg: '-1.02%', up: false },
-  { sym: 'WIPRO', price: '487.35', chg: '+0.29%', up: true },
-  { sym: 'NIFTY50', price: '22,450.30', chg: '+0.63%', up: true },
-  { sym: 'SENSEX', price: '73,814.85', chg: '+0.51%', up: true },
-  { sym: 'AXISBANK', price: '1,087.50', chg: '-0.44%', up: false },
-  { sym: 'LT', price: '3,521.90', chg: '+1.08%', up: true },
-];
-
 const PARTICLES = ['+2.3%', '-0.8%', '+1.1%', 'NIFTY', 'BUY', '▲', '▼', '+0.5%', '-1.2%', 'TARGET'];
+
+/* ── Default ticker fallback ─────────────────────────────── */
+const DEFAULT_TICKERS = [
+  { sym: 'NIFTY 50', price: '—', chg: '—', up: true },
+  { sym: 'BANKNIFTY', price: '—', chg: '—', up: true },
+  { sym: 'SENSEX', price: '—', chg: '—', up: true },
+  { sym: 'RELIANCE', price: '—', chg: '—', up: true },
+  { sym: 'TCS', price: '—', chg: '—', up: true },
+  { sym: 'HDFCBANK', price: '—', chg: '—', up: true },
+  { sym: 'ICICIBANK', price: '—', chg: '—', up: true },
+  { sym: 'INFY', price: '—', chg: '—', up: true },
+  { sym: 'SBIN', price: '—', chg: '—', up: true },
+  { sym: 'ITC', price: '—', chg: '—', up: true },
+  { sym: 'LT', price: '—', chg: '—', up: true },
+  { sym: 'KOTAKBANK', price: '—', chg: '—', up: true },
+  { sym: 'BAJFINANCE', price: '—', chg: '—', up: true },
+];
 
 /* ── Floating Particle ────────────────────────────────────── */
 function Particle({ text, left, delay, speed, up, isDark }) {
@@ -46,9 +49,10 @@ export default function LoginPage({ onLogin }) {
   const [isDark, setIsDark] = useState(true);
   const [pointer, setPointer] = useState({ x: 52, y: 34 });
   const [particles, setParticles] = useState([]);
+  const [tickers, setTickers] = useState(DEFAULT_TICKERS);
   const pidRef = useRef(0);
 
-  /* Set dark mode initially and inject Tailwind CDN */
+  /* Set dark mode initially */
   useEffect(() => {
     if (isDark) {
       document.documentElement.classList.add('dark');
@@ -61,6 +65,25 @@ export default function LoginPage({ onLogin }) {
     return () => {
       document.documentElement.classList.remove('dark');
     };
+  }, []);
+
+  /* Fetch cached market ticker data (from last daily scan) */
+  useEffect(() => {
+    async function fetchTicker() {
+      try {
+        const res = await fetch('/api/market_ticker');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'success' && data.data?.length > 0) {
+            setTickers(data.data);
+          }
+        }
+      } catch (e) {
+        // Keep default tickers on error
+      }
+    }
+    fetchTicker();
+    // No polling - data comes from daily scan cache
   }, []);
 
   /* Spawn particles */
@@ -342,10 +365,10 @@ export default function LoginPage({ onLogin }) {
         </div>
       </main>
 
-      {/* Ticker Strip */}
+      {/* Ticker Strip — Live Market Data */}
       <div className="fixed bottom-0 left-0 right-0 py-3 bg-white/40 dark:bg-black/60 border-t border-black/5 dark:border-white/5 backdrop-blur-md overflow-hidden z-20 transition-colors duration-500">
         <div className="flex whitespace-nowrap animate-[tf-ticker_40s_linear_infinite]">
-          {[...TICKERS, ...TICKERS, ...TICKERS].map((t, i) => (
+          {[...tickers, ...tickers, ...tickers].map((t, i) => (
             <div key={i} className="inline-flex items-center gap-3 px-8 text-sm font-bold border-r border-black/5 dark:border-white/10">
               <span className="tracking-widest text-black/50 dark:text-white/40 transition-colors duration-500">{t.sym}</span>
               <span className="text-[#1d140f] dark:text-white transition-colors duration-500">{t.price}</span>
