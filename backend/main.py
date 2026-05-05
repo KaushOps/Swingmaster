@@ -219,7 +219,8 @@ app.add_middleware(
 
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1ElidXRZQxBTyKnX0o-le1TA2UdvedeB65AUctQ2XChg/export?format=csv&gid=1001057205"
 
-NSE_UNIVERSE = [
+# ── NSE Universe — auto-fetched from Wikipedia, hardcoded list as fallback ────
+_NSE_UNIVERSE_FALLBACK = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS",
     "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", "KOTAKBANK.NS", "LT.NS",
     "HUL.NS", "AXISBANK.NS", "BAJFINANCE.NS", "MARUTI.NS", "ASIANPAINT.NS",
@@ -246,6 +247,35 @@ NSE_UNIVERSE = [
     "PHOENIXLTD.NS", "BRIGADE.NS", "SOBHA.NS", "SUNTECK.NS", "MAHLIFE.NS"
 ]
 
+def _fetch_nse_universe():
+    """Fetch current Nifty 50 + Nifty Next 50 constituents from Wikipedia.
+    Falls back to _NSE_UNIVERSE_FALLBACK if fetch fails or returns bad data."""
+    try:
+        _headers = {"User-Agent": "Mozilla/5.0 (compatible; TradeFlex/5.3; +https://tradeflex.in)"}
+        _html = requests.get("https://en.wikipedia.org/wiki/NIFTY_50", headers=_headers, timeout=10).text
+        tables = pd.read_html(StringIO(_html))
+        symbols = []
+        for tbl in tables:
+            for col in tbl.columns:
+                col_lower = str(col).lower()
+                if "symbol" in col_lower or "ticker" in col_lower:
+                    raw = tbl[col].dropna().tolist()
+                    # Keep only plausible NSE symbols (uppercase letters, digits, &)
+                    raw = [str(s).strip().upper() for s in raw if str(s).strip().isalpha() or "&" in str(s)]
+                    symbols.extend([s + ".NS" for s in raw if 2 <= len(s) <= 15])
+        symbols = list(dict.fromkeys(symbols))  # deduplicate, preserve order
+        if len(symbols) >= 40:  # sanity check — Nifty 50 has exactly 50
+            # Merge with fallback to keep our extended universe (PSUs, pharma, etc.)
+            merged = list(dict.fromkeys(symbols + _NSE_UNIVERSE_FALLBACK))
+            print(f"[Universe] Auto-fetched {len(symbols)} Nifty 50 symbols; merged universe = {len(merged)} stocks")
+            return merged
+        print(f"[Universe] Wikipedia returned only {len(symbols)} symbols — too few, using fallback")
+    except Exception as e:
+        print(f"[Universe] Wikipedia fetch failed ({e}) — using hardcoded fallback")
+    return _NSE_UNIVERSE_FALLBACK
+
+NSE_UNIVERSE = _fetch_nse_universe()
+
 GLOBAL_BUY_CACHE = {
     "last_updated": None,
     "data": [],
@@ -263,8 +293,8 @@ HC_CACHE = {
     "is_scanning": False
 }
 
-# ── US Market Universe (S&P 500 / Nasdaq top liquid names) ──────────────────
-US_UNIVERSE = [
+# ── US Market Universe — auto-fetched from Wikipedia, hardcoded list as fallback
+_US_UNIVERSE_FALLBACK = [
     "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AVGO", "BRK-B", "JPM",
     "LLY", "V", "UNH", "XOM", "MA", "JNJ", "PG", "HD", "COST", "ABBV",
     "MRK", "CVX", "BAC", "NFLX", "CRM", "PEP", "KO", "WMT", "TMO", "ACN",
@@ -272,6 +302,34 @@ US_UNIVERSE = [
     "QCOM", "NEE", "AMD", "HON", "IBM", "CAT", "GE", "AMGN", "INTU", "AMAT",
     "UBER", "SPOT", "PYPL", "SQ", "SHOP", "SNOW", "PLTR", "COIN", "ARM", "MELI",
 ]
+
+def _fetch_us_universe():
+    """Fetch current Nasdaq-100 constituents from Wikipedia.
+    Falls back to _US_UNIVERSE_FALLBACK if fetch fails or returns bad data."""
+    try:
+        _headers = {"User-Agent": "Mozilla/5.0 (compatible; TradeFlex/5.3; +https://tradeflex.in)"}
+        _html = requests.get("https://en.wikipedia.org/wiki/Nasdaq-100", headers=_headers, timeout=10).text
+        tables = pd.read_html(StringIO(_html))
+        symbols = []
+        for tbl in tables:
+            for col in tbl.columns:
+                col_lower = str(col).lower()
+                if "ticker" in col_lower or "symbol" in col_lower:
+                    raw = tbl[col].dropna().tolist()
+                    raw = [str(s).strip().upper() for s in raw if str(s).strip()]
+                    symbols.extend([s for s in raw if 1 <= len(s) <= 6 and s.isalpha()])
+        symbols = list(dict.fromkeys(symbols))  # deduplicate
+        if len(symbols) >= 90:  # Nasdaq-100 has 100 members
+            # Merge with fallback to keep high-growth names not always in NDX-100
+            merged = list(dict.fromkeys(symbols + _US_UNIVERSE_FALLBACK))
+            print(f"[Universe] Auto-fetched {len(symbols)} Nasdaq-100 symbols; merged universe = {len(merged)} stocks")
+            return merged
+        print(f"[Universe] Wikipedia (Nasdaq-100) returned only {len(symbols)} symbols — using fallback")
+    except Exception as e:
+        print(f"[Universe] Nasdaq-100 fetch failed ({e}) — using hardcoded fallback")
+    return _US_UNIVERSE_FALLBACK
+
+US_UNIVERSE = _fetch_us_universe()
 
 US_BUY_CACHE = {
     "last_updated": None,
@@ -1064,6 +1122,13 @@ def us_refresh():
     if not US_BUY_CACHE["is_scanning"]:
         threading.Thread(target=update_us_cache, daemon=True).start()
     return {"status": "success", "is_scanning": True}
+
+@app.get("/api/universe")
+def get_universe():
+    return {
+        "nse_count": len(NSE_UNIVERSE), "nse": NSE_UNIVERSE,
+        "us_count": len(US_UNIVERSE),  "us":  US_UNIVERSE,
+    }
 
 @app.get("/api/stock_detail_us/{symbol}")
 async def stock_detail_us(symbol: str):
