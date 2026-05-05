@@ -1,6 +1,6 @@
 # TradeFlex — AI-Powered Swing Trading Platform
 
-**Version:** v5.0 | **Release Date:** May 2026  
+**Version:** v5.1 | **Release Date:** May 2026  
 **Repository:** [KaushOps/Swingmaster](https://github.com/KaushOps/Swingmaster)  
 **Deployment:** Oracle Cloud VM (Docker) — `129.159.226.235`
 
@@ -16,9 +16,10 @@
 6. [Multibagger Engine](#multibagger-engine)
 7. [Dashboard Tabs Explained](#dashboard-tabs-explained)
 8. [How to Use Signals](#how-to-use-signals)
-9. [Recent Changes (v5.0)](#recent-changes-v50)
-10. [Deployment Guide](#deployment-guide)
-11. [Technical Stack](#technical-stack)
+9. [Recent Changes (v5.1)](#recent-changes-v51)
+10. [Recent Changes (v5.0)](#recent-changes-v50)
+11. [Deployment Guide](#deployment-guide)
+12. [Technical Stack](#technical-stack)
 
 ---
 
@@ -64,10 +65,11 @@ TradeFlex is a self-learning, AI-powered swing trading platform that scans 60+ t
                          │
 ┌────────────────────────▼────────────────────────────────┐
 │                     DATA LAYER                           │
-│  signals_ledger.json │ outcome_log.csv │ ticker_cache    │
-│  feature_snapshots   │ postmortem_log  │ adaptive_gates  │
-│  llm_cache/          │ shap_history    │ mb_affinity     │
-└─────────────────────────────────────────────────────────┘
+│  signals_ledger.json    │ outcome_log.csv    │ ticker_cache      │
+│  us_signals_ledger.json │ postmortem_log     │ us_ticker_cache   │
+│  feature_snapshots      │ adaptive_gates     │ mb_affinity       │
+│  llm_cache/             │ shap_history       │                   │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -382,7 +384,6 @@ The Multibagger engine (`multibagger_model.py`) is a **separate, independent** s
 | 📊 **Historical Summary** | Heatmap of all past signals by date | — |
 | 🧮 **Budget Planner** | Position sizing based on capital | — |
 | 🤖 **Model Performance** | Adaptive engine status + LLM post-mortems | — |
-| 🇺🇸 **USA Full Grid** | NYSE stock signals | prob_up ≥ 55% |
 
 ---
 
@@ -407,6 +408,34 @@ The **ENTRY** price on a card = previous day's closing price. It is not a strict
 1. **High Conviction** signals first — these pass the most gates
 2. **All NSE Buys** second — when HC is empty or for diversification
 3. **Multibagger** — longer-term positions (weeks to months hold)
+
+---
+
+## Recent Changes (v5.1)
+
+### US Market Integration
+- **US stock signal engine** — full scan of 60 US stocks (AAPL, MSFT, NVDA, GOOGL, META, AMZN, TSLA, NFLX, QQQ, SPY, and more) using the same ML pipeline as NSE, with USD pricing
+- **US ledger** (`data/us_signals_ledger.json`) — separate persistent ledger for US signals mirroring NSE structure
+- **New backend endpoints:** `/api/us_buys`, `/api/us_high_conviction`, `/api/us_refresh` (protected), `/api/stock_detail_us/{symbol}`
+- **US ticker cache** (`data/us_ticker_cache.json`) — 1-hour cached live USD prices for US stock banner
+
+### Login Page — Conditional Ticker Banner
+- **Dark theme** → bottom banner shows live US stocks (AAPL, MSFT, NVDA, GOOGL, META, AMZN, TSLA, NFLX, QQQ, SPY, NDX) with USD prices and % change
+- **Light theme** → banner retains existing NSE stocks and indices (NIFTY 50, BANKNIFTY, SENSEX, RELIANCE, etc.)
+- New backend endpoint `/api/us_market_ticker` with 1-hour caching identical to `/api/market_ticker`
+- Both caches are automatically primed on backend startup
+
+### Nginx — Permanent Auth Fix
+- Removed `auth_basic` from `nginx-https.tpl` template — the popup will no longer return on container restart
+- Previously the fix only applied to the live `default.conf` but was overwritten on every restart by the entrypoint script
+
+### Adaptive Engine — LLM Post-Mortem Fallback
+- Fixed "No indicators were available to assess the trade" in LLM post-mortems for signals generated before the `FeatureSnapshotStore` feature was introduced
+- Falls back to `confidence` and `volume_ratio` from the ledger record when no feature snapshot exists
+
+### Sidebar Cleanup
+- Removed **US Buys** and **US High Conviction** from the sidebar navigation
+- NSE-focused navigation retained: High Conviction, All NSE Buys, Active Signals, Multibagger
 
 ---
 
@@ -514,12 +543,14 @@ ssh -i "c:\...\key" ubuntu@129.159.226.235 "
 
 | File | Contents |
 |------|---------|
-| `backend/data/signals_ledger.json` | All historical signals with entry/target/SL |
+| `backend/data/signals_ledger.json` | All historical NSE signals with entry/target/SL |
+| `backend/data/us_signals_ledger.json` | All historical US signals with entry/target/SL (USD) |
 | `backend/data/outcome_log.csv` | Closed trade outcomes (WIN/LOSS) with indicators |
 | `backend/data/feature_snapshots.json` | Full indicator state at signal generation time |
 | `backend/data/postmortem_log.json` | LLM-generated trade post-mortems |
 | `backend/data/adaptive_gates.json` | Current optimised RSI/ADX gate values |
-| `backend/data/ticker_cache.json` | Cached ticker prices (1-hour TTL) |
+| `backend/data/ticker_cache.json` | Cached NSE ticker prices (1-hour TTL) |
+| `backend/data/us_ticker_cache.json` | Cached US ticker prices in USD (1-hour TTL) |
 | `backend/data/llm_cache/` | Per-signal LLM rationale cache (disk) |
 | `backend/data/shap_history.json` | Top-5 SHAP feature importance over time |
 | `backend/data/mb_affinity.json` | Multibagger affinity scores for ML bonus |
