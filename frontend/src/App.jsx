@@ -93,18 +93,20 @@ function NiftyRegimeBanner({ niftyBullish, scanAt }) {
 /* ─────────────────────────────────────────────────────────────────────────
    STOCK DETAIL DRAWER
 ───────────────────────────────────────────────────────────────────────── */
-function StockDetailDrawer({ symbol, onClose }) {
+function StockDetailDrawer({ symbol, onClose, isUS = false }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
+  const cur = isUS ? '$' : '₹';
 
   useEffect(() => {
     setLoading(true);
-    fetch(`${baseUrl}/api/stock_detail/${symbol}`)
+    const endpoint = isUS ? `/api/stock_detail_us/${symbol}` : `/api/stock_detail/${symbol}`;
+    fetch(`${baseUrl}${endpoint}`)
       .then(r => r.json())
       .then(d => { setDetail(d); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [symbol]);
+  }, [symbol, isUS]);
 
   const gate = (label, pass, value) => (
     <div style={{
@@ -135,7 +137,7 @@ function StockDetailDrawer({ symbol, onClose }) {
       ) : (
         <div style={{ padding:'20px' }}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'20px' }}>
-            {[['Sector', detail.sector], ['Industry', detail.industry], ['Market Cap', detail.market_cap], ['Current Price', detail.current_price ? `₹${Number(detail.current_price).toFixed(2)}` : 'N/A']].map(([k,v]) => (
+            {[['Sector', detail.sector], ['Industry', detail.industry], ['Market Cap', detail.market_cap], ['Current Price', detail.current_price ? `${cur}${Number(detail.current_price).toFixed(2)}` : 'N/A']].map(([k,v]) => (
               <div key={k} style={{ background:'var(--bg-base)', borderRadius:'10px', padding:'12px', border: '1px solid var(--border-subtle)' }}>
                 <div style={{ fontSize:'0.75rem', color:'var(--text-dim)', marginBottom:'4px' }}>{k}</div>
                 <div style={{ fontWeight:'bold', color:'var(--text-bright)', wordBreak:'break-word' }}>{v || 'N/A'}</div>
@@ -161,8 +163,8 @@ function StockDetailDrawer({ symbol, onClose }) {
             <div style={{ marginBottom:'20px', background:'var(--bg-base)', borderRadius:'10px', padding:'14px', border: '1px solid var(--border-subtle)' }}>
               <div style={{ fontSize:'0.75rem', color:'var(--text-dim)', marginBottom:'8px' }}>52-Week Range</div>
               <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.9rem' }}>
-                <span style={{ color:'var(--down-color)' }}>₹{Number(detail.week_52_low).toFixed(2)}</span>
-                <span style={{ color:'var(--up-color)' }}>₹{Number(detail.week_52_high).toFixed(2)}</span>
+                <span style={{ color:'var(--down-color)' }}>{cur}{Number(detail.week_52_low).toFixed(2)}</span>
+                <span style={{ color:'var(--up-color)' }}>{cur}{Number(detail.week_52_high).toFixed(2)}</span>
               </div>
               <div style={{ height:'6px', background:'var(--border-muted)', borderRadius:'3px', marginTop:'6px', position:'relative' }}>
                 {detail.week_52_low && detail.week_52_high && detail.current_price && (
@@ -182,7 +184,7 @@ function StockDetailDrawer({ symbol, onClose }) {
               ['Earnings Growth', detail.earnings_growth != null ? `${detail.earnings_growth}%` : null],
               ['Dividend Yield', detail.dividend_yield != null ? `${detail.dividend_yield}%` : null],
               ['Beta', detail.beta], ['Analyst Rating', detail.analyst_rating],
-              ['Analyst Target', detail.target_mean_price ? `₹${detail.target_mean_price}` : null],
+              ['Analyst Target', detail.target_mean_price ? `${cur}${detail.target_mean_price}` : null],
             ].map(([k, v]) => (
               <div key={k} style={{ background:'var(--bg-base)', borderRadius:'8px', padding:'10px', border: '1px solid var(--border-subtle)' }}>
                 <div style={{ fontSize:'0.72rem', color:'var(--text-dim)' }}>{k}</div>
@@ -567,7 +569,25 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
 
   const safeAlloc  = amountPerTrade || 0;
 
-  const affordableSignalsInMonth = activeDataForStats.flatMap(day => (day.signals || []).filter(s => s.entry > 0 && s.entry <= safeAlloc));
+  // Deduplicate by symbol — skip a repeat signal ONLY if the previous signal
+  // for that symbol is still ACTIVE (open position). If previous closed (TARGET HIT
+  // or SL HIT), the new signal is a fresh trade and should be counted.
+  const deduplicateBySymbol = (signals) => {
+    const lastStatus = {}; // symbol -> last seen status
+    return signals.filter(s => {
+      const prev = lastStatus[s.symbol];
+      // Allow if: first time seen, OR previous trade has closed
+      const allow = !prev || prev === 'TARGET HIT' || prev === 'SL HIT';
+      lastStatus[s.symbol] = s.status; // update to current signal's status
+      return allow;
+    });
+  };
+
+  const allSignalsInMonth = activeDataForStats
+    .slice() // sort chronologically so dedup logic sees signals in order
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+    .flatMap(day => (day.signals || []).filter(s => s.entry > 0 && s.entry <= safeAlloc));
+  const affordableSignalsInMonth = deduplicateBySymbol(allSignalsInMonth);
   const monthlySignals = affordableSignalsInMonth.length;
   const monthlyCost    = affordableSignalsInMonth.reduce((sum, stock) => { const qty = Math.floor(safeAlloc / stock.entry); return sum + (qty * stock.entry); }, 0);
   const monthlyPnL     = affordableSignalsInMonth.reduce((sum, stock) => {
@@ -577,13 +597,18 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
     return sum;
   }, 0);
 
+  // Also deduplicate for win/loss counters
+  const allSignalsForStats = activeDataForStats
+    .slice()
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+    .flatMap(day => (day.signals || []));
+  const dedupedForStats = deduplicateBySymbol(allSignalsForStats);
+
   let d_total = 0, d_wins = 0, d_loss = 0, d_days = 0;
-  activeDataForStats.forEach(day => {
-    (day.signals || []).forEach(s => {
-      d_total++;
-      if (s.status === 'TARGET HIT') { d_wins++; d_days += (s.days_in_trade || 0); }
-      else if (s.status === 'SL HIT') { d_loss++; d_days += (s.days_in_trade || 0); }
-    });
+  dedupedForStats.forEach(s => {
+    d_total++;
+    if (s.status === 'TARGET HIT') { d_wins++; d_days += (s.days_in_trade || 0); }
+    else if (s.status === 'SL HIT') { d_loss++; d_days += (s.days_in_trade || 0); }
   });
   const d_closed = d_wins + d_loss;
   const dynWinRate     = d_closed > 0 ? (d_wins / d_closed * 100).toFixed(1) : 0;
@@ -836,14 +861,27 @@ function MainApp({ onLogout }) {
   const [hcData, setHcData]                     = useState([])
   const [hcHistorical, setHcHistorical]         = useState([])
   const [hcStats, setHcStats]                   = useState(null)
+  const [usData, setUsData]                     = useState([])
+  const [usHistorical, setUsHistorical]         = useState([])
+  const [usStats, setUsStats]                   = useState(null)
+  const [usHcData, setUsHcData]                 = useState([])
+  const [usHcHistorical, setUsHcHistorical]     = useState([])
+  const [usHcStats, setUsHcStats]               = useState(null)
+  const [selectedUsDate, setSelectedUsDate]     = useState(null)
+  const [selectedUsHcDate, setSelectedUsHcDate] = useState(null)
+  const [selectedDetail, setSelectedDetail]     = useState(null)
+  const [selectedDetailIsUS, setSelectedDetailIsUS] = useState(false)
   const [selectedHistDate, setSelectedHistDate] = useState(null)
   const [selectedHcDate, setSelectedHcDate]     = useState(null)
   const [loading, setLoading]                   = useState(true)
   const [market, setMarket]                     = useState("HC")
   const [isScanningBackground, setIsScanningBackground] = useState(false)
-  const [selectedDetail, setSelectedDetail]     = useState(null)
   const [portfolio, setPortfolio]               = useState(() => {
     try { return JSON.parse(localStorage.getItem('swing_portfolio')) || []; }
+    catch { return []; }
+  })
+  const [watchlist, setWatchlist]               = useState(() => {
+    try { return JSON.parse(localStorage.getItem('swing_watchlist')) || []; }
     catch { return []; }
   })
   const [trendingSectors, setTrendingSectors]   = useState([])
@@ -905,6 +943,18 @@ function MainApp({ onLogout }) {
   }, []);
 
   useEffect(() => { localStorage.setItem('swing_portfolio', JSON.stringify(portfolio)); }, [portfolio]);
+  useEffect(() => { localStorage.setItem('swing_watchlist', JSON.stringify(watchlist)); }, [watchlist]);
+
+  const toggleWatchlist = (stock) => {
+    setWatchlist(prev => {
+      const exists = prev.find(w => w.symbol === stock.symbol);
+      if (exists) {
+        return prev.filter(w => w.symbol !== stock.symbol);
+      } else {
+        return [...prev, { symbol: stock.symbol, stock, addedAt: new Date().toISOString() }];
+      }
+    });
+  };
 
   const logTrade = (stock, defaultPrice) => {
     const qtyStr   = prompt(`Enter quantity of ${stock.symbol} bought:`, "1");
@@ -953,18 +1003,33 @@ function MainApp({ onLogout }) {
     }
     if (market === 'ACTIVE_SIGNALS' || market === 'PORTFOLIO' || market === 'MULTIBAGGER' || market === 'ADAPTIVE') { setLoading(false); return; }
 
+    if (market === 'US_BUYS' || market === 'US_HC') {
+      setLoading(false);
+      const baseUrl = import.meta.env.PROD ? '' : 'http://localhost:8000';
+      if (market === 'US_BUYS' && usStats === null) {
+        setLoading(true);
+        fetch(`${baseUrl}/api/us_buys`).then(r => r.json()).then(res => {
+          setUsData(res.data || []); setUsHistorical(res.historical || []); setUsStats(res.backtest_summary || {}); setLoading(false);
+        }).catch(() => setLoading(false));
+      }
+      if (market === 'US_HC' && usHcStats === null) {
+        setLoading(true);
+        fetch(`${baseUrl}/api/us_high_conviction`).then(r => r.json()).then(res => {
+          setUsHcData(res.data || []); setUsHcHistorical(res.historical || []); setUsHcStats(res.backtest_summary || {}); setLoading(false);
+        }).catch(() => setLoading(false));
+      }
+      return;
+    }
+
     let ignore = false;
     const isNSEBuys = market === "NSE_BUYS";
     const isHC      = market === "HC";
-    const isIN      = market === "IN";
-    const isUS      = market === "US";
 
     if (isHC && hcData.length > 0)    { setLoading(false); return; }
     if (isNSEBuys && nseStats !== null) { setLoading(false); return; }
 
-    if (isHC)             { setHcData([]); setHcHistorical([]); setHcStats(null); }
-    else if (isNSEBuys)   { setHistoricalData([]); setNseStats(null); }
-    else if (isIN || isUS){ setData([]); setHistoricalData([]); setHcHistorical([]); setNseStats(null); setHcStats(null); }
+    if (isHC)           { setHcData([]); setHcHistorical([]); setHcStats(null); }
+    else if (isNSEBuys) { setHistoricalData([]); setNseStats(null); }
 
     setSelectedHistDate(null); setSelectedHcDate(null); setLoading(true);
 
@@ -987,7 +1052,8 @@ function MainApp({ onLogout }) {
     return () => { ignore = true; };
   }, [market]);
 
-  const currency = market === "US" ? "$" : "₹";
+  const currency = (market === 'US_BUYS' || market === 'US_HC') ? '$' : '₹';
+  const isUSMarket = market === 'US_BUYS' || market === 'US_HC';
   const capLabel  = market === "US" ? "$1.2K Cap" : "₹1L Cap";
 
   const activeSignals = useMemo(() => {
@@ -1019,6 +1085,7 @@ function MainApp({ onLogout }) {
         hcCount={hcData.length}
         nseCount={data.length}
         activeCount={activeSignals.length}
+        watchlistCount={watchlist.length}
       />
 
       {/* Top navigation bar */}
@@ -1106,6 +1173,8 @@ function MainApp({ onLogout }) {
                         currency="₹"
                         onLogTrade={logTrade}
                         onDetail={setSelectedDetail}
+                        isWatchlisted={watchlist.some(w => w.symbol === stock.symbol)}
+                        onToggleWatchlist={toggleWatchlist}
                       />
                     ))}
                   </div>
@@ -1141,6 +1210,8 @@ function MainApp({ onLogout }) {
                         stock={stock}
                         variant="nse"
                         currency="₹"
+                        isWatchlisted={watchlist.some(w => w.symbol === stock.symbol)}
+                        onToggleWatchlist={toggleWatchlist}
                         onLogTrade={logTrade}
                         onDetail={setSelectedDetail}
                       />
@@ -1150,21 +1221,99 @@ function MainApp({ onLogout }) {
               </>
             )}
 
-            {/* ── IN / US ── */}
-            {(market === "IN" || market === "US") && (
-              <div className="grid">
-                {data.length === 0 && <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'40px'}}>No active signals at this time.</div>}
-                {data.map(stock => (
-                  <StockCard
-                    key={stock.symbol}
-                    stock={stock}
-                    variant="nse"
-                    currency={currency}
-                    onLogTrade={logTrade}
-                    onDetail={setSelectedDetail}
-                  />
-                ))}
-              </div>
+            {/* ── US BUYS ── */}
+            {market === 'US_BUYS' && (
+              <>
+                <HistoryPanel
+                  key="us-buys-panel"
+                  histData={usHistorical}
+                  stats={usStats}
+                  selectedDate={selectedUsDate}
+                  onSelect={setSelectedUsDate}
+                  onClose={() => setSelectedUsDate(null)}
+                  accentColor="#22d3ee"
+                  bannerTheme="cyan"
+                  TooltipComponent={CustomTooltip}
+                  onLogTrade={logTrade}
+                  onDetail={sym => { setSelectedDetailIsUS(true); setSelectedDetail(sym); }}
+                  amountPerTrade={amountPerTrade}
+                  setAmountPerTrade={setAmountPerTrade}
+                />
+                <div className="grid" style={{ marginTop: 24 }}>
+                  {usData.length === 0 && <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'40px'}}>🇺🇸 US scan running... signals will appear shortly.</div>}
+                  {usData.map(stock => (
+                    <StockCard key={stock.symbol} stock={stock} variant="nse" currency="$"
+                      onLogTrade={logTrade}
+                      onDetail={sym => { setSelectedDetailIsUS(true); setSelectedDetail(sym); }}
+                      isWatchlisted={watchlist.some(w => w.symbol === stock.symbol)}
+                      onToggleWatchlist={toggleWatchlist}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* ── US HIGH CONVICTION ── */}
+            {market === 'US_HC' && (
+              <>
+                <HistoryPanel
+                  key="us-hc-panel"
+                  histData={usHcHistorical}
+                  stats={usHcStats}
+                  selectedDate={selectedUsHcDate}
+                  onSelect={setSelectedUsHcDate}
+                  onClose={() => setSelectedUsHcDate(null)}
+                  accentColor="#f59e0b"
+                  bannerTheme="amber"
+                  TooltipComponent={HCTooltip}
+                  onLogTrade={logTrade}
+                  onDetail={sym => { setSelectedDetailIsUS(true); setSelectedDetail(sym); }}
+                  amountPerTrade={amountPerTrade}
+                  setAmountPerTrade={setAmountPerTrade}
+                />
+                <div className="grid" style={{ marginTop: 24 }}>
+                  {usHcData.length === 0 && <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'40px'}}>🎯 No US High Conviction signals at this time.</div>}
+                  {usHcData.map(stock => (
+                    <StockCard key={stock.symbol} stock={stock} variant="hc" currency="$"
+                      onLogTrade={logTrade}
+                      onDetail={sym => { setSelectedDetailIsUS(true); setSelectedDetail(sym); }}
+                      isWatchlisted={watchlist.some(w => w.symbol === stock.symbol)}
+                      onToggleWatchlist={toggleWatchlist}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* ── WATCHLIST ── */}
+            {market === "WATCHLIST" && (
+              <>
+                <div style={{ marginBottom:'24px', padding:'20px', backgroundColor:'var(--bg-elevated)', borderRadius:'15px', border:'1px solid var(--border-subtle)', display:'flex', flexWrap:'wrap', gap:'20px', alignItems:'center' }}>
+                  <div style={{textAlign:'center'}}><div style={{fontSize:'2rem', fontWeight:'800', color:'#fbbf24'}}>{watchlist.length}</div><div style={{fontSize:'0.8rem', color:'var(--text-dim)'}}>Watchlisted Stocks</div></div>
+                  <div style={{fontSize:'0.85rem', color:'var(--text-main)', marginLeft:'auto'}}>Click ⭐ on any stock card to add/remove from watchlist.</div>
+                </div>
+                {watchlist.length === 0 ? (
+                  <div className="no-data" style={{textAlign:'center', padding:'60px'}}>
+                    No stocks in watchlist yet.<br/>
+                    <span style={{fontSize:'0.9rem', color:'var(--text-dim)'}}>Click the ⭐ star icon on any stock card to add it here.</span>
+                  </div>
+                ) : (
+                  <div className="grid">
+                    {watchlist.map((w, i) => (
+                      <StockCard
+                        key={w.symbol}
+                        stock={w.stock}
+                        variant="nse"
+                        currency="₹"
+                        onLogTrade={logTrade}
+                        onDetail={setSelectedDetail}
+                        isWatchlisted={true}
+                        onToggleWatchlist={toggleWatchlist}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
 
             {/* ── PORTFOLIO ── */}
@@ -1182,8 +1331,8 @@ function MainApp({ onLogout }) {
                       <p style={{ color:'#94a3b8', margin:'4px 0 0', fontSize:'0.85rem' }}>Quantitative anomaly detection · R² trend analysis · Volume accumulation scoring</p>
                     </div>
                     <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
-                      <button onClick={() => setMbView('live')} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='live' ? '1px solid #a855f7' : '1px solid #334155', background: mbView==='live' ? 'rgba(168,85,247,0.15)' : 'transparent', color: mbView==='live' ? '#c084fc' : '#94a3b8', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600' }}>📡 Live Predictions</button>
-                      <button onClick={() => { setMbView('backtest'); if (!mbBacktest) { setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${mbYearsAgo}`).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='backtest' ? '1px solid #a855f7' : '1px solid #334155', background: mbView==='backtest' ? 'rgba(168,85,247,0.15)' : 'transparent', color: mbView==='backtest' ? '#c084fc' : '#94a3b8', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600' }}>⏳ Historical Proof</button>
+                      <button onClick={() => setMbView('live')} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='live' ? '1px solid #a855f7' : '1px solid var(--border-muted)', background: mbView==='live' ? 'rgba(168,85,247,0.2)' : 'var(--bg-elevated)', color: mbView==='live' ? '#a855f7' : 'var(--text-main)', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600', boxShadow: mbView==='live' ? '0 2px 8px rgba(168,85,247,0.25)' : 'none' }}>📡 Live Predictions</button>
+                      <button onClick={() => { setMbView('backtest'); if (!mbBacktest) { setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${mbYearsAgo}`).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='backtest' ? '1px solid #a855f7' : '1px solid var(--border-muted)', background: mbView==='backtest' ? 'rgba(168,85,247,0.2)' : 'var(--bg-elevated)', color: mbView==='backtest' ? '#a855f7' : 'var(--text-main)', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600', boxShadow: mbView==='backtest' ? '0 2px 8px rgba(168,85,247,0.25)' : 'none' }}>⏳ Historical Proof</button>
                     </div>
                   </div>
 
@@ -1233,6 +1382,8 @@ function MainApp({ onLogout }) {
                         showBacktest={false}
                         rank={i + 1}
                         onDetail={setSelectedDetail}
+                        isWatchlisted={watchlist.some(w => w.symbol === stock.symbol)}
+                        onToggleWatchlist={toggleWatchlist}
                       />
                     ))}
                     {mbView === 'live' && mbLastUpdated && mbData.length === 0 && <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'60px'}}>No multibagger candidates found matching the strict criteria.</div>}
@@ -1271,6 +1422,8 @@ function MainApp({ onLogout }) {
                         showBacktest={false}
                         onLogTrade={logTrade}
                         onDetail={setSelectedDetail}
+                        isWatchlisted={watchlist.some(w => w.symbol === stock.symbol)}
+                        onToggleWatchlist={toggleWatchlist}
                       />
                     ))}
                   </div>
@@ -1290,6 +1443,77 @@ function MainApp({ onLogout }) {
                 logTrade={logTrade}
                 setSelectedDetail={setSelectedDetail}
               />
+            )}
+
+            {/* ── SIGNAL HISTORY ── */}
+            {market === "SIGNAL_HISTORY" && (
+              <>
+                <div style={{ marginBottom:'24px', padding:'20px', backgroundColor:'var(--bg-elevated)', borderRadius:'15px', border:'1px solid var(--border-subtle)', display:'flex', flexWrap:'wrap', gap:'20px', alignItems:'center' }}>
+                  <div style={{textAlign:'center'}}><div style={{fontSize:'2rem', fontWeight:'800', color:'#3b82f6'}}>{portfolio.length}</div><div style={{fontSize:'0.8rem', color:'var(--text-dim)'}}>Opened Trades</div></div>
+                  <div style={{textAlign:'center'}}><div style={{fontSize:'2rem', fontWeight:'800', color:'#22c55e'}}>{portfolio.filter(p => p.status === 'OPEN').length}</div><div style={{fontSize:'0.8rem', color:'var(--text-dim)'}}>Active Positions</div></div>
+                  <div style={{textAlign:'center'}}><div style={{fontSize:'2rem', fontWeight:'800', color:'#f59e0b'}}>{portfolio.filter(p => p.status === 'CLOSED').length}</div><div style={{fontSize:'0.8rem', color:'var(--text-dim)'}}>Closed Trades</div></div>
+                  <div style={{fontSize:'0.85rem', color:'var(--text-main)', marginLeft:'auto'}}>View all your trade entries with quantity and buy price.</div>
+                </div>
+                {portfolio.length === 0 ? (
+                  <div className="no-data" style={{textAlign:'center', padding:'60px'}}>
+                    No trades logged yet.<br/>
+                    <span style={{fontSize:'0.9rem', color:'var(--text-dim)'}}>Click "Log Trade" on any stock card to add entries here.</span>
+                  </div>
+                ) : (
+                  <div className="grid">
+                    {portfolio.map((trade, i) => (
+                      <div key={trade.id} style={{ background:'var(--bg-card)', borderRadius:'12px', border:'1px solid var(--border-subtle)', padding:'20px', position:'relative' }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
+                          <h3 style={{ margin:0, fontSize:'1.2rem', fontWeight:700, color:'var(--text-bright)' }}>{trade.symbol}</h3>
+                          <span style={{ padding:'4px 10px', borderRadius:'6px', fontSize:'0.75rem', fontWeight:600, background: trade.status === 'OPEN' ? '#22c55e22' : '#f59e0b22', color: trade.status === 'OPEN' ? '#22c55e' : '#f59e0b' }}>{trade.status}</span>
+                        </div>
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px', marginBottom:'12px' }}>
+                          <div>
+                            <div style={{ fontSize:'0.75rem', color:'var(--text-dim)' }}>Quantity</div>
+                            <div style={{ fontSize:'1.1rem', fontWeight:700, color:'var(--text-main)' }}>{trade.qty} shares</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize:'0.75rem', color:'var(--text-dim)' }}>Entry Price</div>
+                            <div style={{ fontSize:'1.1rem', fontWeight:700, color:'var(--text-main)' }}>₹{trade.buyPrice.toFixed(2)}</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize:'0.75rem', color:'var(--text-dim)' }}>Total Investment</div>
+                            <div style={{ fontSize:'1.1rem', fontWeight:700, color:'var(--text-main)' }}>₹{(trade.qty * trade.buyPrice).toFixed(2)}</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize:'0.75rem', color:'var(--text-dim)' }}>Date</div>
+                            <div style={{ fontSize:'1.1rem', fontWeight:700, color:'var(--text-main)' }}>{trade.date}</div>
+                          </div>
+                        </div>
+                        {trade.status === 'CLOSED' && (
+                          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px', paddingTop:'12px', borderTop:'1px solid var(--border-subtle)' }}>
+                            <div>
+                              <div style={{ fontSize:'0.75rem', color:'var(--text-dim)' }}>Exit Price</div>
+                              <div style={{ fontSize:'1.1rem', fontWeight:700, color:'var(--text-main)' }}>₹{trade.exitPrice?.toFixed(2) || '-'}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize:'0.75rem', color:'var(--text-dim)' }}>P&L</div>
+                              <div style={{ fontSize:'1.1rem', fontWeight:700, color: (trade.exitPrice - trade.buyPrice) >= 0 ? '#22c55e' : '#ef4444' }}>
+                                {trade.exitPrice ? `₹${((trade.exitPrice - trade.buyPrice) * trade.qty).toFixed(2)}` : '-'}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        <div style={{ display:'flex', gap:'8px', marginTop:'12px' }}>
+                          {trade.status === 'OPEN' && (
+                            <button onClick={() => closeTrade(trade.id)} style={{ flex:1, padding:'8px', borderRadius:'6px', border:'none', background:'#3b82f6', color:'#fff', fontSize:'0.8rem', fontWeight:600, cursor:'pointer' }}>
+                              Close Position
+                            </button>
+                          )}
+                          <button onClick={() => deleteTrade(trade.id)} style={{ padding:'8px 12px', borderRadius:'6px', border:'1px solid var(--border-muted)', background:'transparent', color:'var(--text-dim)', fontSize:'0.8rem', cursor:'pointer' }}>
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
@@ -1562,8 +1786,8 @@ function MainApp({ onLogout }) {
       {/* Stock detail drawer */}
       {selectedDetail && (
         <>
-          <div onClick={() => setSelectedDetail(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:999, backdropFilter:'blur(2px)' }} />
-          <StockDetailDrawer symbol={selectedDetail} onClose={() => setSelectedDetail(null)} />
+          <div onClick={() => { setSelectedDetail(null); setSelectedDetailIsUS(false); }} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:999, backdropFilter:'blur(2px)' }} />
+          <StockDetailDrawer symbol={selectedDetail} isUS={selectedDetailIsUS} onClose={() => { setSelectedDetail(null); setSelectedDetailIsUS(false); }} />
         </>
       )}
 

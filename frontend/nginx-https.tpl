@@ -34,9 +34,6 @@ server {
     }
 
     location /api/ {
-        auth_basic "TradeFlex Secured Access";
-        auth_basic_user_file /etc/nginx/.htpasswd;
-
         proxy_pass http://swingmaster-backend:8000/api/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;

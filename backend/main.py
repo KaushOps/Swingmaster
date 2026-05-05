@@ -43,6 +43,7 @@ except Exception:
 
 LEDGER_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "signals_ledger.json")
 TICKER_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "ticker_cache.json")
+US_TICKER_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "us_ticker_cache.json")
 
 # Default ticker symbols to display
 TICKER_SYMBOLS = ["NIFTY 50", "BANKNIFTY", "SENSEX", "RELIANCE", "TCS", "HDFCBANK", "ICICIBANK", "INFY", "SBIN", "ITC", "LT", "KOTAKBANK", "BAJFINANCE"]
@@ -261,6 +262,34 @@ HC_CACHE = {
     "backtest_summary": {},
     "is_scanning": False
 }
+
+# ── US Market Universe (S&P 500 / Nasdaq top liquid names) ──────────────────
+US_UNIVERSE = [
+    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AVGO", "BRK-B", "JPM",
+    "LLY", "V", "UNH", "XOM", "MA", "JNJ", "PG", "HD", "COST", "ABBV",
+    "MRK", "CVX", "BAC", "NFLX", "CRM", "PEP", "KO", "WMT", "TMO", "ACN",
+    "CSCO", "MCD", "ABT", "TXN", "ORCL", "NKE", "LIN", "DHR", "ADBE", "PM",
+    "QCOM", "NEE", "AMD", "HON", "IBM", "CAT", "GE", "AMGN", "INTU", "AMAT",
+    "UBER", "SPOT", "PYPL", "SQ", "SHOP", "SNOW", "PLTR", "COIN", "ARM", "MELI",
+]
+
+US_BUY_CACHE = {
+    "last_updated": None,
+    "data": [],
+    "historical": [],
+    "backtest_summary": {},
+    "is_scanning": False
+}
+
+US_HC_CACHE = {
+    "last_updated": None,
+    "data": [],
+    "historical": [],
+    "backtest_summary": {},
+    "is_scanning": False
+}
+
+US_LEDGER_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "us_signals_ledger.json")
 
 # --- Initialize historical data on boot from the persistent ledger ---
 _startup_ledger = load_ledger()
@@ -714,8 +743,216 @@ def update_universe_cache():
 
     print(f"Background scan complete! Found {len(buys)} BUY signals | {len(hc_buys)} HIGH CONVICTION signals.")
 
-# Kick off initial scan on boot
+# Kick off initial NSE scan on boot
 threading.Thread(target=update_universe_cache, daemon=True).start()
+
+# ── US Market Ledger helpers ─────────────────────────────────────────────────
+
+def load_us_ledger():
+    ledger = {"US_BUYS": {}, "US_HIGH_CONVICTION": {}}
+    if os.path.exists(US_LEDGER_FILE):
+        with open(US_LEDGER_FILE, "r") as f:
+            ledger = json.load(f)
+    us_hist_map = {}
+    us_hc_hist_map = {}
+    for date_str, sigs in ledger.get("US_BUYS", {}).items():
+        us_hist_map[date_str] = []
+        for sym, s in sigs.items():
+            us_hist_map[date_str].append({
+                "symbol": sym, "action": "BUY",
+                "entry": s["entry"], "target": s["target"], "stoploss": s["stoploss"],
+                "confidence": round(s["confidence"] * 100 if s["confidence"] <= 1.0 else s["confidence"], 1),
+                "volume_ratio": s.get("volume_ratio", 1.0),
+                "sector": s.get("sector", "US Equities"),
+                "status": "SYNCING", "close": s["entry"], "atr": s.get("atr", 0),
+            })
+    for date_str, sigs in ledger.get("US_HIGH_CONVICTION", {}).items():
+        us_hc_hist_map[date_str] = []
+        for sym, s in sigs.items():
+            us_hc_hist_map[date_str].append({
+                "symbol": sym, "action": "STRONG BUY",
+                "entry": s["entry"], "target": s["target"], "stoploss": s["stoploss"],
+                "confidence": round(s["confidence"] * 100 if s["confidence"] <= 1.0 else s["confidence"], 1),
+                "volume_ratio": s.get("volume_ratio", 1.0),
+                "sector": s.get("sector", "US Equities"),
+                "status": "SYNCING", "close": s["entry"], "atr": s.get("atr", 0),
+            })
+    US_BUY_CACHE["historical"] = sorted([{"date": k, "signals": v} for k, v in us_hist_map.items()], key=lambda x: x["date"])
+    US_HC_CACHE["historical"] = sorted([{"date": k, "signals": v} for k, v in us_hc_hist_map.items()], key=lambda x: x["date"])
+    US_BUY_CACHE["backtest_summary"] = compute_hc_historical_stats(us_hist_map)
+    US_HC_CACHE["backtest_summary"] = compute_hc_historical_stats(us_hc_hist_map)
+    return ledger
+
+def save_us_ledger(ledger):
+    with open(US_LEDGER_FILE, "w") as f:
+        json.dump(ledger, f, indent=2)
+
+def update_us_cache():
+    if US_BUY_CACHE["is_scanning"]:
+        return
+    US_BUY_CACHE["is_scanning"] = True
+    print(f"Starting background scan of {len(US_UNIVERSE)} US stocks for BUY signals...")
+
+    from data_fetcher import fetch_daily_data, fetch_macro_data
+    from ml_model import add_features, create_labels, IntradayModel
+
+    buys = []
+    hc_buys = []
+    historical_map = {}
+    hc_historical_map = {}
+
+    try:
+        macro_df = fetch_macro_data(years=2)
+    except Exception:
+        macro_df = None
+
+    ledger = load_us_ledger()
+    needs_save = False
+    is_seed_run = (len(ledger["US_BUYS"]) == 0)
+    today_date_str = datetime.now().strftime("%Y-%m-%d")
+
+    for symbol in US_UNIVERSE:
+        try:
+            df = fetch_daily_data(symbol, years=2)
+            if df is None or len(df) < 100:
+                continue
+            df = add_features(df, macro_df)
+            if len(df) < 80: continue
+            df = create_labels(df)
+            if len(df) < 50: continue
+
+            model = IntradayModel()
+            model.train(df[:-60])
+
+            # Walk-forward for historical accuracy tracking
+            df['prob_up'] = model.predict_proba_walk_forward(df)
+
+            # In-sample prediction for the latest bar only (same as NSE)
+            df['prob_up'] = model.predict_proba(df)
+
+            latest = df.iloc[-1]
+            latest_close = float(latest['close'])
+            latest_date = df.index[-1]
+            latest_date_str = latest_date.strftime("%Y-%m-%d") if hasattr(latest_date, 'strftime') else str(latest_date)[:10]
+
+            adjusted_prob = float(latest['prob_up'])
+            vol_ratio = float(latest['volume_ratio'])
+            atr = float(latest['atr'])
+            sector = "US Equities"
+
+            # Seed or today signal — persist to ledger
+            if is_seed_run or latest_date_str == today_date_str:
+                if adjusted_prob > 0.55 and vol_ratio > 1.0:
+                    if latest_date_str not in ledger["US_BUYS"]:
+                        ledger["US_BUYS"][latest_date_str] = {}
+                    if symbol not in ledger["US_BUYS"][latest_date_str]:
+                        ledger["US_BUYS"][latest_date_str][symbol] = {
+                            "entry": round(latest_close, 2),
+                            "target": round(latest_close + 5.0 * atr, 2),
+                            "stoploss": round(latest_close - 2.0 * atr, 2),
+                            "confidence": round(adjusted_prob, 4),
+                            "volume_ratio": round(vol_ratio, 2),
+                            "atr": round(atr, 4),
+                            "sector": sector,
+                        }
+                        needs_save = True
+
+                    # HC gate: same strict thresholds as NSE HC
+                    if adjusted_prob >= 0.72 and vol_ratio >= 1.5 and atr / latest_close >= 0.015:
+                        if latest_date_str not in ledger["US_HIGH_CONVICTION"]:
+                            ledger["US_HIGH_CONVICTION"][latest_date_str] = {}
+                        if symbol not in ledger["US_HIGH_CONVICTION"][latest_date_str]:
+                            ledger["US_HIGH_CONVICTION"][latest_date_str][symbol] = {
+                                "entry": round(latest_close, 2),
+                                "target": round(latest_close + 5.0 * atr, 2),
+                                "stoploss": round(latest_close - 2.0 * atr, 2),
+                                "confidence": round(adjusted_prob, 4),
+                                "volume_ratio": round(vol_ratio, 2),
+                                "atr": round(atr, 4),
+                                "sector": sector,
+                            }
+                            needs_save = True
+
+            # Build frozen historical signals
+            for date_str, sigs in ledger["US_BUYS"].items():
+                if symbol in sigs:
+                    if date_str not in historical_map:
+                        historical_map[date_str] = []
+                    historical_map[date_str].append(build_signal_frozen(sigs[symbol], date_str, df, symbol, latest_close))
+
+            for date_str, sigs in ledger["US_HIGH_CONVICTION"].items():
+                if symbol in sigs:
+                    if date_str not in hc_historical_map:
+                        hc_historical_map[date_str] = []
+                    hc_historical_map[date_str].append(build_signal_frozen(sigs[symbol], date_str, df, symbol, latest_close))
+
+            # Live signal cards
+            if adjusted_prob > 0.55 and vol_ratio > 1.0:
+                entry = round(latest_close, 2)
+                atr_v = round(atr, 4)
+                buys.append({
+                    "symbol": symbol,
+                    "action": "BUY",
+                    "confidence": round(adjusted_prob * 100, 2),
+                    "entry": entry,
+                    "target": round(entry + 5.0 * atr, 2),
+                    "stoploss": round(entry - 2.0 * atr, 2),
+                    "volume_ratio": round(vol_ratio, 2),
+                    "atr": atr_v,
+                    "sector": sector,
+                    "close": latest_close,
+                })
+            if adjusted_prob >= 0.72 and vol_ratio >= 1.5 and atr / latest_close >= 0.015:
+                entry = round(latest_close, 2)
+                hc_buys.append({
+                    "symbol": symbol,
+                    "action": "STRONG BUY",
+                    "confidence": round(adjusted_prob * 100, 2),
+                    "entry": entry,
+                    "target": round(entry + 5.0 * atr, 2),
+                    "stoploss": round(entry - 2.0 * atr, 2),
+                    "volume_ratio": round(vol_ratio, 2),
+                    "atr": atr_v,
+                    "sector": sector,
+                    "close": latest_close,
+                })
+
+        except Exception as e:
+            print(f"US scan error for {symbol}: {e}")
+            continue
+
+    if needs_save:
+        save_us_ledger(ledger)
+
+    # Build sorted history lists
+    hist_list = []
+    for d in sorted(historical_map.keys()):
+        sigs = historical_map[d]
+        hist_list.append({"date": d, "count": len(sigs), "stocks": [s["symbol"] for s in sigs], "signals": sigs})
+
+    hc_hist_list = []
+    for d in sorted(hc_historical_map.keys()):
+        sigs = hc_historical_map[d]
+        hc_hist_list.append({"date": d, "count": len(sigs), "stocks": [s["symbol"] for s in sigs], "signals": sigs})
+
+    buys.sort(key=lambda x: x['confidence'], reverse=True)
+    hc_buys.sort(key=lambda x: x['confidence'], reverse=True)
+
+    US_BUY_CACHE["data"] = buys
+    US_BUY_CACHE["historical"] = hist_list
+    US_BUY_CACHE["backtest_summary"] = compute_hc_historical_stats(historical_map)
+    US_BUY_CACHE["last_updated"] = datetime.now().isoformat()
+    US_BUY_CACHE["is_scanning"] = False
+
+    US_HC_CACHE["data"] = hc_buys
+    US_HC_CACHE["historical"] = hc_hist_list
+    US_HC_CACHE["backtest_summary"] = compute_hc_historical_stats(hc_historical_map)
+    US_HC_CACHE["last_updated"] = datetime.now().isoformat()
+
+    print(f"US scan complete! {len(buys)} BUY | {len(hc_buys)} HC signals.")
+
+# Kick off initial US scan on boot
+threading.Thread(target=update_us_cache, daemon=True).start()
 
 def get_stocks_from_sheet():
     try:
@@ -750,6 +987,9 @@ def scheduled_scan():
 
 scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Kolkata'))
 scheduler.add_job(scheduled_scan, 'cron', day_of_week='mon-fri', hour=9, minute=15)
+# US market open: 9:30 AM ET = 19:00 IST
+scheduler.add_job(lambda: threading.Thread(target=update_us_cache, daemon=True).start(),
+                  'cron', day_of_week='mon-fri', hour=19, minute=0)
 scheduler.start()
 
 # Pre-warm caches with ledger data so UI loads instantly (no scan wait required)
@@ -758,6 +998,12 @@ try:
     print(f"Boot cache loaded: HC={len(HC_CACHE['historical'])} days, NSE={len(GLOBAL_BUY_CACHE['historical'])} days from {LEDGER_FILE}")
 except Exception as _e:
     print(f"Boot cache load failed: {_e}")
+
+try:
+    load_us_ledger()
+    print(f"US boot cache loaded: HC={len(US_HC_CACHE['historical'])} days, Buys={len(US_BUY_CACHE['historical'])} days")
+except Exception as _e:
+    print(f"US boot cache load failed: {_e}")
 
 @app.get("/api/health")
 def health_check():
@@ -787,6 +1033,143 @@ def high_conviction_buys() -> Dict[str, Any]:
         "data": HC_CACHE["data"],
         "historical": HC_CACHE["historical"],
         "backtest_summary": HC_CACHE["backtest_summary"]
+    }
+
+@app.get("/api/us_buys")
+def us_buys() -> Dict[str, Any]:
+    return {
+        "status": "success",
+        "last_updated": US_BUY_CACHE["last_updated"],
+        "is_scanning": US_BUY_CACHE["is_scanning"],
+        "market_bullish": True,
+        "data": US_BUY_CACHE["data"],
+        "historical": US_BUY_CACHE["historical"],
+        "backtest_summary": US_BUY_CACHE["backtest_summary"],
+    }
+
+@app.get("/api/us_high_conviction")
+def us_high_conviction() -> Dict[str, Any]:
+    return {
+        "status": "success",
+        "last_updated": US_HC_CACHE["last_updated"],
+        "is_scanning": US_BUY_CACHE["is_scanning"],
+        "market_bullish": True,
+        "data": US_HC_CACHE["data"],
+        "historical": US_HC_CACHE["historical"],
+        "backtest_summary": US_HC_CACHE["backtest_summary"],
+    }
+
+@app.post("/api/us_refresh", dependencies=[Depends(get_api_key)])
+def us_refresh():
+    if not US_BUY_CACHE["is_scanning"]:
+        threading.Thread(target=update_us_cache, daemon=True).start()
+    return {"status": "success", "is_scanning": True}
+
+@app.get("/api/stock_detail_us/{symbol}")
+async def stock_detail_us(symbol: str):
+    import yfinance as yf
+    import numpy as np
+
+    ticker = yf.Ticker(symbol.upper())
+
+    fi = {}
+    try:
+        fast = ticker.fast_info
+        fi = {
+            "market_cap":    getattr(fast, "market_cap", None),
+            "current_price": getattr(fast, "last_price", None),
+            "week_52_high":  getattr(fast, "year_high", None),
+            "week_52_low":   getattr(fast, "year_low", None),
+        }
+    except Exception:
+        pass
+
+    yi = {}
+    try:
+        yi = ticker.info or {}
+    except Exception:
+        pass
+
+    def safe(key, default=None):
+        val = yi.get(key)
+        if val is None or (isinstance(val, float) and val != val):
+            return default
+        return val
+
+    market_cap = fi.get("market_cap") or safe("marketCap")
+    if market_cap:
+        if market_cap >= 1e12:   market_cap_str = f"${market_cap/1e12:.2f}T"
+        elif market_cap >= 1e9:  market_cap_str = f"${market_cap/1e9:.2f}B"
+        else:                    market_cap_str = f"${market_cap/1e6:.2f}M"
+    else:
+        market_cap_str = "N/A"
+
+    signal_logic = {}
+    try:
+        from data_fetcher import fetch_daily_data
+        from ml_model import add_features
+        df = fetch_daily_data(symbol.upper(), years=2)
+        if df is not None and not df.empty:
+            df = add_features(df)
+            if not df.empty:
+                last = df.iloc[-1]
+                def sv(col): return round(float(last[col]), 2) if col in last.index and not (last[col] != last[col]) else 0
+                signal_logic = {
+                    "rsi":          round(sv("rsi"), 1),
+                    "macd_hist":    round(sv("macd_hist"), 3),
+                    "adx":          round(sv("adx"), 1),
+                    "bb_pct":       round(sv("bb_pct"), 2),
+                    "volume_ratio": round(sv("volume_ratio"), 2),
+                    "above_ema20":  bool(last.get("above_ema20", 0)),
+                    "above_ema50":  bool(last.get("above_ema50", 0)),
+                    "pct_from_52w_high": round(float(last.get("pct_from_high", 0)) * 100, 1),
+                    "roc10":        round(sv("roc10"), 2),
+                    "stoch_k":      round(sv("stoch_k"), 1),
+                }
+    except Exception as e:
+        print(f"US signal logic error for {symbol}: {e}")
+
+    news_items = []
+    try:
+        raw_news = ticker.news or []
+        for n in raw_news[:6]:
+            content = n.get("content", {})
+            title  = content.get("title", "") if isinstance(content, dict) else n.get("title", "")
+            url2   = content.get("canonicalUrl", {}).get("url", "") if isinstance(content, dict) else n.get("link", "")
+            pub    = content.get("pubDate", "") if isinstance(content, dict) else n.get("providerPublishTime", "")
+            source = content.get("provider", {}).get("displayName", "") if isinstance(content, dict) else n.get("publisher", "")
+            if title:
+                news_items.append({"title": title, "url": url2, "published": str(pub), "source": source})
+    except Exception:
+        pass
+
+    roe = safe("returnOnEquity")
+    rev_growth = safe("revenueGrowth")
+    earn_growth = safe("earningsGrowth")
+    div_yield = safe("dividendYield")
+
+    return {
+        "symbol":          symbol.upper(),
+        "company_name":    safe("longName", symbol.upper()),
+        "sector":          safe("sector", "US Equities"),
+        "industry":        safe("industry", "N/A"),
+        "market_cap":      market_cap_str,
+        "current_price":   fi.get("current_price") or safe("currentPrice"),
+        "week_52_high":    fi.get("week_52_high") or safe("fiftyTwoWeekHigh"),
+        "week_52_low":     fi.get("week_52_low") or safe("fiftyTwoWeekLow"),
+        "pe_ratio":        safe("trailingPE"),
+        "pb_ratio":        safe("priceToBook"),
+        "roe":             round(roe * 100, 1) if roe else None,
+        "debt_to_equity":  safe("debtToEquity"),
+        "revenue_growth":  round(rev_growth * 100, 1) if rev_growth else None,
+        "earnings_growth": round(earn_growth * 100, 1) if earn_growth else None,
+        "dividend_yield":  round(div_yield * 100, 2) if div_yield else None,
+        "beta":            safe("beta"),
+        "analyst_rating":  (safe("recommendationKey") or "N/A").upper(),
+        "target_mean_price": safe("targetMeanPrice"),
+        "description":     safe("longBusinessSummary", "No description available."),
+        "signal_logic":    signal_logic,
+        "news":            news_items,
     }
 
 @app.post("/api/kill_switch", dependencies=[Depends(get_api_key)])
@@ -1302,32 +1685,164 @@ def load_ticker_cache():
         pass
     return []
 
+TICKER_YF_MAP = {
+    "NIFTY 50": "^NSEI",
+    "BANKNIFTY": "^NSEBANK",
+    "SENSEX": "^BSESN",
+    "RELIANCE": "RELIANCE.NS",
+    "TCS": "TCS.NS",
+    "HDFCBANK": "HDFCBANK.NS",
+    "ICICIBANK": "ICICIBANK.NS",
+    "INFY": "INFY.NS",
+    "SBIN": "SBIN.NS",
+    "ITC": "ITC.NS",
+    "LT": "LT.NS",
+    "KOTAKBANK": "KOTAKBANK.NS",
+    "BAJFINANCE": "BAJFINANCE.NS",
+}
+
+US_TICKER_YF_MAP = {
+    "AAPL": "AAPL",
+    "MSFT": "MSFT",
+    "NVDA": "NVDA",
+    "GOOGL": "GOOGL",
+    "META": "META",
+    "AMZN": "AMZN",
+    "TSLA": "TSLA",
+    "NFLX": "NFLX",
+    "QQQ": "QQQ",
+    "SPY": "SPY",
+    "NDX": "^NDX",
+}
+
+def fetch_ticker_data():
+    """Fetch live ticker data from yfinance for all TICKER_SYMBOLS."""
+    import yfinance as yf
+    results = []
+    for display_sym, yf_sym in TICKER_YF_MAP.items():
+        try:
+            ticker = yf.Ticker(yf_sym)
+            hist = ticker.history(period="5d", interval="1d")
+            hist = hist.dropna(subset=['Close'])
+            if len(hist) >= 1:
+                current = float(hist['Close'].iloc[-1])
+                prev = float(hist['Close'].iloc[-2]) if len(hist) >= 2 else current
+                chg_pct = ((current - prev) / prev * 100) if prev > 0 else 0
+                results.append({
+                    "sym": display_sym,
+                    "price": f"{current:,.2f}",
+                    "chg": f"{chg_pct:+.2f}%",
+                    "up": chg_pct >= 0
+                })
+            else:
+                results.append({"sym": display_sym, "price": "—", "chg": "—", "up": True})
+        except Exception as e:
+            print(f"Failed to fetch {display_sym}: {e}")
+            results.append({"sym": display_sym, "price": "—", "chg": "—", "up": True})
+    return results
+
+def fetch_us_ticker_data():
+    """Fetch live US ticker data from yfinance for US_TICKER_YF_MAP."""
+    import yfinance as yf
+    results = []
+    for display_sym, yf_sym in US_TICKER_YF_MAP.items():
+        try:
+            ticker = yf.Ticker(yf_sym)
+            hist = ticker.history(period="5d", interval="1d")
+            hist = hist.dropna(subset=['Close'])
+            if len(hist) >= 1:
+                current = float(hist['Close'].iloc[-1])
+                prev = float(hist['Close'].iloc[-2]) if len(hist) >= 2 else current
+                chg_pct = ((current - prev) / prev * 100) if prev > 0 else 0
+                results.append({
+                    "sym": display_sym,
+                    "price": f"${current:,.2f}",
+                    "chg": f"{chg_pct:+.2f}%",
+                    "up": chg_pct >= 0
+                })
+            else:
+                results.append({"sym": display_sym, "price": "$—", "chg": "—", "up": True})
+        except Exception as e:
+            print(f"Failed to fetch US ticker {display_sym}: {e}")
+            results.append({"sym": display_sym, "price": "$—", "chg": "—", "up": True})
+    return results
+
 @app.get("/api/market_ticker")
 async def market_ticker():
     """
-    Returns cached market data from the last daily scan.
-    Shows last fetched prices even on weekends/market holidays.
+    Returns market data for ticker banner.
+    Caches data for 1 hour to reduce API calls.
     """
-    cached = load_ticker_cache()
+    # Check cache - only refetch if cache is older than 1 hour or missing
+    cached_data = []
+    cache_fresh = False
+    try:
+        if os.path.exists(TICKER_FILE):
+            with open(TICKER_FILE, "r") as f:
+                cache = json.load(f)
+                cache_time = datetime.fromisoformat(cache.get("timestamp", "2000-01-01T00:00:00"))
+                age_seconds = (datetime.now() - cache_time).total_seconds()
+                if age_seconds < 3600:  # 1 hour cache
+                    cache_fresh = True
+                cached_data = cache.get("data", [])
+    except Exception:
+        pass
     
-    # If no cache, return fallback with — (will be populated after first scan)
-    if not cached:
-        return {
-            "status": "success", 
-            "data": [{"sym": s, "price": "—", "chg": "—", "up": True} for s in TICKER_SYMBOLS],
-            "cached": False
-        }
+    if cache_fresh and cached_data:
+        return {"status": "success", "data": cached_data, "cached": True, "timestamp": cache.get("timestamp")}
     
-    # Merge cached data with full symbol list (fill missing with —)
-    cached_map = {item["sym"]: item for item in cached}
-    results = []
-    for sym in TICKER_SYMBOLS:
-        if sym in cached_map:
-            results.append(cached_map[sym])
-        else:
-            results.append({"sym": sym, "price": "—", "chg": "—", "up": True})
-    
-    return {"status": "success", "data": results, "cached": True}
+    # Fetch fresh data
+    try:
+        results = fetch_ticker_data()
+        # Save to cache
+        os.makedirs(os.path.dirname(TICKER_FILE), exist_ok=True)
+        with open(TICKER_FILE, "w") as f:
+            json.dump({"timestamp": datetime.now().isoformat(), "data": results}, f)
+        return {"status": "success", "data": results, "cached": False, "timestamp": datetime.now().isoformat()}
+    except Exception as e:
+        # On error, fall back to stale cache if we have it
+        if cached_data:
+            return {"status": "success", "data": cached_data, "cached": True, "timestamp": cache.get("timestamp"), "error": str(e)}
+        return {"status": "error", "message": str(e), "data": []}
+
+
+@app.get("/api/us_market_ticker")
+async def us_market_ticker():
+    """
+    Returns US market data for ticker banner.
+    Caches data for 1 hour to reduce API calls.
+    """
+    # Check cache - only refetch if cache is older than 1 hour or missing
+    cached_data = []
+    cache_fresh = False
+    try:
+        if os.path.exists(US_TICKER_FILE):
+            with open(US_TICKER_FILE, "r") as f:
+                cache = json.load(f)
+                cache_time = datetime.fromisoformat(cache.get("timestamp", "2000-01-01T00:00:00"))
+                age_seconds = (datetime.now() - cache_time).total_seconds()
+                if age_seconds < 3600:  # 1 hour cache
+                    cache_fresh = True
+                cached_data = cache.get("data", [])
+    except Exception:
+        pass
+
+    if cache_fresh and cached_data:
+        return {"status": "success", "data": cached_data, "cached": True, "timestamp": cache.get("timestamp")}
+
+    # Fetch fresh data
+    try:
+        results = fetch_us_ticker_data()
+        # Save to cache
+        os.makedirs(os.path.dirname(US_TICKER_FILE), exist_ok=True)
+        with open(US_TICKER_FILE, "w") as f:
+            json.dump({"timestamp": datetime.now().isoformat(), "data": results}, f)
+        return {"status": "success", "data": results, "cached": False, "timestamp": datetime.now().isoformat()}
+    except Exception as e:
+        # On error, fall back to stale cache if we have it
+        if cached_data:
+            return {"status": "success", "data": cached_data, "cached": True, "timestamp": cache.get("timestamp"), "error": str(e)}
+        return {"status": "error", "message": str(e), "data": []}
 
 
 if __name__ == "__main__":

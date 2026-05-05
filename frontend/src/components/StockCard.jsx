@@ -34,6 +34,8 @@ export default function StockCard({
   onLogTrade,
   onDetail,
   rank,
+  isWatchlisted,
+  onToggleWatchlist,
 }) {
   const rrRatio = stock.entry && stock.target && stock.stoploss
     ? ((stock.target - stock.entry) / (stock.entry - stock.stoploss)).toFixed(1)
@@ -75,12 +77,35 @@ export default function StockCard({
         background: 'var(--bg-card-top)',
         padding: '20px 24px',
         color: 'var(--text-card-top)',
+        position: 'relative',
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <div style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600 }}>
             {stock.sector || 'Equities'} {rank !== undefined && `• #${rank}`}
           </div>
-          <StatusBadge status={stock.action || stock.status || 'BUY'} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <StatusBadge status={stock.action || stock.status || 'BUY'} />
+            {onToggleWatchlist && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleWatchlist(stock); }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '1rem',
+                  cursor: 'pointer',
+                  padding: '2px 4px',
+                  lineHeight: 1,
+                  opacity: isWatchlisted ? 1 : 0.45,
+                  transition: 'opacity 0.2s',
+                  color: isWatchlisted ? '#fbbf24' : '#94a3b8',
+                  filter: isWatchlisted ? 'drop-shadow(0 0 4px rgba(251,191,36,0.6))' : 'none',
+                }}
+                title={isWatchlisted ? 'Remove from watchlist' : 'Add to watchlist'}
+              >
+                {isWatchlisted ? '★' : '☆'}
+              </button>
+            )}
+          </div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-card-top)' }}>
@@ -177,7 +202,7 @@ export default function StockCard({
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: 8 }}>
                   <span>Trade Progress</span>
                   <span style={{ color: inProfit ? 'var(--up-color)' : 'var(--down-color)' }}>
-                    {stock.growth_pct >= 0 ? '+' : ''}{stock.growth_pct}%
+                    {stock.growth_pct != null ? `${stock.growth_pct >= 0 ? '+' : ''}${stock.growth_pct}%` : ''}
                   </span>
                 </div>
                 
@@ -241,13 +266,28 @@ export default function StockCard({
             )}
           </div>
           
-          <button style={{
-            background: 'transparent', border: '1px solid var(--border-subtle)',
-            color: 'var(--text-dim)', padding: '4px 12px', borderRadius: 99,
-            fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer'
-          }}>
-            Details ➔
-          </button>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            {onLogTrade && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); onLogTrade(stock, stock.entry); }}
+                style={{
+                  background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.35)',
+                  color: '#22c55e', padding: '4px 10px', borderRadius: 6,
+                  fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap'
+                }}
+                title="Log this trade"
+              >
+                + Log
+              </button>
+            )}
+            <button style={{
+              background: 'transparent', border: '1px solid var(--border-subtle)',
+              color: 'var(--text-dim)', padding: '4px 10px', borderRadius: 6,
+              fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer'
+            }}>
+              Details ➔
+            </button>
+          </div>
         </div>
 
       </div>

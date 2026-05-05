@@ -1,4 +1,4 @@
-export default function Sidebar({ market, setMarket, mbData, mbLoading, loadMultibagger, hcCount, nseCount, activeCount }) {
+export default function Sidebar({ market, setMarket, mbData, mbLoading, loadMultibagger, hcCount, nseCount, activeCount, watchlistCount = 0 }) {
 
   const NAV_ITEMS = [
     {
@@ -8,16 +8,16 @@ export default function Sidebar({ market, setMarket, mbData, mbLoading, loadMult
         { id: 'NSE_BUYS',      label: 'All NSE Buys',     icon: '🚀', badge: nseCount > 0 ? String(nseCount) : null },
         { id: 'ACTIVE_SIGNALS',label: 'Active Signals',   icon: '📡', badge: activeCount > 0 ? String(activeCount) : null },
         { id: 'MULTIBAGGER',   label: 'Multibagger',      icon: '🏆', badge: 'New', isNew: true },
-        { id: 'IN',            label: 'India Full Grid',  icon: '🇮🇳' },
-        { id: 'US',            label: 'USA Full Grid',    icon: '🇺🇸' },
       ],
     },
     {
       group: 'TOOLS',
       items: [
         { id: 'ADAPTIVE',       label: 'Model Performance', icon: '📊' },
-        { id: 'BUDGET',         label: 'My Watchlist',      icon: '⭐' },
-        { id: 'PORTFOLIO',      label: 'Signal History',    icon: '📜' },
+        { id: 'WATCHLIST',     label: 'My Watchlist',     icon: '⭐', badge: watchlistCount > 0 ? watchlistCount : null },
+        { id: 'PORTFOLIO',      label: 'My Portfolio',     icon: '💼' },
+        { id: 'BUDGET',         label: 'Budget Planner',   icon: '🧮' },
+        { id: 'SIGNAL_HISTORY', label: 'Signal History',    icon: '📜' },
         { id: 'SETTINGS',       label: 'Settings',          icon: '⚙️' },
       ],
     },

@@ -19,6 +19,20 @@ const DEFAULT_TICKERS = [
   { sym: 'BAJFINANCE', price: '—', chg: '—', up: true },
 ];
 
+const US_DEFAULT_TICKERS = [
+  { sym: 'AAPL', price: '$—', chg: '—', up: true },
+  { sym: 'MSFT', price: '$—', chg: '—', up: true },
+  { sym: 'NVDA', price: '$—', chg: '—', up: true },
+  { sym: 'GOOGL', price: '$—', chg: '—', up: true },
+  { sym: 'META', price: '$—', chg: '—', up: true },
+  { sym: 'AMZN', price: '$—', chg: '—', up: true },
+  { sym: 'TSLA', price: '$—', chg: '—', up: true },
+  { sym: 'NFLX', price: '$—', chg: '—', up: true },
+  { sym: 'QQQ', price: '$—', chg: '—', up: true },
+  { sym: 'SPY', price: '$—', chg: '—', up: true },
+  { sym: 'NDX', price: '$—', chg: '—', up: true },
+];
+
 /* ── Floating Particle ────────────────────────────────────── */
 function Particle({ text, left, delay, speed, up, isDark }) {
   const color = up 
@@ -49,7 +63,7 @@ export default function LoginPage({ onLogin }) {
   const [isDark, setIsDark] = useState(true);
   const [pointer, setPointer] = useState({ x: 52, y: 34 });
   const [particles, setParticles] = useState([]);
-  const [tickers, setTickers] = useState(DEFAULT_TICKERS);
+  const [tickers, setTickers] = useState(isDark ? US_DEFAULT_TICKERS : DEFAULT_TICKERS);
   const pidRef = useRef(0);
 
   /* Set dark mode initially */
@@ -71,7 +85,8 @@ export default function LoginPage({ onLogin }) {
   useEffect(() => {
     async function fetchTicker() {
       try {
-        const res = await fetch('/api/market_ticker');
+        const endpoint = isDark ? '/api/us_market_ticker' : '/api/market_ticker';
+        const res = await fetch(endpoint);
         if (res.ok) {
           const data = await res.json();
           if (data.status === 'success' && data.data?.length > 0) {
@@ -83,8 +98,8 @@ export default function LoginPage({ onLogin }) {
       }
     }
     fetchTicker();
-    // No polling - data comes from daily scan cache
-  }, []);
+    // Re-fetch when theme changes
+  }, [isDark]);
 
   /* Spawn particles */
   useEffect(() => {

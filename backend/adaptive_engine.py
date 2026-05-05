@@ -166,6 +166,17 @@ class OutcomeTracker:
                         snap            = FeatureSnapshotStore.get(date_str, symbol)
                         snap_features   = snap.get("features", {})
                         regime_at_entry = snap.get("regime", current_regime)
+
+                        # Fallback: if no snapshot was saved (pre-dates this feature),
+                        # at least populate confidence + volume_ratio from the ledger record
+                        if not snap_features:
+                            snap_features = {
+                                "confidence":   round(data["confidence"] * 100, 2) if data["confidence"] <= 1.0 else data["confidence"],
+                                "volume_ratio": data.get("volume_ratio", None),
+                                "rsi":          None,
+                                "macd_hist":    None,
+                                "adx":          None,
+                            }
                         
                         # Determine signal type: check if this symbol+date is also in HIGH_CONVICTION
                         hc_ledger = ledger.get("HIGH_CONVICTION", {})
