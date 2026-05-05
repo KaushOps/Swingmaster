@@ -1,6 +1,6 @@
 # TradeFlex — AI-Powered Swing Trading Platform
 
-**Version:** v5.1 | **Release Date:** May 2026  
+**Version:** v5.3 | **Release Date:** May 2026  
 **Repository:** [KaushOps/Swingmaster](https://github.com/KaushOps/Swingmaster)  
 **Deployment:** Oracle Cloud VM (Docker) — `129.159.226.235`
 
@@ -16,10 +16,11 @@
 6. [Multibagger Engine](#multibagger-engine)
 7. [Dashboard Tabs Explained](#dashboard-tabs-explained)
 8. [How to Use Signals](#how-to-use-signals)
-9. [Recent Changes (v5.1)](#recent-changes-v51)
-10. [Recent Changes (v5.0)](#recent-changes-v50)
-11. [Deployment Guide](#deployment-guide)
-12. [Technical Stack](#technical-stack)
+9. [Recent Changes (v5.3)](#recent-changes-v53)
+10. [Recent Changes (v5.1)](#recent-changes-v51)
+11. [Recent Changes (v5.0)](#recent-changes-v50)
+12. [Deployment Guide](#deployment-guide)
+13. [Technical Stack](#technical-stack)
 
 ---
 
@@ -408,6 +409,22 @@ The **ENTRY** price on a card = previous day's closing price. It is not a strict
 1. **High Conviction** signals first — these pass the most gates
 2. **All NSE Buys** second — when HC is empty or for diversification
 3. **Multibagger** — longer-term positions (weeks to months hold)
+
+---
+
+## Recent Changes (v5.3)
+
+### Historical P&L — Qty-Based Position Sizing (NSE / HC)
+- **Default changed to 1 qty per signal** — P&L now reflects buying exactly 1 share per signal, matching how Indian equity trading actually works (NSE does not support fractional shares)
+- **Previous behaviour removed:** the old `floor(₹10,000 / entry_price)` formula auto-maximised position size and inflated historical P&L unrealistically (e.g. RELIANCE at ₹1,463 was assigned 6 shares instead of 1)
+- **Qty input** added to the HistoryPanel toolbar (NSE and HC tabs) — green `Qty:` field, default 1, increase to scale P&L proportionally
+- **Max ₹ gate** — affordability filter now checks `1 qty × entry ≤ max ₹` only; changing qty no longer hides/shows signals (a stock is either affordable at 1 share or it isn't)
+- **Budget Planner** updated with a dedicated `Qty Per Trade` input and renamed `₹/Trade` to `Max ₹ Per Trade (gate)` for clarity
+- Both `qtyPerTrade` and `amountPerTrade` persist across page refreshes via `localStorage`
+
+### US Stocks — P&L Mode Preserved for Future
+- US HistoryPanels retain the `floor(amount / entry)` formula — correct for USD markets where fractional shares and dollar-amount orders are standard practice
+- NSE and US P&L modes are now architecturally separate, ready for full US historical P&L implementation
 
 ---
 

@@ -329,12 +329,14 @@ function SearchBar({ onSelect }) {
 /* ─────────────────────────────────────────────────────────────────────────
    BUDGET PLANNER (logic unchanged)
 ───────────────────────────────────────────────────────────────────────── */
-function BudgetPlanner({ data, hcData, budgetCapital, setBudgetCapital, amountPerTrade, setAmountPerTrade, logTrade, setSelectedDetail }) {
+function BudgetPlanner({ data, hcData, budgetCapital, setBudgetCapital, amountPerTrade, setAmountPerTrade, qtyPerTrade, setQtyPerTrade, logTrade, setSelectedDetail }) {
   const [localBudget, setLocalBudget] = useState(budgetCapital);
   const [localAlloc, setLocalAlloc]   = useState(amountPerTrade);
+  const [localQty, setLocalQty]       = useState(qtyPerTrade || 1);
 
   useEffect(() => { setLocalBudget(budgetCapital); }, [budgetCapital]);
   useEffect(() => { setLocalAlloc(amountPerTrade); }, [amountPerTrade]);
+  useEffect(() => { setLocalQty(qtyPerTrade || 1); }, [qtyPerTrade]);
 
   const allSignals = useMemo(() => [
     ...data.map(s => ({ ...s, tier: s.action === 'STRONG BUY' ? 'HC' : 'NSE' })),
@@ -351,7 +353,7 @@ function BudgetPlanner({ data, hcData, budgetCapital, setBudgetCapital, amountPe
   const budgetSignals = useMemo(() => deduped
     .filter(s => s.entry > 0 && s.entry <= amountPerTrade)
     .map(s => {
-      const qty = Math.floor(amountPerTrade / s.entry);
+      const qty = qtyPerTrade;
       const capitalUsed = qty * s.entry;
       let score = 0;
       if (s.confidence >= 72) score += 25; else if (s.confidence >= 60) score += 15; else if (s.confidence >= 55) score += 8;
@@ -363,7 +365,7 @@ function BudgetPlanner({ data, hcData, budgetCapital, setBudgetCapital, amountPe
       return { ...s, qty, capitalUsed, canAfford: true, score };
     })
     .sort((a, b) => b.score - a.score)
-  , [deduped, amountPerTrade]);
+  , [deduped, amountPerTrade, qtyPerTrade]);
 
   const tier1    = budgetSignals.filter(s => s.score >= 80);
   const tier2    = budgetSignals.filter(s => s.score >= 65 && s.score < 80);
@@ -393,7 +395,7 @@ function BudgetPlanner({ data, hcData, budgetCapital, setBudgetCapital, amountPe
       </div>
 
       <div style={{ background:'rgba(52,211,153,0.06)', border:'1px solid #34d39922', borderRadius:'10px', padding:'12px', marginBottom:'12px' }}>
-        <div style={{ fontSize:'0.72rem', color:'#6ee7b7', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'8px', fontWeight:'600' }}>📐 Position Sizing (Flat ₹{amountPerTrade})</div>
+        <div style={{ fontSize:'0.72rem', color:'#6ee7b7', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'8px', fontWeight:'600' }}>📐 Position Sizing ({qtyPerTrade} qty × entry ≤ ₹{amountPerTrade.toLocaleString('en-IN')})</div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
           <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Entry Price</div><div style={{ fontWeight:'bold', color:'#e2e8f0' }}>₹{s.entry.toFixed(2)}</div></div>
           <div><div style={{ fontSize:'0.7rem', color:'#64748b' }}>Suggested Qty</div><div style={{ fontWeight:'bold', color:'#34d399', fontSize:'1.1rem' }}>{s.qty} shares</div></div>
@@ -433,7 +435,14 @@ function BudgetPlanner({ data, hcData, budgetCapital, setBudgetCapital, amountPe
             </div>
           </div>
           <div>
-            <label style={{ fontSize:'0.8rem', color:'#6ee7b7', display:'block', marginBottom:'6px' }}>Amount Per Trade (₹)</label>
+            <label style={{ fontSize:'0.8rem', color:'#6ee7b7', display:'block', marginBottom:'6px' }}>Qty Per Trade (shares)</label>
+            <div style={{ display:'flex', gap:'8px' }}>
+              <input type="number" min="1" value={localQty} onChange={e => setLocalQty(Math.max(1, Number(e.target.value)))} onKeyDown={e => { if(e.key==='Enter') setQtyPerTrade(localQty) }} style={{ flex:1, padding:'10px 14px', background:'var(--bg-base)', border:'1px solid #059669', borderRadius:'8px', color:'#f8fafc', fontSize:'1rem', boxSizing:'border-box', outline:'none' }} />
+              <button onClick={() => setQtyPerTrade(localQty)} style={{ padding:'0 15px', background:'rgba(52,211,153,0.15)', color:'#34d399', border:'1px solid #34d39944', borderRadius:'8px', cursor:'pointer', fontWeight:'bold' }}>Apply</button>
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize:'0.8rem', color:'#6ee7b7', display:'block', marginBottom:'6px' }}>Max ₹ Per Trade (gate)</label>
             <div style={{ display:'flex', gap:'8px' }}>
               <input type="number" value={localAlloc} onChange={e => setLocalAlloc(Number(e.target.value))} onKeyDown={e => { if(e.key==='Enter') setAmountPerTrade(localAlloc) }} style={{ flex:1, padding:'10px 14px', background:'var(--bg-base)', border:'1px solid #059669', borderRadius:'8px', color:'#f8fafc', fontSize:'1rem', boxSizing:'border-box', outline:'none' }} />
               <button onClick={() => setAmountPerTrade(localAlloc)} style={{ padding:'0 15px', background:'rgba(52,211,153,0.15)', color:'#34d399', border:'1px solid #34d39944', borderRadius:'8px', cursor:'pointer', fontWeight:'bold' }}>Apply</button>
@@ -442,7 +451,8 @@ function BudgetPlanner({ data, hcData, budgetCapital, setBudgetCapital, amountPe
           <div style={{ display:'flex', flexDirection:'column', justifyContent:'flex-end' }}>
             <div style={{ background:'rgba(52,211,153,0.08)', border:'1px solid #34d39933', borderRadius:'10px', padding:'10px 14px' }}>
               <div style={{ fontSize:'0.72rem', color:'#6ee7b7', marginBottom:'2px' }}>Max Trade Slots</div>
-              <div style={{ fontSize:'1.4rem', fontWeight:'bold', color:'#34d399' }}>{Math.floor(budgetCapital / amountPerTrade)}</div>
+              <div style={{ fontSize:'1.4rem', fontWeight:'bold', color:'#34d399' }}>{budgetSignals.length > 0 ? Math.floor(budgetCapital / (budgetSignals.reduce((s,x) => s + x.capitalUsed, 0) / budgetSignals.length)) : '—'}</div>
+              <div style={{ fontSize:'0.65rem', color:'#64748b' }}>by avg cost ({qtyPerTrade} qty)</div>
             </div>
           </div>
         </div>
@@ -510,12 +520,14 @@ function BudgetPlanner({ data, hcData, budgetCapital, setBudgetCapital, amountPe
 /* ─────────────────────────────────────────────────────────────────────────
    HISTORY PANEL (logic unchanged)
 ───────────────────────────────────────────────────────────────────────── */
-function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accentColor, bannerTheme, TooltipComponent, onLogTrade, onDetail, amountPerTrade, setAmountPerTrade }) {
+function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accentColor, bannerTheme, TooltipComponent, onLogTrade, onDetail, amountPerTrade, setAmountPerTrade, qtyPerTrade, setQtyPerTrade, isNSE }) {
   const [selectedMonth, setSelectedMonth] = useState('All');
   const [groupBy, setGroupBy] = useState('DATE');
   const [localAlloc, setLocalAlloc] = useState(amountPerTrade);
+  const [localQty, setLocalQty]     = useState(qtyPerTrade || 1);
 
   useEffect(() => { setLocalAlloc(amountPerTrade); }, [amountPerTrade]);
+  useEffect(() => { setLocalQty(qtyPerTrade || 1); }, [qtyPerTrade]);
 
   const months = [...new Set(histData.map(d => d.date.substring(0, 7)))].sort().reverse();
 
@@ -538,22 +550,28 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
       result = histData.filter(d => d.date.startsWith(selectedMonth)).reverse();
     }
     return result.map(item => {
-      // Only filter by amount if user has set a trade amount (> 1000)
-      const effectiveAmount = (amountPerTrade && amountPerTrade > 1000) ? amountPerTrade : Infinity;
-      const affordableSignals = (item.signals || []).filter(s => s.entry <= effectiveAmount);
+      const affordableSignals = (item.signals || []).filter(s => {
+        if (!s.entry || s.entry <= 0) return false;
+        if (isNSE) return s.entry <= amountPerTrade;
+        const effectiveAmount = (amountPerTrade && amountPerTrade > 1000) ? amountPerTrade : Infinity;
+        return s.entry <= effectiveAmount;
+      });
       return { ...item, count: affordableSignals.length, signals: affordableSignals, stocks: affordableSignals.map(s => s.symbol) };
     });
-  }, [histData, selectedMonth, groupBy]);
+  }, [histData, selectedMonth, groupBy, amountPerTrade, qtyPerTrade, isNSE]);
 
   const stockData = useMemo(() => {
     if (groupBy !== 'STOCK') return [];
     let d = selectedMonth === 'All' ? histData : histData.filter(h => h.date.startsWith(selectedMonth));
-    // Only filter by amount if user has set a trade amount (> 1000)
-    const effectiveAmount = (amountPerTrade && amountPerTrade > 1000) ? amountPerTrade : Infinity;
     const counts = {};
     d.forEach(day => {
       (day.signals || [])
-        .filter(s => s.entry <= effectiveAmount)
+        .filter(s => {
+          if (!s.entry || s.entry <= 0) return false;
+          if (isNSE) return s.entry <= amountPerTrade;
+          const effectiveAmount = (amountPerTrade && amountPerTrade > 1000) ? amountPerTrade : Infinity;
+          return s.entry <= effectiveAmount;
+        })
         .forEach(s => {
           if (!counts[s.symbol]) counts[s.symbol] = { symbol: s.symbol, tp: 0, sl: 0, active: 0, total: 0 };
           counts[s.symbol].total++;
@@ -563,7 +581,7 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
         });
     });
     return Object.values(counts).sort((a,b) => b.total - a.total).slice(0, 40);
-  }, [histData, selectedMonth, groupBy, amountPerTrade]);
+  }, [histData, selectedMonth, groupBy, amountPerTrade, qtyPerTrade, isNSE]);
 
   const activeDataForStats = useMemo(() => selectedMonth === 'All' ? histData : histData.filter(d => d.date.startsWith(selectedMonth)), [histData, selectedMonth]);
 
@@ -586,13 +604,18 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
   const allSignalsInMonth = activeDataForStats
     .slice() // sort chronologically so dedup logic sees signals in order
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-    .flatMap(day => (day.signals || []).filter(s => s.entry > 0 && s.entry <= safeAlloc));
+    .flatMap(day => (day.signals || []).filter(s => {
+      if (!s.entry || s.entry <= 0) return false;
+      if (isNSE) return s.entry <= amountPerTrade;
+      return s.entry <= safeAlloc;
+    }));
   const affordableSignalsInMonth = deduplicateBySymbol(allSignalsInMonth);
   const monthlySignals = affordableSignalsInMonth.length;
-  const monthlyCost    = affordableSignalsInMonth.reduce((sum, stock) => { const qty = Math.floor(safeAlloc / stock.entry); return sum + (qty * stock.entry); }, 0);
+  const getQty = (stock) => isNSE ? (qtyPerTrade || 1) : Math.floor(safeAlloc / stock.entry);
+  const monthlyCost    = affordableSignalsInMonth.reduce((sum, stock) => sum + (getQty(stock) * stock.entry), 0);
   const monthlyPnL     = affordableSignalsInMonth.reduce((sum, stock) => {
-    const qty = Math.floor(safeAlloc / stock.entry);
-    if (stock.status === 'TARGET HIT') return sum + ((stock.target - stock.entry) * qty);
+    const qty = getQty(stock);
+    if (stock.status === 'TARGET HIT') return sum + ((stock.target   - stock.entry) * qty);
     if (stock.status === 'SL HIT')     return sum + ((stock.stoploss - stock.entry) * qty);
     return sum;
   }, 0);
@@ -674,9 +697,16 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
                   onSelect(null);
                 }
               }} style={{ padding:'3px 8px', borderRadius:'6px', background:'var(--bg-base)', color:'var(--text-bright)', border:`1px solid ${accentColor}44`, outline:'none', cursor:'pointer', colorScheme:'dark', fontFamily:'inherit' }} />
-              <div style={{ fontSize:'0.85rem', color:'var(--text-bright)', display:'flex', gap:'15px', flexWrap:'wrap', alignItems:'center' }}>
+              <div style={{ fontSize:'0.85rem', color:'var(--text-bright)', display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'center' }}>
+                {isNSE && (
+                  <div style={{ display:'flex', alignItems:'center', gap:'6px', background:'rgba(52,211,153,0.06)', padding:'4px 10px', borderRadius:'8px', border:'1px solid rgba(52,211,153,0.2)' }}>
+                    <span style={{ color:'#94a3b8', fontSize:'0.75rem' }}>Qty:</span>
+                    <input type="number" min="1" value={localQty} onChange={e => setLocalQty(Math.max(1, Number(e.target.value)))} onKeyDown={e => { if(e.key==='Enter') setQtyPerTrade(localQty) }} style={{ width:'44px', background:'transparent', border:'none', color:'#34d399', fontWeight:'bold', fontSize:'0.85rem', outline:'none' }} />
+                    <button onClick={() => setQtyPerTrade(localQty)} style={{ background:'rgba(52,211,153,0.2)', border:'none', color:'#34d399', padding:'2px 6px', borderRadius:'4px', fontSize:'0.7rem', cursor:'pointer', fontWeight:'bold' }}>Apply</button>
+                  </div>
+                )}
                 <div style={{ display:'flex', alignItems:'center', gap:'6px', background:'rgba(56,189,248,0.06)', padding:'4px 10px', borderRadius:'8px', border:'1px solid rgba(56,189,248,0.15)' }}>
-                  <span style={{ color:'#94a3b8', fontSize:'0.75rem' }}>₹/Trade:</span>
+                  <span style={{ color:'#94a3b8', fontSize:'0.75rem' }}>{isNSE ? 'Max ₹:' : '₹/Trade:'}</span>
                   <input type="number" value={localAlloc} onChange={e => setLocalAlloc(Number(e.target.value))} onKeyDown={e => { if(e.key==='Enter') setAmountPerTrade(localAlloc) }} style={{ width:'70px', background:'transparent', border:'none', color:'#38bdf8', fontWeight:'bold', fontSize:'0.85rem', outline:'none' }} />
                   <button onClick={() => setAmountPerTrade(localAlloc)} style={{ background:'rgba(56,189,248,0.2)', border:'none', color:'#38bdf8', padding:'2px 6px', borderRadius:'4px', fontSize:'0.7rem', cursor:'pointer', fontWeight:'bold' }}>Apply</button>
                 </div>
@@ -896,12 +926,17 @@ function MainApp({ onLogout }) {
   const [niftyBullish, setNiftyBullish]         = useState(null)
   const [universeScanAt, setUniverseScanAt]     = useState('')
   const [budgetCapital, setBudgetCapital]       = useState(30000)
-  const [amountPerTrade, setAmountPerTrade]     = useState(10000)
+  const [amountPerTrade, setAmountPerTrade]     = useState(() => Number(localStorage.getItem('swing_amount')) || 10000)
+  const [qtyPerTrade, setQtyPerTrade]           = useState(() => Number(localStorage.getItem('swing_qty'))    || 1)
   const [budgetRiskPct, setBudgetRiskPct]       = useState(2)
   const [theme, setTheme]                       = useState(() => localStorage.getItem('swing_theme') || 'light')
   const [adaptiveStatus, setAdaptiveStatus]     = useState(null)
   const [postmortems, setPostmortems]           = useState([])
   const [activeFilter, setActiveFilter]         = useState('ALL') // 'NSE', 'HC', or 'ALL'
+
+  // Persist amount + qty to localStorage
+  useEffect(() => { localStorage.setItem('swing_amount', amountPerTrade); }, [amountPerTrade]);
+  useEffect(() => { localStorage.setItem('swing_qty',    qtyPerTrade);    }, [qtyPerTrade]);
 
   // Theme application
   useEffect(() => {
@@ -1161,6 +1196,9 @@ function MainApp({ onLogout }) {
                   onDetail={setSelectedDetail}
                   amountPerTrade={amountPerTrade}
                   setAmountPerTrade={setAmountPerTrade}
+                  qtyPerTrade={qtyPerTrade}
+                  setQtyPerTrade={setQtyPerTrade}
+                  isNSE={true}
                 />
                 {!selectedHcDate && (
                   <div className="grid">
@@ -1200,6 +1238,9 @@ function MainApp({ onLogout }) {
                   onDetail={setSelectedDetail}
                   amountPerTrade={amountPerTrade}
                   setAmountPerTrade={setAmountPerTrade}
+                  qtyPerTrade={qtyPerTrade}
+                  setQtyPerTrade={setQtyPerTrade}
+                  isNSE={true}
                 />
                 {!selectedHistDate && (
                   <div className="grid">
@@ -1440,6 +1481,8 @@ function MainApp({ onLogout }) {
                 setBudgetCapital={setBudgetCapital}
                 amountPerTrade={amountPerTrade}
                 setAmountPerTrade={setAmountPerTrade}
+                qtyPerTrade={qtyPerTrade}
+                setQtyPerTrade={setQtyPerTrade}
                 logTrade={logTrade}
                 setSelectedDetail={setSelectedDetail}
               />
