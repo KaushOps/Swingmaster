@@ -232,7 +232,7 @@ export default function LoginPage({ onLogin }) {
       {/* Theme Toggle */}
       <button 
         onClick={() => setIsDark(!isDark)} 
-        className="fixed top-6 right-6 z-50 rounded-full p-3 bg-white/50 dark:bg-black/50 border border-black/10 dark:border-white/10 backdrop-blur-md transition-all hover:scale-110 cursor-pointer"
+        className="fixed top-4 right-4 sm:top-6 sm:right-6 z-50 rounded-full p-2.5 sm:p-3 bg-white/50 dark:bg-black/50 border border-black/10 dark:border-white/10 backdrop-blur-md transition-all hover:scale-110 cursor-pointer"
       >
         {isDark ? (
           <svg className="w-5 h-5 text-yellow-500 block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
@@ -246,10 +246,10 @@ export default function LoginPage({ onLogin }) {
       <div className="fixed inset-0 mesh opacity-95 z-0" />
       <div className="fixed inset-0 grain mix-blend-soft-light z-0" />
       
-      {/* Floating Orbs */}
-      <div className="fixed -left-28 top-[-8rem] h-[30rem] w-[30rem] rounded-full bg-[#db4a2b]/35 dark:bg-[#6366f1]/25 blur-3xl animate-float-slow z-0 transition-colors duration-500" />
-      <div className="fixed right-[-10rem] top-[8%] h-[26rem] w-[26rem] rounded-full bg-[#f8a348]/35 dark:bg-[#4ade80]/15 blur-3xl animate-float-medium z-0 transition-colors duration-500" />
-      <div className="fixed bottom-[-8rem] left-[20%] h-[22rem] w-[22rem] rounded-full bg-[#8d5738]/20 dark:bg-[#818cf8]/20 blur-3xl animate-drift z-0 transition-colors duration-500" />
+      {/* Floating Orbs — smaller on mobile */}
+      <div className="fixed -left-16 top-[-4rem] sm:-left-28 sm:top-[-8rem] h-[18rem] w-[18rem] sm:h-[30rem] sm:w-[30rem] rounded-full bg-[#db4a2b]/25 sm:bg-[#db4a2b]/35 dark:bg-[#6366f1]/20 sm:dark:bg-[#6366f1]/25 blur-3xl animate-float-slow z-0 transition-colors duration-500" />
+      <div className="fixed right-[-6rem] top-[4%] sm:right-[-10rem] sm:top-[8%] h-[16rem] w-[16rem] sm:h-[26rem] sm:w-[26rem] rounded-full bg-[#f8a348]/25 sm:bg-[#f8a348]/35 dark:bg-[#4ade80]/10 sm:dark:bg-[#4ade80]/15 blur-3xl animate-float-medium z-0 transition-colors duration-500" />
+      <div className="fixed bottom-[-4rem] left-[20%] sm:bottom-[-8rem] h-[14rem] w-[14rem] sm:h-[22rem] sm:w-[22rem] rounded-full bg-[#8d5738]/15 sm:bg-[#8d5738]/20 dark:bg-[#818cf8]/15 sm:dark:bg-[#818cf8]/20 blur-3xl animate-drift z-0 transition-colors duration-500" />
       
       {/* Accent Lines */}
       <div className="fixed inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-black/10 dark:via-white/70 to-transparent z-0 transition-colors duration-500" />
@@ -260,35 +260,35 @@ export default function LoginPage({ onLogin }) {
         {particles.map(p => <Particle key={p.id} {...p} isDark={isDark} />)}
       </div>
 
-      <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl items-center px-4 sm:px-6 py-6 sm:py-10 lg:px-12 pb-24">
-        <div className="grid w-full gap-8 lg:gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+      <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl items-center px-4 sm:px-6 py-4 sm:py-10 lg:px-12 pb-28">
+        <div className="grid w-full gap-6 sm:gap-8 lg:gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
           
-          {/* Left Side */}
+          {/* Left Side — compact on mobile, full on desktop */}
           <section className="max-w-2xl animate-rise text-center lg:text-left">
             <div className="flex items-center justify-center lg:justify-start gap-3 sm:gap-4">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-[12px] sm:rounded-[14px] overflow-hidden shadow-lg border border-black/10 dark:border-white/10 bg-white dark:bg-[#111] transition-colors duration-500">
+              <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-[10px] sm:rounded-[14px] overflow-hidden shadow-lg border border-black/10 dark:border-white/10 bg-white dark:bg-[#111] transition-colors duration-500">
                 <img src="/logo.png" alt="TradeFlex Logo" className="w-full h-full object-cover" />
               </div>
-              <div className="text-lg sm:text-2xl font-bold tracking-tight flex items-center bg-black dark:bg-[#111] px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl shadow-inner border border-black/10 dark:border-white/5 transition-colors duration-500">
+              <div className="text-base sm:text-2xl font-bold tracking-tight flex items-center bg-black dark:bg-[#111] px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl shadow-inner border border-black/10 dark:border-white/5 transition-colors duration-500">
                  <span className="text-[#E6CFB3]">Trade</span><span className="text-[#F37B03]">Flex</span><span className="text-[#FEC104]">.in</span>
               </div>
             </div>
             
-            <h1 className="mt-6 sm:mt-10 text-4xl sm:text-5xl md:text-6xl font-bold leading-[0.92] sm:leading-[0.88] tracking-[-0.04em] text-[#1d140f] dark:text-[#E6CFB3] transition-colors duration-500">
+            <h1 className="mt-4 sm:mt-10 text-3xl sm:text-5xl md:text-6xl font-bold leading-[1.0] sm:leading-[0.88] tracking-[-0.04em] text-[#1d140f] dark:text-[#E6CFB3] transition-colors duration-500">
               Trading through a warmer lens.
             </h1>
-            <p className="mt-4 sm:mt-8 max-w-xl mx-auto lg:mx-0 text-base sm:text-lg leading-7 sm:leading-8 text-[#5c4b40] dark:text-[#E6CFB3] font-medium transition-colors duration-500">
+            <p className="mt-3 sm:mt-8 max-w-xl mx-auto lg:mx-0 text-sm sm:text-lg leading-6 sm:leading-8 text-[#5c4b40] dark:text-[#E6CFB3] font-medium transition-colors duration-500 hidden sm:block">
               A fluid, editorial interface for AI-powered swing trading. Precision analytics wrapped in an elegant, calming workspace.
             </p>
-            <p className="mt-4 sm:mt-8 max-w-lg mx-auto lg:mx-0 text-xs sm:text-sm uppercase tracking-[0.2em] sm:tracking-[0.28em] text-[#8b6f60] dark:text-[#E6CFB3] font-bold transition-colors duration-500">
+            <p className="mt-2 sm:mt-8 max-w-lg mx-auto lg:mx-0 text-[10px] sm:text-sm uppercase tracking-[0.18em] sm:tracking-[0.28em] text-[#8b6f60] dark:text-[#E6CFB3] font-bold transition-colors duration-500">
               Calm motion. Quiet contrast. Immediate focus.
             </p>
           </section>
 
           {/* Right Side (Card) */}
           <section className="relative lg:justify-self-end w-full max-w-sm sm:max-w-md mx-auto lg:mx-0">
-            <div className="absolute -inset-4 sm:-inset-8 rounded-[2rem] sm:rounded-[2.75rem] bg-white/30 dark:bg-black/40 blur-3xl transition-colors duration-500" />
-            <div className="relative overflow-hidden rounded-[1.5rem] sm:rounded-[2.25rem] border border-white/60 dark:border-white/10 bg-[rgba(255,250,244,0.65)] dark:bg-[rgba(17,17,17,0.82)] p-6 sm:p-8 lg:p-10 shadow-[0_30px_120px_rgba(56,30,14,0.18)] dark:shadow-[0_32px_80px_rgba(0,0,0,0.7)] backdrop-blur-3xl animate-rise [animation-delay:140ms] transition-colors duration-500">
+            <div className="absolute -inset-3 sm:-inset-8 rounded-[2rem] sm:rounded-[2.75rem] bg-white/30 dark:bg-black/40 blur-3xl transition-colors duration-500" />
+            <div className="relative overflow-hidden rounded-[1.25rem] sm:rounded-[2.25rem] border border-white/60 dark:border-white/10 bg-[rgba(255,250,244,0.65)] dark:bg-[rgba(17,17,17,0.82)] p-5 sm:p-8 lg:p-10 shadow-[0_20px_80px_rgba(56,30,14,0.18)] dark:shadow-[0_32px_80px_rgba(0,0,0,0.7)] backdrop-blur-3xl animate-rise [animation-delay:140ms] transition-colors duration-500">
               
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -381,10 +381,10 @@ export default function LoginPage({ onLogin }) {
       </main>
 
       {/* Ticker Strip — Live Market Data */}
-      <div className="fixed bottom-0 left-0 right-0 py-3 bg-white/40 dark:bg-black/60 border-t border-black/5 dark:border-white/5 backdrop-blur-md overflow-hidden z-20 transition-colors duration-500">
+      <div className="fixed bottom-0 left-0 right-0 py-2 sm:py-3 bg-white/40 dark:bg-black/60 border-t border-black/5 dark:border-white/5 backdrop-blur-md overflow-hidden z-20 transition-colors duration-500">
         <div className="flex whitespace-nowrap animate-[tf-ticker_40s_linear_infinite]">
           {[...tickers, ...tickers, ...tickers].map((t, i) => (
-            <div key={i} className="inline-flex items-center gap-3 px-8 text-sm font-bold border-r border-black/5 dark:border-white/10">
+            <div key={i} className="inline-flex items-center gap-2 sm:gap-3 px-5 sm:px-8 text-xs sm:text-sm font-bold border-r border-black/5 dark:border-white/10">
               <span className="tracking-widest text-black/50 dark:text-white/40 transition-colors duration-500">{t.sym}</span>
               <span className="text-[#1d140f] dark:text-white transition-colors duration-500">{t.price}</span>
               <span className={t.up ? "text-[#059669] dark:text-[#4ade80]" : "text-[#dc2626] dark:text-[#f87171]"}>{t.chg}</span>

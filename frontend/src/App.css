@@ -206,49 +206,237 @@
   color: var(--text-dim);
 }
 
-/* ── Responsive ─────────────────────── */
+/* ══════════════════════════════════════════════════════════════════
+   TOP NAVIGATION — desktop + mobile classes
+══════════════════════════════════════════════════════════════════ */
+.topnav-header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--topbar-h);
+  background: var(--bg-header);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 12px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Brand */
+.topnav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  width: var(--sidebar-w);
+}
+
+.topnav-logo-wrap {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 0 12px rgba(243,123,3,0.25);
+  flex-shrink: 0;
+}
+
+.topnav-wordmark {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.topnav-version {
+  background: #6366f1;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 10px;
+  line-height: 1.4;
+}
+
+/* Search */
+.topnav-search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* Actions */
+.topnav-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.topnav-icon-btn {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.1);
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  color: var(--text-header);
+  font-size: 1rem;
+  transition: background 0.2s, transform 0.15s;
+}
+.topnav-icon-btn:hover { background: rgba(255,255,255,0.14); transform: scale(1.05); }
+
+.topnav-bell { color: #fbbf24; }
+
+.topnav-logout {
+  background: rgba(239,68,68,0.1) !important;
+  border-color: rgba(239,68,68,0.2) !important;
+  color: #f87171 !important;
+}
+
+/* Updated pill */
+.topnav-updated-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(16,185,129,0.1);
+  border: 1px solid rgba(16,185,129,0.25);
+  padding: 5px 11px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+.topnav-updated-pill span {
+  font-size: 0.72rem;
+  color: #10b981;
+  font-weight: 600;
+}
+
+.topnav-live-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+  animation: pulse-dot-anim 2s infinite;
+  flex-shrink: 0;
+}
+
+/* Mobile dot — hidden on desktop */
+.topnav-live-dot-mobile {
+  display: none;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: pulse-dot-anim 2s infinite;
+  flex-shrink: 0;
+  cursor: default;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   RESPONSIVE — Mobile (≤ 768px)
+══════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
   :root { --sidebar-w: 0px; }
+
+  /* ── Main content ── */
   .main-content {
     margin-left: 0;
-    padding: calc(var(--topbar-h) + 18px) 16px 88px;
+    padding: calc(var(--topbar-h) + 16px) 14px 90px;
   }
-  .grid { grid-template-columns: 1fr; gap: 16px; }
-  .hide-on-mobile { display: none; }
-  
+  .grid { grid-template-columns: 1fr; gap: 14px; }
+  .hide-on-mobile { display: none !important; }
+
+  /* ── Top nav ── */
+  .topnav-header {
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  /* Logo only — hide wordmark */
+  .topnav-brand {
+    width: auto;
+    gap: 0;
+  }
+  .topnav-wordmark { display: none; }
+  .topnav-logo-wrap { width: 34px; height: 34px; }
+
+  /* Search fills remaining space */
+  .topnav-search { flex: 1; min-width: 0; }
+  .search-wrap { width: 100%; }
+  .search-input { font-size: 0.82rem; padding: 7px 12px 7px 34px; }
+
+  /* Actions — tighter */
+  .topnav-actions { gap: 6px; }
+  .topnav-icon-btn { width: 32px; height: 32px; font-size: 0.9rem; }
+
+  /* Hide full updated pill, show dot only */
+  .topnav-updated-pill { display: none; }
+  .topnav-live-dot-mobile { display: block; }
+
+  /* ── Bottom nav (sidebar → tab bar) ── */
   .sidebar-aside {
     top: auto !important;
     bottom: 0 !important;
     left: 0 !important;
     right: 0 !important;
     width: 100% !important;
-    height: 70px !important;
+    height: 72px !important;
     border-right: none !important;
-    border-top: 1px solid var(--border-subtle) !important;
+    border-top: 1px solid rgba(255,255,255,0.08) !important;
+    background: var(--bg-header) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
     flex-direction: row !important;
     z-index: 9999 !important;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.3) !important;
   }
+
   .sidebar-nav {
     flex-direction: row !important;
-    padding: 8px !important;
-    gap: 8px !important;
+    padding: 6px 8px !important;
+    gap: 4px !important;
     overflow-x: auto !important;
-    align-items: center !important;
+    align-items: stretch !important;
+    scrollbar-width: none;
   }
+  .sidebar-nav::-webkit-scrollbar { display: none; }
+
   .sidebar-group-title { display: none !important; }
+
   .sidebar-items-wrap {
     flex-direction: row !important;
-    gap: 8px !important;
+    gap: 4px !important;
     height: 100%;
+    align-items: stretch;
   }
+
   .sidebar-item-btn {
     flex-direction: column !important;
     justify-content: center !important;
-    gap: 2px !important;
-    padding: 6px 12px !important;
-    border-radius: 12px !important;
+    align-items: center !important;
+    gap: 3px !important;
+    padding: 6px 10px !important;
+    border-radius: 14px !important;
+    min-width: 56px !important;
+    height: 100% !important;
+    transition: background 0.15s, transform 0.15s !important;
   }
-  .sidebar-item-icon { font-size: 1.2rem !important; }
-  .sidebar-item-label { font-size: 0.6rem !important; font-weight: 700 !important; }
+  .sidebar-item-btn:active { transform: scale(0.93) !important; }
+
+  .sidebar-item-icon {
+    font-size: 1.3rem !important;
+    line-height: 1 !important;
+  }
+
+  .sidebar-item-label {
+    font-size: 0.58rem !important;
+    font-weight: 700 !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    overflow: visible !important;
+    letter-spacing: 0.01em !important;
+  }
+
   .sidebar-item-badge { display: none !important; }
 }
