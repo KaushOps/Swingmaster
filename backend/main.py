@@ -149,11 +149,37 @@ def save_ledger(ledger):
     with open(LEDGER_FILE, "w") as f:
         json.dump(ledger, f, indent=2)
 
-def build_signal_frozen(frozen_sig, date_str, df, sym, latest_close):
+def build_signal_frozen(frozen_sig, date_str, df, sym, latest_close, ledger=None, ledger_section=None):
+    """Build a signal dict from the frozen ledger entry.
+    If the trade is already closed (status cached in ledger), use the cached
+    status to guarantee determinism across restarts. Otherwise compute it
+    from price data and cache the result back into the ledger."""
     entry_price = frozen_sig['entry']
     target = frozen_sig['target']
     stoploss = frozen_sig['stoploss']
-    
+
+    # ── Check for cached closed status first (determinism guarantee) ─────
+    cached_status = frozen_sig.get('_closed_status')
+    cached_days = frozen_sig.get('_days_in_trade', 0)
+    if cached_status and cached_status != "ACTIVE":
+        # Trade was already closed on a previous scan — reuse exact values
+        growth_pct = ((latest_close - entry_price) / entry_price) * 100
+        conf = frozen_sig['confidence']
+        display_conf = conf * 100 if conf <= 1.0 else conf
+        return {
+            "symbol": sym,
+            "entry": round(entry_price, 2),
+            "close": round(latest_close, 2),
+            "target": round(target, 2),
+            "stoploss": round(stoploss, 2),
+            "status": cached_status,
+            "growth_pct": round(growth_pct, 2),
+            "days_in_trade": int(cached_days),
+            "confidence": round(display_conf, 1),
+            "volume_ratio": round(frozen_sig['volume_ratio'], 2)
+        }
+
+    # ── Compute status from price data ────────────────────────────────────
     # Handle timezone-aware index for accurate slicing
     if df.index.tz is not None:
         import pandas as pd
@@ -176,7 +202,13 @@ def build_signal_frozen(frozen_sig, date_str, df, sym, latest_close):
                 status = "TARGET HIT"
                 days_in_trade = (f_date - future_df.index[0]).days
                 break
-                
+
+    # ── Cache closed status back into the ledger (write-once) ────────────
+    if status != "ACTIVE" and ledger is not None and ledger_section is not None:
+        if date_str in ledger.get(ledger_section, {}) and sym in ledger[ledger_section][date_str]:
+            ledger[ledger_section][date_str][sym]['_closed_status'] = status
+            ledger[ledger_section][date_str][sym]['_days_in_trade'] = int(days_in_trade)
+
     growth_pct = ((latest_close - entry_price) / entry_price) * 100
     
     # Handle confidence display based on if it's stored as >1.0 or <1.0
@@ -517,7 +549,10 @@ def update_universe_cache():
     
     ledger = load_ledger()
     needs_save = False
-    is_seed_run = (len(ledger["NSE_BUYS"]) == 0)
+    # DETERMINISM FIX: Never auto-backfill entire history on restart.
+    # Historical signals are frozen in the ledger. Only today's bar gets new signals.
+    # To do an initial seed, run seed_ledger.py as a one-time script.
+    is_seed_run = False
     today_date_str = datetime.now().strftime("%Y-%m-%d")
     
     for symbol in NSE_UNIVERSE:
@@ -531,8 +566,14 @@ def update_universe_cache():
             df = create_labels(df)
             if len(df) < 50: continue  # guard: create_labels with 60-day lookahead can shrink df heavily
             
-            model = IntradayModel()
-            model.train(df[:-60])
+            sym = symbol.replace(".NS", "")
+            
+            # DETERMINISM FIX: Reuse persisted model if available, only retrain if missing
+            model = IntradayModel.load(sym)
+            if model is None:
+                model = IntradayModel()
+                model.train(df[:-60])
+                model.save(sym)
             
             # Use out-of-sample prob_up for backtest and historical ledger entries
             df['prob_up_wf'] = model.predict_proba_walk_forward(df)
@@ -643,15 +684,16 @@ def update_universe_cache():
                         )
 
             # Populate maps for UI specifically from the immutable ledger
+            # Pass ledger reference so closed statuses get cached (write-once determinism)
             for date_str, sigs in ledger["NSE_BUYS"].items():
                 if sym in sigs:
                     if date_str not in historical_map: historical_map[date_str] = []
-                    historical_map[date_str].append(build_signal_frozen(sigs[sym], date_str, df, sym, latest_close))
+                    historical_map[date_str].append(build_signal_frozen(sigs[sym], date_str, df, sym, latest_close, ledger=ledger, ledger_section="NSE_BUYS"))
                     
             for date_str, sigs in ledger["HIGH_CONVICTION"].items():
                 if sym in sigs:
                     if date_str not in hc_historical_map: hc_historical_map[date_str] = []
-                    hc_historical_map[date_str].append(build_signal_frozen(sigs[sym], date_str, df, sym, latest_close))
+                    hc_historical_map[date_str].append(build_signal_frozen(sigs[sym], date_str, df, sym, latest_close, ledger=ledger, ledger_section="HIGH_CONVICTION"))
             
             # --- Extra gates for live signals: weekly trend + delivery % ---
             weekly_ok = is_weekly_bullish(symbol)
@@ -1787,23 +1829,33 @@ def fetch_ticker_data():
     for display_sym, yf_sym in TICKER_YF_MAP.items():
         try:
             ticker = yf.Ticker(yf_sym)
-            hist = ticker.history(period="5d", interval="1d")
+            # Use 2d period to ensure we get previous close for change calc
+            hist = ticker.history(period="2d", interval="1d")
             hist = hist.dropna(subset=['Close'])
-            if len(hist) >= 1:
+            if len(hist) >= 2:
                 current = float(hist['Close'].iloc[-1])
-                prev = float(hist['Close'].iloc[-2]) if len(hist) >= 2 else current
+                prev = float(hist['Close'].iloc[-2])
                 chg_pct = ((current - prev) / prev * 100) if prev > 0 else 0
                 results.append({
                     "sym": display_sym,
-                    "price": f"{current:,.2f}",
+                    "price": f"₹{current:,.2f}",
                     "chg": f"{chg_pct:+.2f}%",
                     "up": chg_pct >= 0
                 })
+            elif len(hist) == 1:
+                # Only current day available
+                current = float(hist['Close'].iloc[-1])
+                results.append({
+                    "sym": display_sym,
+                    "price": f"₹{current:,.2f}",
+                    "chg": "+0.00%",
+                    "up": True
+                })
             else:
-                results.append({"sym": display_sym, "price": "—", "chg": "—", "up": True})
+                results.append({"sym": display_sym, "price": "₹—", "chg": "—", "up": True})
         except Exception as e:
-            print(f"Failed to fetch {display_sym}: {e}")
-            results.append({"sym": display_sym, "price": "—", "chg": "—", "up": True})
+            print(f"[Ticker] Failed to fetch {display_sym}: {e}")
+            results.append({"sym": display_sym, "price": "₹—", "chg": "—", "up": True})
     return results
 
 def fetch_us_ticker_data():
@@ -1813,11 +1865,11 @@ def fetch_us_ticker_data():
     for display_sym, yf_sym in US_TICKER_YF_MAP.items():
         try:
             ticker = yf.Ticker(yf_sym)
-            hist = ticker.history(period="5d", interval="1d")
+            hist = ticker.history(period="2d", interval="1d")
             hist = hist.dropna(subset=['Close'])
-            if len(hist) >= 1:
+            if len(hist) >= 2:
                 current = float(hist['Close'].iloc[-1])
-                prev = float(hist['Close'].iloc[-2]) if len(hist) >= 2 else current
+                prev = float(hist['Close'].iloc[-2])
                 chg_pct = ((current - prev) / prev * 100) if prev > 0 else 0
                 results.append({
                     "sym": display_sym,
@@ -1825,10 +1877,18 @@ def fetch_us_ticker_data():
                     "chg": f"{chg_pct:+.2f}%",
                     "up": chg_pct >= 0
                 })
+            elif len(hist) == 1:
+                current = float(hist['Close'].iloc[-1])
+                results.append({
+                    "sym": display_sym,
+                    "price": f"${current:,.2f}",
+                    "chg": "+0.00%",
+                    "up": True
+                })
             else:
                 results.append({"sym": display_sym, "price": "$—", "chg": "—", "up": True})
         except Exception as e:
-            print(f"Failed to fetch US ticker {display_sym}: {e}")
+            print(f"[Ticker] Failed to fetch US ticker {display_sym}: {e}")
             results.append({"sym": display_sym, "price": "$—", "chg": "—", "up": True})
     return results
 
