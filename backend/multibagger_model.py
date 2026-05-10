@@ -181,6 +181,105 @@ def scan_multibaggers(
     return results[:top_n]
 
 
+def process_symbol_us(symbol: str, target_date: Optional[str] = None) -> Optional[Dict]:
+    """
+    Like process_symbol but for US stocks — uses bare ticker (no .NS suffix).
+    """
+    try:
+        years = 5 if target_date else 3
+        df = fetch_daily_data(symbol, years=years)
+        df = df.dropna(subset=['close', 'open', 'volume'])
+        if df.empty or len(df) < 120:
+            return None
+
+        forward_return = None
+
+        if target_date:
+            target_dt = pd.to_datetime(target_date).tz_localize(None)
+            df.index = df.index.tz_localize(None) if df.index.tz is not None else df.index
+            df_hist = df[df.index <= target_dt]
+            df_fwd  = df[df.index > target_dt]
+            if len(df_hist) < 120 or df_fwd.empty:
+                return None
+            entry_price = df_fwd.iloc[0]['open']
+            exit_price  = df_fwd.iloc[-1]['close']
+            forward_return = sanitize_float(round(((exit_price / entry_price) - 1) * 100, 1))
+            df = df_hist
+
+        metrics = calculate_multibagger_score(df)
+        min_score = 35 if target_date else 40
+        if not metrics or metrics["score"] < min_score:
+            return None
+
+        result = {
+            "symbol": symbol,
+            "current_price": sanitize_float(round(float(df.iloc[-1]['close']), 2)),
+            **metrics,
+        }
+        if forward_return is not None:
+            result["forward_return"] = forward_return
+        return result
+    except Exception:
+        return None
+
+
+def scan_multibaggers_us(
+    symbols: List[str],
+    target_date: Optional[str] = None,
+    max_workers: int = 20,
+    top_n: int = 20
+) -> List[Dict]:
+    """Scans US stock universe for multibagger footprints."""
+    results = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(process_symbol_us, sym, target_date): sym for sym in symbols}
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            if res:
+                results.append(res)
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return results[:top_n]
+
+
+def run_us_backtest_with_benchmark(
+    symbols: List[str],
+    target_date: str,
+    max_workers: int = 20,
+    top_n: int = 10
+) -> Dict:
+    """
+    US time-machine backtest: scores stocks as-of target_date,
+    picks top N, measures forward return, benchmarks against S&P 500.
+    """
+    picks = scan_multibaggers_us(symbols, target_date=target_date, max_workers=max_workers, top_n=top_n)
+
+    if not picks:
+        return {"picks": [], "avg_return": 0, "sp500_return": 0, "num_picks": 0}
+
+    valid_picks = [p for p in picks if "forward_return" in p]
+    avg_return  = round(sum(p["forward_return"] for p in valid_picks) / len(valid_picks), 1) if valid_picks else 0
+
+    sp500_return = 0.0
+    try:
+        sp_df = fetch_daily_data("^GSPC", years=5)
+        if not sp_df.empty:
+            target_dt = pd.to_datetime(target_date).tz_localize(None)
+            sp_df.index = sp_df.index.tz_localize(None) if sp_df.index.tz is not None else sp_df.index
+            sp_fwd = sp_df[sp_df.index > target_dt]
+            if not sp_fwd.empty:
+                sp500_return = round(((sp_fwd.iloc[-1]['close'] / sp_fwd.iloc[0]['open']) - 1) * 100, 1)
+    except Exception:
+        pass
+
+    return {
+        "picks": picks,
+        "avg_return": avg_return,
+        "sp500_return": sp500_return,
+        "target_date": target_date,
+        "num_picks": len(picks),
+    }
+
+
 def run_backtest_with_benchmark(
     symbols: List[str],
     target_date: str,

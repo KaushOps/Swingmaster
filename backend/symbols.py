@@ -1,3 +1,16 @@
+US_100 = [
+    "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA", "AVGO", "BRK-B", "JPM",
+    "LLY", "V", "UNH", "XOM", "MA", "JNJ", "PG", "COST", "HD", "ABBV",
+    "MRK", "BAC", "CVX", "NFLX", "CRM", "AMD", "KO", "PEP", "TMO", "ACN",
+    "ORCL", "ADBE", "WMT", "LIN", "MCD", "CSCO", "ABT", "QCOM", "TXN", "DHR",
+    "NEE", "NKE", "PM", "INTU", "SPGI", "AMGN", "GE", "RTX", "LOW", "AMAT",
+    "PANW", "KLAC", "LRCX", "NOW", "MRVL", "INTC", "MU", "PYPL", "REGN", "GILD",
+    "SBUX", "AXP", "BKNG", "ISRG", "VRTX", "SYK", "ADI", "PLD", "DE", "MMC",
+    "TJX", "MDLZ", "SNPS", "CDNS", "EOG", "USB", "WFC", "GS", "MS", "BLK",
+    "UBER", "ABNB", "SNOW", "COIN", "RBLX", "PLTR", "SHOP", "SQ", "ROKU", "ZM",
+    "SMCI", "ARM", "CRWD", "ZS", "DDOG", "NET", "OKTA", "MDB", "GTLB", "TTD",
+]
+
 NSE_200 = [
     "RELIANCE", "TCS", "HDFCBANK", "ICICIBANK", "BHARTIARTL", "INFY", "ITC", "SBI", "L&T", "BAJFINANCE",
     "HUL", "AXISBANK", "KOTAKBANK", "MARUTI", "SUNPHARMA", "NTPC", "TATASTEEL", "TITAN", "ULTRACEMCO", "POWERGRID",

@@ -4,6 +4,9 @@ import './App.css'
 import Sidebar from './components/Sidebar'
 import TopNavigation from './components/TopNavigation'
 import StockCard, { StatusBadge } from './components/StockCard'
+import USResearchPanel from './components/USResearchPanel'
+import USStockDeepDive from './components/USStockDeepDive'
+import USCongressPanel from './components/USCongressPanel'
 
 /* ─────────────────────────────────────────────────────────────────────────
    CHART TOOLTIPS (unchanged)
@@ -96,7 +99,7 @@ function NiftyRegimeBanner({ niftyBullish, scanAt }) {
 function StockDetailDrawer({ symbol, onClose, isUS = false }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
-  const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
+  const baseUrl = "";
   const cur = isUS ? '$' : '₹';
 
   useEffect(() => {
@@ -288,7 +291,7 @@ function SearchBar({ onSelect }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
+  const baseUrl = "";
 
   useEffect(() => {
     if (query.trim().length < 2) { setResults([]); return; }
@@ -525,6 +528,8 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
   const [groupBy, setGroupBy] = useState('DATE');
   const [localAlloc, setLocalAlloc] = useState(amountPerTrade);
   const [localQty, setLocalQty]     = useState(qtyPerTrade || 1);
+  const [usQtyOverride, setUsQtyOverride] = useState(null);
+  const [localUsQty, setLocalUsQty]       = useState('');
 
   useEffect(() => { setLocalAlloc(amountPerTrade); }, [amountPerTrade]);
   useEffect(() => { setLocalQty(qtyPerTrade || 1); }, [qtyPerTrade]);
@@ -611,7 +616,7 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
     }));
   const affordableSignalsInMonth = deduplicateBySymbol(allSignalsInMonth);
   const monthlySignals = affordableSignalsInMonth.length;
-  const getQty = (stock) => isNSE ? (qtyPerTrade || 1) : Math.floor(safeAlloc / stock.entry);
+  const getQty = (stock) => isNSE ? (qtyPerTrade || 1) : (usQtyOverride ? usQtyOverride : Math.floor(safeAlloc / stock.entry));
   const monthlyCost    = affordableSignalsInMonth.reduce((sum, stock) => sum + (getQty(stock) * stock.entry), 0);
   const monthlyPnL     = affordableSignalsInMonth.reduce((sum, stock) => {
     const qty = getQty(stock);
@@ -698,21 +703,28 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
                 }
               }} style={{ padding:'3px 8px', borderRadius:'6px', background:'var(--bg-base)', color:'var(--text-bright)', border:`1px solid ${accentColor}44`, outline:'none', cursor:'pointer', colorScheme:'dark', fontFamily:'inherit' }} />
               <div style={{ fontSize:'0.85rem', color:'var(--text-bright)', display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'center' }}>
-                {isNSE && (
+                {isNSE ? (
                   <div style={{ display:'flex', alignItems:'center', gap:'6px', background:'rgba(52,211,153,0.06)', padding:'4px 10px', borderRadius:'8px', border:'1px solid rgba(52,211,153,0.2)' }}>
                     <span style={{ color:'#94a3b8', fontSize:'0.75rem' }}>Qty:</span>
                     <input type="number" min="1" value={localQty} onChange={e => setLocalQty(Math.max(1, Number(e.target.value)))} onKeyDown={e => { if(e.key==='Enter') setQtyPerTrade(localQty) }} style={{ width:'44px', background:'transparent', border:'none', color:'#34d399', fontWeight:'bold', fontSize:'0.85rem', outline:'none' }} />
                     <button onClick={() => setQtyPerTrade(localQty)} style={{ background:'rgba(52,211,153,0.2)', border:'none', color:'#34d399', padding:'2px 6px', borderRadius:'4px', fontSize:'0.7rem', cursor:'pointer', fontWeight:'bold' }}>Apply</button>
                   </div>
+                ) : (
+                  <div style={{ display:'flex', alignItems:'center', gap:'6px', background:'rgba(52,211,153,0.06)', padding:'4px 10px', borderRadius:'8px', border:'1px solid rgba(52,211,153,0.2)' }}>
+                    <span style={{ color:'#94a3b8', fontSize:'0.75rem' }}>Qty:</span>
+                    <input type="number" min="1" placeholder="auto" value={localUsQty} onChange={e => setLocalUsQty(e.target.value)} onKeyDown={e => { if(e.key==='Enter') { const v = parseInt(localUsQty); setUsQtyOverride(v > 0 ? v : null); }}} style={{ width:'44px', background:'transparent', border:'none', color:'#34d399', fontWeight:'bold', fontSize:'0.85rem', outline:'none' }} />
+                    <button onClick={() => { const v = parseInt(localUsQty); setUsQtyOverride(v > 0 ? v : null); }} style={{ background:'rgba(52,211,153,0.2)', border:'none', color:'#34d399', padding:'2px 6px', borderRadius:'4px', fontSize:'0.7rem', cursor:'pointer', fontWeight:'bold' }}>Apply</button>
+                    {usQtyOverride && <button onClick={() => { setUsQtyOverride(null); setLocalUsQty(''); }} style={{ background:'transparent', border:'none', color:'#64748b', padding:'2px 4px', fontSize:'0.7rem', cursor:'pointer' }}>auto</button>}
+                  </div>
                 )}
                 <div style={{ display:'flex', alignItems:'center', gap:'6px', background:'rgba(56,189,248,0.06)', padding:'4px 10px', borderRadius:'8px', border:'1px solid rgba(56,189,248,0.15)' }}>
-                  <span style={{ color:'#94a3b8', fontSize:'0.75rem' }}>{isNSE ? 'Max ₹:' : '₹/Trade:'}</span>
+                  <span style={{ color:'#94a3b8', fontSize:'0.75rem' }}>{isNSE ? 'Max ₹:' : 'Max $:'}</span>
                   <input type="number" value={localAlloc} onChange={e => setLocalAlloc(Number(e.target.value))} onKeyDown={e => { if(e.key==='Enter') setAmountPerTrade(localAlloc) }} style={{ width:'70px', background:'transparent', border:'none', color:'#38bdf8', fontWeight:'bold', fontSize:'0.85rem', outline:'none' }} />
                   <button onClick={() => setAmountPerTrade(localAlloc)} style={{ background:'rgba(56,189,248,0.2)', border:'none', color:'#38bdf8', padding:'2px 6px', borderRadius:'4px', fontSize:'0.7rem', cursor:'pointer', fontWeight:'bold' }}>Apply</button>
                 </div>
                 <span>Signals: <strong style={{color:accentColor}}>{monthlySignals}</strong></span>
-                <span>Cost: <strong style={{color:accentColor}}>₹{monthlyCost.toLocaleString('en-IN')}</strong></span>
-                <span>Est. P&L: <strong style={{color: monthlyPnL >= 0 ? '#4ade80' : '#f87171'}}>{monthlyPnL > 0 ? '+' : ''}₹{monthlyPnL.toLocaleString('en-IN', {minimumFractionDigits:0, maximumFractionDigits:0})}</strong></span>
+                <span>Cost: <strong style={{color:accentColor}}>{isNSE ? '₹' : '$'}{isNSE ? monthlyCost.toLocaleString('en-IN') : monthlyCost.toLocaleString('en-US')}</strong></span>
+                <span>Est. P&L: <strong style={{color: monthlyPnL >= 0 ? '#4ade80' : '#f87171'}}>{monthlyPnL > 0 ? '+' : ''}{isNSE ? '₹' : '$'}{isNSE ? monthlyPnL.toLocaleString('en-IN', {minimumFractionDigits:0, maximumFractionDigits:0}) : monthlyPnL.toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0})}</strong></span>
               </div>
               <span style={{ fontSize:'0.85rem', color:accentColor }}>← Scroll → • Click bar</span>
             </div>
@@ -829,13 +841,18 @@ function HistoryPanel({ histData, stats, selectedDate, onSelect, onClose, accent
           </div>
           <div className="grid">
             {(selectedDate.signals || [])
-              .filter(stock => stock.entry <= amountPerTrade)
+              .filter(stock => {
+                if (!stock.entry || stock.entry <= 0) return false;
+                if (isNSE) return stock.entry <= amountPerTrade;
+                const gate = (amountPerTrade && amountPerTrade > 1000) ? amountPerTrade : Infinity;
+                return stock.entry <= gate;
+              })
               .map((stock, i) => (
                 <StockCard
                   key={`${stock.symbol}-${i}`}
                   stock={{ ...stock, action: stock.status }}
                   variant="nse"
-                  currency="₹"
+                  currency={isNSE ? '₹' : '$'}
                   showBacktest={false}
                   onLogTrade={onLogTrade}
                   onDetail={onDetail}
@@ -884,6 +901,51 @@ function getSectorIcon(sectorName) {
   return '📁';
 }
 
+const INDEX_META = {
+  'S&P 500':    '📈',
+  'NASDAQ':     '💻',
+  'Dow Jones':  '🏦',
+  'Russell 2K': '📊',
+  'VIX':        '⚡',
+};
+
+function USIndexBar() {
+  const [indexes, setIndexes] = useState([]);
+  useEffect(() => {
+    fetch('/api/us_market_ticker')
+      .then(r => r.json())
+      .then(res => {
+        if (res.status === 'success') {
+          const idxNames = Object.keys(INDEX_META);
+          setIndexes((res.data || []).filter(d => idxNames.includes(d.sym)));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const pills = indexes.length > 0
+    ? indexes
+    : Object.keys(INDEX_META).map(sym => ({ sym, price: '—', chg: '—', up: true }));
+
+  return (
+    <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', overflowX: 'auto', paddingBottom: '4px' }} className="hide-on-mobile">
+      {pills.map(idx => (
+        <div key={idx.sym} style={{
+          padding: '6px 14px', borderRadius: 99, border: '1px solid var(--border-subtle)',
+          background: 'var(--bg-elevated)', color: 'var(--text-main)',
+          fontWeight: 600, fontSize: '0.82rem', whiteSpace: 'nowrap',
+          display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0,
+        }}>
+          <span>{INDEX_META[idx.sym]}</span>
+          <span>{idx.sym}</span>
+          <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>{idx.price}</span>
+          <span style={{ color: idx.up ? 'var(--up-color)' : 'var(--down-color)', fontWeight: 700 }}>{idx.chg}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function MainApp({ onLogout }) {
   const [data, setData]                         = useState([])
   const [historicalData, setHistoricalData]     = useState([])
@@ -927,12 +989,20 @@ function MainApp({ onLogout }) {
   const [universeScanAt, setUniverseScanAt]     = useState('')
   const [budgetCapital, setBudgetCapital]       = useState(30000)
   const [amountPerTrade, setAmountPerTrade]     = useState(() => Number(localStorage.getItem('swing_amount')) || 10000)
+  const [usAmountPerTrade, setUsAmountPerTrade] = useState(() => Number(localStorage.getItem('us_swing_amount')) || 5000)
   const [qtyPerTrade, setQtyPerTrade]           = useState(() => Number(localStorage.getItem('swing_qty'))    || 1)
   const [budgetRiskPct, setBudgetRiskPct]       = useState(2)
   const [theme, setTheme]                       = useState(() => localStorage.getItem('swing_theme') || 'light')
   const [adaptiveStatus, setAdaptiveStatus]     = useState(null)
   const [postmortems, setPostmortems]           = useState([])
   const [activeFilter, setActiveFilter]         = useState('ALL') // 'NSE', 'HC', or 'ALL'
+  const [usResearchTicker, setUsResearchTicker] = useState(null)
+  const [usMbData, setUsMbData]               = useState([])
+  const [usMbBacktest, setUsMbBacktest]       = useState(null)
+  const [usMbView, setUsMbView]               = useState('live')
+  const [usMbYearsAgo, setUsMbYearsAgo]       = useState(1)
+  const [usMbLoading, setUsMbLoading]         = useState(false)
+  const [usMbLastUpdated, setUsMbLastUpdated] = useState(null)
 
   // Persist amount + qty to localStorage
   useEffect(() => { localStorage.setItem('swing_amount', amountPerTrade); }, [amountPerTrade]);
@@ -950,14 +1020,22 @@ function MainApp({ onLogout }) {
 
   // Adaptive status
   useEffect(() => {
-    const baseUrl = import.meta.env.PROD ? '' : 'http://localhost:8000';
+    const baseUrl = '';
     fetch(`${baseUrl}/api/adaptive_status`).then(r => r.json()).then(setAdaptiveStatus).catch(console.error);
     fetch(`${baseUrl}/api/postmortems`).then(r => r.json()).then(res => { if (res.status === 'success') setPostmortems(res.data || []); }).catch(console.error);
   }, []);
 
+  const loadUsMb = useCallback((refresh = false) => {
+    setUsMbLoading(true);
+    fetch(`/api/us_multibagger/live${refresh ? '?refresh=true' : ''}`)
+      .then(r => r.json())
+      .then(res => { if (res.status === 'success') { setUsMbData(res.data || []); if (res.timestamp) setUsMbLastUpdated(res.timestamp); } setUsMbLoading(false); })
+      .catch(() => setUsMbLoading(false));
+  }, []);
+
   const loadMultibagger = useCallback((refresh = false) => {
     setMbLoading(true); setMbRemoteScanning(false);
-    const baseUrl = import.meta.env.PROD ? '' : 'http://localhost:8000';
+    const baseUrl = '';
     fetch(`${baseUrl}/api/multibagger/live${refresh ? '?refresh=true' : ''}`)
       .then(r => r.json())
       .then(res => {
@@ -973,7 +1051,11 @@ function MainApp({ onLogout }) {
   }, [loadMultibagger]);
 
   useEffect(() => {
-    const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
+    loadUsMb(false);
+  }, [loadUsMb]);
+
+  useEffect(() => {
+    const baseUrl = "";
     fetch(`${baseUrl}/api/trending_sectors`).then(r => r.json()).then(res => { if (res.status === 'success') setTrendingSectors(res.data || []) }).catch(console.error);
   }, []);
 
@@ -1004,7 +1086,7 @@ function MainApp({ onLogout }) {
 
   const loadSectorInsight = (sector) => {
     setSectorInsight({ sector, loading: true, data: null, error: null });
-    const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
+    const baseUrl = "";
     fetch(`${baseUrl}/api/sector_leader?sector=${encodeURIComponent(sector)}`)
       .then(r => r.json())
       .then(res => { if (res.status === 'success') setSectorInsight({ sector, loading: false, data: res.leader, error: null }); else setSectorInsight({ sector, loading: false, data: null, error: res.message }); })
@@ -1015,7 +1097,7 @@ function MainApp({ onLogout }) {
   useEffect(() => {
     if (market === 'BUDGET') {
       setLoading(false);
-      const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
+      const baseUrl = "";
       if (hcData.length === 0) {
         fetch(`${baseUrl}/api/high_conviction`).then(r => r.json()).then(result => {
           setHcData(result.data || []);
@@ -1036,11 +1118,11 @@ function MainApp({ onLogout }) {
       }
       return;
     }
-    if (market === 'ACTIVE_SIGNALS' || market === 'PORTFOLIO' || market === 'MULTIBAGGER' || market === 'ADAPTIVE') { setLoading(false); return; }
+    if (market === 'ACTIVE_SIGNALS' || market === 'PORTFOLIO' || market === 'MULTIBAGGER' || market === 'ADAPTIVE' || market === 'US_RESEARCH' || market === 'US_MULTIBAGGER' || market === 'US_CONGRESS') { setLoading(false); return; }
 
     if (market === 'US_BUYS' || market === 'US_HC') {
       setLoading(false);
-      const baseUrl = import.meta.env.PROD ? '' : 'http://localhost:8000';
+      const baseUrl = '';
       if (market === 'US_BUYS' && usStats === null) {
         setLoading(true);
         fetch(`${baseUrl}/api/us_buys`).then(r => r.json()).then(res => {
@@ -1068,7 +1150,7 @@ function MainApp({ onLogout }) {
 
     setSelectedHistDate(null); setSelectedHcDate(null); setLoading(true);
 
-    const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000";
+    const baseUrl = "";
     const url = isHC ? `${baseUrl}/api/high_conviction` : isNSEBuys ? `${baseUrl}/api/scan_universe_buys` : `${baseUrl}/api/scan?market=${market}`;
 
     fetch(url).then(r => r.json()).then(result => {
@@ -1121,6 +1203,8 @@ function MainApp({ onLogout }) {
         nseCount={data.length}
         activeCount={activeSignals.length}
         watchlistCount={watchlist.length}
+        usHcCount={usHcData.length}
+        usBuysCount={usData.length}
       />
 
       {/* Top navigation bar */}
@@ -1135,24 +1219,30 @@ function MainApp({ onLogout }) {
       {/* Main content area */}
       <main className="main-content">
         
-        {/* Sector Nav Pills */}
-        {trendingSectors.length > 0 && market !== 'BUDGET' && market !== 'PORTFOLIO' && market !== 'ADAPTIVE' && (
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', overflowX: 'auto', paddingBottom: '4px' }} className="hide-on-mobile">
-            <button style={{ padding: '6px 16px', borderRadius: 99, background: 'var(--accent-purple)', color: '#fff', border: 'none', fontWeight: 600, fontSize: '0.85rem' }}>All Sectors</button>
-            {trendingSectors.slice(0, 5).map(sector => (
-              <button
-                key={sector.sector}
-                onClick={() => loadSectorInsight(sector.sector)}
-                style={{
-                  padding: '6px 16px', borderRadius: 99, border: '1px solid var(--border-subtle)',
-                  background: 'var(--bg-elevated)', color: 'var(--text-main)',
-                  fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', whiteSpace: 'nowrap'
-                }}
-              >
-                {sector.sector} <span style={{ opacity: 0.8 }}>{getSectorIcon(sector.sector)}</span>
-              </button>
-            ))}
-          </div>
+        {/* Sector / Index Nav Pills */}
+        {market !== 'BUDGET' && market !== 'PORTFOLIO' && market !== 'ADAPTIVE' && (
+          market === 'US_BUYS' || market === 'US_HC' || market === 'US_RESEARCH' || market === 'US_MULTIBAGGER' || market === 'US_CONGRESS' ? (
+            <USIndexBar />
+          ) : (
+            trendingSectors.length > 0 && (
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', overflowX: 'auto', paddingBottom: '4px' }} className="hide-on-mobile">
+                <button style={{ padding: '6px 16px', borderRadius: 99, background: 'var(--accent-purple)', color: '#fff', border: 'none', fontWeight: 600, fontSize: '0.85rem' }}>All Sectors</button>
+                {trendingSectors.slice(0, 5).map(sector => (
+                  <button
+                    key={sector.sector}
+                    onClick={() => loadSectorInsight(sector.sector)}
+                    style={{
+                      padding: '6px 16px', borderRadius: 99, border: '1px solid var(--border-subtle)',
+                      background: 'var(--bg-elevated)', color: 'var(--text-main)',
+                      fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {sector.sector} <span style={{ opacity: 0.8 }}>{getSectorIcon(sector.sector)}</span>
+                  </button>
+                ))}
+              </div>
+            )
+          )
         )}
 
         {loading ? (
@@ -1277,8 +1367,9 @@ function MainApp({ onLogout }) {
                   TooltipComponent={CustomTooltip}
                   onLogTrade={logTrade}
                   onDetail={sym => { setSelectedDetailIsUS(true); setSelectedDetail(sym); }}
-                  amountPerTrade={amountPerTrade}
-                  setAmountPerTrade={setAmountPerTrade}
+                  amountPerTrade={usAmountPerTrade}
+                  setAmountPerTrade={v => { setUsAmountPerTrade(v); localStorage.setItem('us_swing_amount', v); }}
+                  isNSE={false}
                 />
                 <div className="grid" style={{ marginTop: 24 }}>
                   {usData.length === 0 && <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'40px'}}>🇺🇸 US scan running... signals will appear shortly.</div>}
@@ -1293,6 +1384,109 @@ function MainApp({ onLogout }) {
                 </div>
               </>
             )}
+
+            {/* ── US RESEARCH ── */}
+            {market === 'US_RESEARCH' && (
+              <>
+                {usResearchTicker ? (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                      <button
+                        onClick={() => setUsResearchTicker(null)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', color: 'var(--text-main)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}
+                      >
+                        ← Back to Research
+                      </button>
+                      <span style={{ fontSize: '0.9rem', color: 'var(--text-dim)' }}>Deep Dive: <strong style={{ color: 'var(--text-bright)' }}>{usResearchTicker}</strong></span>
+                    </div>
+                    <USStockDeepDive
+                      ticker={usResearchTicker}
+                      liveSignal={usData.find(s => s.symbol === usResearchTicker) || usHcData.find(s => s.symbol === usResearchTicker)}
+                      onClose={() => setUsResearchTicker(null)}
+                    />
+                  </>
+                ) : (
+                  <USResearchPanel
+                    onSelectTicker={setUsResearchTicker}
+                    liveSignals={[...usData, ...usHcData]}
+                  />
+                )}
+              </>
+            )}
+
+            {/* ── US MULTIBAGGER ── */}
+            {market === 'US_MULTIBAGGER' && (
+              <>
+                <div style={{ marginBottom:'24px', padding:'24px', background:'linear-gradient(135deg, #001a33 0%, var(--bg-base) 100%)', borderRadius:'15px', border:'1px solid #0ea5e944' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px', flexWrap:'wrap', gap:'12px' }}>
+                    <div>
+                      <h2 style={{ color:'var(--text-bright)', margin:0, fontSize:'1.3rem' }}>🏆 US Multibagger Engine</h2>
+                      <p style={{ color:'var(--text-dim)', margin:'4px 0 0', fontSize:'0.85rem' }}>Quantitative anomaly detection · R² trend analysis · Volume accumulation · 100 US stocks</p>
+                    </div>
+                    <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
+                      <button onClick={() => setUsMbView('live')} style={{ padding:'8px 16px', borderRadius:'8px', border: usMbView==='live' ? '1px solid #0ea5e9' : '1px solid var(--border-subtle)', background: usMbView==='live' ? 'rgba(14,165,233,0.2)' : 'var(--bg-elevated)', color: usMbView==='live' ? '#38bdf8' : 'var(--text-main)', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600' }}>📡 Live Predictions</button>
+                      <button onClick={() => { setUsMbView('backtest'); if (!usMbBacktest) { setUsMbLoading(true); fetch(`/api/us_multibagger/backtest?years_ago=${usMbYearsAgo}`).then(r=>r.json()).then(res=>{setUsMbBacktest(res);setUsMbLoading(false)}).catch(()=>setUsMbLoading(false)); } }} style={{ padding:'8px 16px', borderRadius:'8px', border: usMbView==='backtest' ? '1px solid #0ea5e9' : '1px solid var(--border-subtle)', background: usMbView==='backtest' ? 'rgba(14,165,233,0.2)' : 'var(--bg-elevated)', color: usMbView==='backtest' ? '#38bdf8' : 'var(--text-main)', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600' }}>⏳ Historical Proof</button>
+                    </div>
+                  </div>
+
+                  {usMbView === 'live' && (
+                    <div style={{ display:'flex', alignItems:'center', gap:'16px', flexWrap:'wrap', marginTop:'12px', padding:'12px 16px', background:'rgba(14,165,233,0.08)', borderRadius:'10px', border:'1px solid #0ea5e933' }}>
+                      <span style={{ fontSize:'0.85rem', color:'#38bdf8' }}>
+                        {usMbLastUpdated ? <><span style={{ color:'var(--text-dim)' }}>Last scan: </span><strong style={{ color:'#38bdf8' }}>{formatScanTimestamp(usMbLastUpdated)}</strong></> : <span style={{ color:'var(--text-dim)' }}>No scan yet — click Refresh to run.</span>}
+                      </span>
+                      <button type="button" disabled={usMbLoading} onClick={() => loadUsMb(true)} style={{ marginLeft:'auto', padding:'8px 18px', borderRadius:'8px', border:'1px solid #0ea5e9', background: usMbLoading ? 'var(--bg-elevated)' : 'linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%)', color:'#fff', cursor: usMbLoading ? 'not-allowed' : 'pointer', fontSize:'0.85rem', fontWeight:'700', opacity: usMbLoading ? 0.6 : 1 }}>{usMbLoading ? 'Scanning…' : '↻ Refresh Scan'}</button>
+                    </div>
+                  )}
+
+                  {usMbView === 'backtest' && (
+                    <div style={{ display:'flex', alignItems:'center', gap:'16px', flexWrap:'wrap', marginTop:'12px' }}>
+                      <span style={{ fontSize:'0.85rem', color:'#38bdf8' }}>
+                        {usMbLastUpdated ? <><span style={{ color:'var(--text-dim)' }}>Last live scan: </span><strong style={{ color:'#38bdf8' }}>{formatScanTimestamp(usMbLastUpdated)}</strong></> : <span style={{ color:'var(--text-dim)' }}>Switch to Live Predictions to run a scan first.</span>}
+                      </span>
+                      <div style={{ display:'flex', gap:'8px', marginLeft:'auto' }}>
+                        {[1, 2, 3].map(y => (
+                          <button key={y} onClick={() => { setUsMbYearsAgo(y); setUsMbBacktest(null); setUsMbLoading(true); fetch(`/api/us_multibagger/backtest?years_ago=${y}`).then(r=>r.json()).then(res=>{setUsMbBacktest(res);setUsMbLoading(false)}).catch(()=>setUsMbLoading(false)); }} style={{ padding:'6px 14px', borderRadius:'8px', border: usMbYearsAgo===y ? '1px solid #0ea5e9' : '1px solid var(--border-subtle)', background: usMbYearsAgo===y ? 'rgba(14,165,233,0.2)' : 'transparent', color: usMbYearsAgo===y ? '#38bdf8' : 'var(--text-dim)', cursor:'pointer', fontSize:'0.8rem' }}>{y} Year{y>1?'s':''} Ago</button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {usMbView === 'backtest' && usMbBacktest && !usMbLoading && (
+                    <div style={{ display:'flex', gap:'20px', flexWrap:'wrap', marginTop:'16px' }}>
+                      <div style={{ textAlign:'center' }}><div style={{ fontSize:'2rem', fontWeight:'800', color: usMbBacktest.avg_return >= 0 ? 'var(--up-color)' : 'var(--down-color)' }}>{usMbBacktest.avg_return > 0 ? '+' : ''}{usMbBacktest.avg_return}%</div><div style={{ fontSize:'0.8rem', color:'var(--text-dim)' }}>AI Portfolio Return</div></div>
+                      <div style={{ textAlign:'center' }}><div style={{ fontSize:'2rem', fontWeight:'800', color: usMbBacktest.sp500_return >= 0 ? 'var(--up-color)' : 'var(--down-color)' }}>{usMbBacktest.sp500_return > 0 ? '+' : ''}{usMbBacktest.sp500_return}%</div><div style={{ fontSize:'0.8rem', color:'var(--text-dim)' }}>S&P 500 Benchmark</div></div>
+                      <div style={{ textAlign:'center' }}><div style={{ fontSize:'2rem', fontWeight:'800', color:'#38bdf8' }}>{usMbBacktest.num_picks}</div><div style={{ fontSize:'0.8rem', color:'var(--text-dim)' }}>Stocks Picked</div></div>
+                      <div style={{ textAlign:'center' }}><div style={{ fontSize:'2rem', fontWeight:'800', color: (usMbBacktest.avg_return - usMbBacktest.sp500_return) >= 0 ? 'var(--up-color)' : 'var(--down-color)' }}>{(usMbBacktest.avg_return - usMbBacktest.sp500_return) > 0 ? '+' : ''}{((usMbBacktest.avg_return || 0) - (usMbBacktest.sp500_return || 0)).toFixed(1)}%</div><div style={{ fontSize:'0.8rem', color:'var(--text-dim)' }}>Alpha vs S&P 500</div></div>
+                    </div>
+                  )}
+                </div>
+
+                {usMbLoading ? (
+                  <div className="loader">🏆 Scanning 100 US stocks for multibagger footprints…<br /><span style={{fontSize:'0.9rem',opacity:0.6}}>This may take 30–60 seconds.</span></div>
+                ) : (
+                  <div className="grid">
+                    {(usMbView === 'live' ? usMbData : (usMbBacktest?.picks || [])).map((stock, i) => (
+                      <StockCard
+                        key={stock.symbol}
+                        stock={{ ...stock, action: 'STRONG BUY', entry: stock.current_price, confidence: stock.score }}
+                        variant="multibagger"
+                        currency="$"
+                        showBacktest={false}
+                        rank={i + 1}
+                        onDetail={setSelectedDetail}
+                        isWatchlisted={watchlist.some(w => w.symbol === stock.symbol)}
+                        onToggleWatchlist={toggleWatchlist}
+                      />
+                    ))}
+                    {usMbView === 'live' && !usMbLoading && usMbData.length === 0 && <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'60px'}}>Click <strong>Refresh Scan</strong> to run the US multibagger engine.</div>}
+                    {usMbView === 'backtest' && usMbBacktest && (usMbBacktest.picks || []).length === 0 && <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'60px'}}>No US multibagger candidates found in this historical period.</div>}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── US CONGRESS TRADES ── */}
+            {market === 'US_CONGRESS' && <USCongressPanel />}
 
             {/* ── US HIGH CONVICTION ── */}
             {market === 'US_HC' && (
@@ -1309,8 +1503,9 @@ function MainApp({ onLogout }) {
                   TooltipComponent={HCTooltip}
                   onLogTrade={logTrade}
                   onDetail={sym => { setSelectedDetailIsUS(true); setSelectedDetail(sym); }}
-                  amountPerTrade={amountPerTrade}
-                  setAmountPerTrade={setAmountPerTrade}
+                  amountPerTrade={usAmountPerTrade}
+                  setAmountPerTrade={v => { setUsAmountPerTrade(v); localStorage.setItem('us_swing_amount', v); }}
+                  isNSE={false}
                 />
                 <div className="grid" style={{ marginTop: 24 }}>
                   {usHcData.length === 0 && <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'40px'}}>🎯 No US High Conviction signals at this time.</div>}
@@ -1373,7 +1568,7 @@ function MainApp({ onLogout }) {
                     </div>
                     <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
                       <button onClick={() => setMbView('live')} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='live' ? '1px solid #a855f7' : '1px solid var(--border-muted)', background: mbView==='live' ? 'rgba(168,85,247,0.2)' : 'var(--bg-elevated)', color: mbView==='live' ? '#a855f7' : 'var(--text-main)', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600', boxShadow: mbView==='live' ? '0 2px 8px rgba(168,85,247,0.25)' : 'none' }}>📡 Live Predictions</button>
-                      <button onClick={() => { setMbView('backtest'); if (!mbBacktest) { setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${mbYearsAgo}`).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='backtest' ? '1px solid #a855f7' : '1px solid var(--border-muted)', background: mbView==='backtest' ? 'rgba(168,85,247,0.2)' : 'var(--bg-elevated)', color: mbView==='backtest' ? '#a855f7' : 'var(--text-main)', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600', boxShadow: mbView==='backtest' ? '0 2px 8px rgba(168,85,247,0.25)' : 'none' }}>⏳ Historical Proof</button>
+                      <button onClick={() => { setMbView('backtest'); if (!mbBacktest) { setMbLoading(true); const baseUrl = ""; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${mbYearsAgo}`).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); } }} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='backtest' ? '1px solid #a855f7' : '1px solid var(--border-muted)', background: mbView==='backtest' ? 'rgba(168,85,247,0.2)' : 'var(--bg-elevated)', color: mbView==='backtest' ? '#a855f7' : 'var(--text-main)', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600', boxShadow: mbView==='backtest' ? '0 2px 8px rgba(168,85,247,0.25)' : 'none' }}>⏳ Historical Proof</button>
                     </div>
                   </div>
 
@@ -1394,7 +1589,7 @@ function MainApp({ onLogout }) {
                       </span>
                       <div style={{ display:'flex', gap:'8px', marginLeft:'auto' }}>
                         {[1, 2, 3].map(y => (
-                          <button key={y} onClick={() => { setMbYearsAgo(y); setMbBacktest(null); setMbLoading(true); const baseUrl = import.meta.env.PROD ? "" : "http://localhost:8000"; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${y}`).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); }} style={{ padding:'6px 14px', borderRadius:'8px', border: mbYearsAgo===y ? '1px solid #a855f7' : '1px solid #334155', background: mbYearsAgo===y ? 'rgba(168,85,247,0.2)' : 'transparent', color: mbYearsAgo===y ? '#c084fc' : '#64748b', cursor:'pointer', fontSize:'0.8rem' }}>{y} Year{y>1?'s':''} Ago</button>
+                          <button key={y} onClick={() => { setMbYearsAgo(y); setMbBacktest(null); setMbLoading(true); const baseUrl = ""; fetch(`${baseUrl}/api/multibagger/backtest?years_ago=${y}`).then(r=>r.json()).then(res=>{setMbBacktest(res);setMbLoading(false)}).catch(()=>setMbLoading(false)); }} style={{ padding:'6px 14px', borderRadius:'8px', border: mbYearsAgo===y ? '1px solid #a855f7' : '1px solid #334155', background: mbYearsAgo===y ? 'rgba(168,85,247,0.2)' : 'transparent', color: mbYearsAgo===y ? '#c084fc' : '#64748b', cursor:'pointer', fontSize:'0.8rem' }}>{y} Year{y>1?'s':''} Ago</button>
                         ))}
                       </div>
                     </div>
