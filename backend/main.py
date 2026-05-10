@@ -391,6 +391,11 @@ HC_PROB_UP    = 0.72   # at least 72% ML confidence
 HC_VOL_RATIO  = 1.5    # at least 1.5x average volume spike
 HC_ATR_FILTER = 0.015  # require at least 1.5% ATR (avoid noise)
 
+# US HC Thresholds — tighter than NSE to improve win rate (#1 fine-tuning)
+US_HC_PROB_UP    = 0.78   # 78% confidence — top-decile signals only
+US_HC_VOL_RATIO  = 2.0    # 2x volume — strong institutional conviction
+US_HC_ATR_FILTER = 0.018  # 1.8% ATR — trending/volatile stocks only
+
 _nifty_bullish  = True  # global cache for regime; updated with each scan
 _current_regime = "UNKNOWN"  # 3-state: TRENDING / CHOPPY / VOLATILE
 _india_vix      = 15.0  # cached VIX value
@@ -965,8 +970,10 @@ def update_us_cache():
                         }
                         needs_save = True
 
-                    # HC gate: same strict thresholds as NSE HC
-                    if adjusted_prob >= 0.72 and vol_ratio >= 1.5 and atr / latest_close >= 0.015:
+                    # HC gate: tighter thresholds + 50 EMA trend filter
+                    ema50 = float(df['close'].ewm(span=50, adjust=False).mean().iloc[-1])
+                    above_ema50 = latest_close > ema50
+                    if adjusted_prob >= US_HC_PROB_UP and vol_ratio >= US_HC_VOL_RATIO and atr / latest_close >= US_HC_ATR_FILTER and above_ema50:
                         if latest_date_str not in ledger["US_HIGH_CONVICTION"]:
                             ledger["US_HIGH_CONVICTION"][latest_date_str] = {}
                         if symbol not in ledger["US_HIGH_CONVICTION"][latest_date_str]:
@@ -1010,7 +1017,8 @@ def update_us_cache():
                     "sector": sector,
                     "close": latest_close,
                 })
-            if adjusted_prob >= 0.72 and vol_ratio >= 1.5 and atr / latest_close >= 0.015:
+            ema50_live = float(df['close'].ewm(span=50, adjust=False).mean().iloc[-1])
+            if adjusted_prob >= US_HC_PROB_UP and vol_ratio >= US_HC_VOL_RATIO and atr / latest_close >= US_HC_ATR_FILTER and latest_close > ema50_live:
                 entry = round(latest_close, 2)
                 hc_buys.append({
                     "symbol": symbol,
@@ -1095,6 +1103,7 @@ def _us_seed_ledger_task(years: int = 2):
             model = IntradayModel()
             model.train(df[:-60])
             df['prob_up'] = model.predict_proba_walk_forward(df)
+            df['ema50'] = df['close'].ewm(span=50, adjust=False).mean()
 
             cutoff = pd.Timestamp.now(tz='UTC') - pd.DateOffset(years=years)
             df_window = df[df.index >= cutoff] if df.index.tz is not None else df[df.index >= cutoff.replace(tzinfo=None)]
@@ -1105,6 +1114,7 @@ def _us_seed_ledger_task(years: int = 2):
                 vol   = float(row.get('volume_ratio', 1))
                 close = float(row.get('close', 0))
                 atr   = float(row.get('atr', 0))
+                ema50_row = float(row.get('ema50', 0))
                 if close <= 0 or atr <= 0:
                     continue
 
@@ -1123,7 +1133,9 @@ def _us_seed_ledger_task(years: int = 2):
                         }
                         needs_save = True
 
-                if prob >= 0.72 and vol >= 1.5 and atr / close >= 0.015:
+                # HC gate: tighter thresholds + 50 EMA trend filter
+                above_ema_seed = (ema50_row > 0 and close > ema50_row)
+                if prob >= US_HC_PROB_UP and vol >= US_HC_VOL_RATIO and atr / close >= US_HC_ATR_FILTER and above_ema_seed:
                     if date_str not in ledger["US_HIGH_CONVICTION"]:
                         ledger["US_HIGH_CONVICTION"][date_str] = {}
                     if symbol not in ledger["US_HIGH_CONVICTION"][date_str]:
