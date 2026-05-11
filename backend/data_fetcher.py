@@ -174,3 +174,165 @@ def get_delivery_pct(symbol: str) -> Optional[float]:
     # NSE Bhavcopy uses symbols WITHOUT .NS suffix
     clean = symbol.replace('.NS', '').upper()
     return data.get(clean)
+
+
+# ── FMP Integration ───────────────────────────────────────────────────────────
+
+FMP_API_KEY = "N63bFFQd1j3PjbDyciIv1bXqagYmBSJr"
+FMP_BASE    = "https://financialmodelingprep.com/stable"
+
+EARNINGS_BLACKOUT_FILE = os.path.join(os.path.dirname(__file__), 'data', 'earnings_blackout_cache.json')
+_earnings_blackout_cache: dict = {}      # {symbol: [date_str, ...]}
+_earnings_blackout_date: str   = ""
+
+def fetch_earnings_blackout(symbols: list, blackout_days: int = 2) -> set:
+    """
+    Returns a set of (symbol, date_str) pairs where trading should be suppressed
+    because an earnings announcement is within `blackout_days` days.
+    Uses FMP earnings-calendar endpoint — 1 API call covers all symbols for 14-day window.
+    Caches result to disk daily so restarts don't cost extra calls.
+    """
+    global _earnings_blackout_cache, _earnings_blackout_date
+
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
+    # Return from memory cache if fresh
+    if _earnings_blackout_date == today_str and _earnings_blackout_cache:
+        blackout_set = set()
+        for sym, dates in _earnings_blackout_cache.items():
+            for d in dates:
+                for delta in range(-blackout_days, blackout_days + 1):
+                    dt = (datetime.strptime(d, "%Y-%m-%d") + timedelta(days=delta)).strftime("%Y-%m-%d")
+                    blackout_set.add((sym, dt))
+        return blackout_set
+
+    # Try disk cache
+    if os.path.exists(EARNINGS_BLACKOUT_FILE):
+        try:
+            with open(EARNINGS_BLACKOUT_FILE, 'r') as f:
+                cached = json.load(f)
+            if cached.get('date') == today_str:
+                _earnings_blackout_cache = cached.get('data', {})
+                _earnings_blackout_date  = today_str
+                print(f"[FMP] Earnings blackout loaded from disk: {sum(len(v) for v in _earnings_blackout_cache.values())} events")
+                return fetch_earnings_blackout(symbols, blackout_days)
+        except Exception:
+            pass
+
+    # Fetch from FMP — one call for a 14-day window
+    try:
+        from_date = today_str
+        to_date   = (datetime.now() + timedelta(days=14)).strftime("%Y-%m-%d")
+        url = f"{FMP_BASE}/earnings-calendar?from={from_date}&to={to_date}&apikey={FMP_API_KEY}"
+        r   = requests.get(url, timeout=10)
+        if r.status_code != 200:
+            print(f"[FMP] Earnings calendar fetch failed: {r.status_code}")
+            return set()
+        events = r.json()
+        sym_set = set(s.upper() for s in symbols)
+        data: dict = {}
+        for ev in events:
+            sym = str(ev.get('symbol', '')).upper()
+            if sym in sym_set:
+                date_ev = str(ev.get('date', ''))[:10]
+                if sym not in data:
+                    data[sym] = []
+                if date_ev not in data[sym]:
+                    data[sym].append(date_ev)
+
+        _earnings_blackout_cache = data
+        _earnings_blackout_date  = today_str
+        os.makedirs(os.path.dirname(EARNINGS_BLACKOUT_FILE), exist_ok=True)
+        with open(EARNINGS_BLACKOUT_FILE, 'w') as f:
+            json.dump({'date': today_str, 'data': data}, f)
+        n = sum(len(v) for v in data.values())
+        print(f"[FMP] Earnings blackout fetched: {n} events for {len(data)} symbols")
+        return fetch_earnings_blackout(symbols, blackout_days)
+    except Exception as e:
+        print(f"[FMP] Earnings blackout error: {e}")
+        return set()
+
+
+US_MACRO_FILE = os.path.join(os.path.dirname(__file__), 'data', 'us_macro_cache.json')
+_us_macro_cache: Optional[pd.DataFrame] = None
+_us_macro_cache_date: str = ""
+
+def fetch_us_macro_data(years: int = 2) -> pd.DataFrame:
+    """
+    Fetches US macro features for ML model:
+      - 2Y treasury yield, 10Y treasury yield, yield spread (10Y-2Y)
+    Uses FMP treasury-rates endpoint (1 call/day, cached).
+    Falls back to yfinance ^TNX / ^IRX on failure.
+    """
+    global _us_macro_cache, _us_macro_cache_date
+
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
+    # Memory cache
+    if _us_macro_cache is not None and _us_macro_cache_date == today_str:
+        return _us_macro_cache
+
+    # Disk cache
+    if os.path.exists(US_MACRO_FILE):
+        try:
+            with open(US_MACRO_FILE, 'r') as f:
+                cached = json.load(f)
+            if cached.get('date') == today_str:
+                df = pd.DataFrame(cached['rows'])
+                df.index = pd.to_datetime(df['date'])
+                df = df.drop(columns=['date'])
+                _us_macro_cache = df
+                _us_macro_cache_date = today_str
+                print(f"[FMP] US macro loaded from disk: {len(df)} rows")
+                return df
+        except Exception:
+            pass
+
+    # Fetch from FMP
+    try:
+        from_date = (datetime.now() - timedelta(days=years * 365)).strftime("%Y-%m-%d")
+        url = f"{FMP_BASE}/treasury-rates?from={from_date}&apikey={FMP_API_KEY}"
+        r   = requests.get(url, timeout=10)
+        if r.status_code == 200 and r.json():
+            rows = r.json()
+            df = pd.DataFrame(rows)
+            df['date'] = pd.to_datetime(df['date'])
+            df = df.sort_values('date').set_index('date')
+            # Keep only year2 (2Y) and year10 (10Y), compute spread
+            df = df.rename(columns={'year2': 'us_yield_2y', 'year10': 'us_yield_10y'})
+            df['us_yield_spread'] = df['us_yield_10y'] - df['us_yield_2y']
+            df = df[['us_yield_2y', 'us_yield_10y', 'us_yield_spread']]
+            df.ffill(inplace=True)
+            if df.index.tz is not None:
+                df.index = df.index.tz_localize(None)
+
+            # Save to disk
+            save_rows = [{'date': str(idx.date()), 'us_yield_2y': row['us_yield_2y'],
+                          'us_yield_10y': row['us_yield_10y'], 'us_yield_spread': row['us_yield_spread']}
+                         for idx, row in df.iterrows()]
+            with open(US_MACRO_FILE, 'w') as f:
+                json.dump({'date': today_str, 'rows': save_rows}, f)
+
+            _us_macro_cache = df
+            _us_macro_cache_date = today_str
+            print(f"[FMP] US treasury macro fetched: {len(df)} rows, latest spread={df['us_yield_spread'].iloc[-1]:.2f}")
+            return df
+    except Exception as e:
+        print(f"[FMP] Treasury fetch error: {e}")
+
+    # Fallback: yfinance ^TNX (10Y) and ^IRX (3M as proxy for 2Y)
+    try:
+        tickers = ["^TNX", "^IRX"]
+        raw = yf.download(tickers, period=f"{years}y", interval="1d", progress=False)['Close']
+        raw = raw.rename(columns={"^IRX": "us_yield_2y", "^TNX": "us_yield_10y"})
+        raw['us_yield_spread'] = raw['us_yield_10y'] - raw['us_yield_2y']
+        raw.ffill(inplace=True)
+        if raw.index.tz is not None:
+            raw.index = raw.index.tz_localize(None)
+        _us_macro_cache = raw
+        _us_macro_cache_date = today_str
+        print(f"[FMP] US macro fallback via yfinance: {len(raw)} rows")
+        return raw
+    except Exception as e2:
+        print(f"[FMP] US macro fallback also failed: {e2}")
+        return pd.DataFrame()

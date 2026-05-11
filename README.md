@@ -1,8 +1,21 @@
-# TradeFlex — AI-Powered Swing Trading Platform
+# TradeFlex — AI-Powered Trading Signals Platform
 
-**Version:** v5.3 | **Release Date:** May 2026  
+**Version:** v6.1.0 | **Release Date:** May 2026  
 **Repository:** [KaushOps/Swingmaster](https://github.com/KaushOps/Swingmaster)  
-**Deployment:** Oracle Cloud VM (Docker) — `129.159.226.235`
+**Deployment:** AWS EC2 / Oracle Cloud VM / Docker  
+
+## 🚀 What's New in v6.1.0 — "Per-Symbol R:R Scaling"
+
+This release introduces significant improvements for US market signal quality:
+
+- **Per-Symbol Adaptive R:R Scaling:** Targets and stops now scale based on each stock's average volatility (ATR%)
+  - Low-vol stocks (ATR < 2%): 3× ATR targets, 1.5× stops
+  - Mid-vol stocks (ATR 2-4%): 4× ATR targets, 2× stops  
+  - High-vol stocks (ATR > 4%): 5× ATR targets, 2× stops
+- **Fixed ATR Band Training:** ML model trained with per-symbol fixed R:R bands for consistent prediction calibration
+- **Ledger Snapshot System:** Save/restore API endpoints for fast rollback without re-seeding
+- **FMP Integration:** Earnings blackout filter (±2 days) + US Treasury yield curve as macro features
+- **Win Rate Improvement:** US HC win rate improved from 38.8% to 40.3%+ with proper calibration
 
 ---
 
@@ -571,6 +584,92 @@ ssh -i "c:\...\key" ubuntu@129.159.226.235 "
 | `backend/data/llm_cache/` | Per-signal LLM rationale cache (disk) |
 | `backend/data/shap_history.json` | Top-5 SHAP feature importance over time |
 | `backend/data/mb_affinity.json` | Multibagger affinity scores for ML bonus |
+| `backend/data/ledger_snapshots/` | Saved ledger snapshots for fast rollback |
+| `backend/data/us_macro_cache.json` | US Treasury yield curve cache |
+| `backend/data/earnings_blackout_cache.json` | FMP earnings calendar cache |
+
+---
+
+## Deployment Guide
+
+### Quick Start — AWS EC2 / VM
+
+**Prerequisites:**
+- Ubuntu 22.04 LTS (or compatible)
+- 2+ vCPU, 4GB RAM minimum
+- Python 3.11+, Node.js 20+, Nginx
+
+**Option 1: Automated Install (Recommended)**
+
+```bash
+# Clone repository
+git clone https://github.com/KaushOps/Swingmaster.git
+cd Swingmaster
+
+# Run installer
+chmod +x deploy/install.sh
+sudo DOMAIN=tradeflex.in ./deploy/install.sh
+```
+
+**Option 2: Docker Compose**
+
+```bash
+# Setup environment
+cp .env.example .env
+# Edit .env with your API keys
+
+# Build and run
+docker-compose up -d --build
+
+# View logs
+docker-compose logs -f backend
+```
+
+**Option 3: Systemd Service**
+
+```bash
+# Copy service file
+sudo cp deploy/tradeflex.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable tradeflex
+sudo systemctl start tradeflex
+
+# Check status
+sudo systemctl status tradeflex
+journalctl -u tradeflex -f
+```
+
+### Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `FMP_API_KEY` | Financial Modeling Prep API key | Yes for US signals |
+| `GROQ_API_KEY` | Groq API key for LLM layer | Yes for rationales |
+| `OPENROUTER_API_KEY` | OpenRouter fallback key | Optional |
+| `VITE_API_URL` | Backend URL for frontend | Yes |
+| `ALLOWED_ORIGINS` | CORS allowed origins | Yes |
+| `ALPHA_VANTAGE_KEY` | Alpha Vantage (optional backup) | No |
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check |
+| `/api/high_conviction?market=IN` | GET | High conviction signals |
+| `/api/high_conviction?market=US` | GET | US HC signals with backtest stats |
+| `/api/us_seed_ledger?years=2` | POST | Re-seed US historical ledger |
+| `/api/us_resolve_statuses` | POST | Resolve TARGET HIT/SL HIT statuses |
+| `/api/us_save_snapshot?name=v1` | POST | Save ledger snapshot |
+| `/api/us_restore_snapshot?name=v1` | POST | Restore from snapshot |
+| `/api/us_list_snapshots` | GET | List available snapshots |
+
+### Build Information
+
+- **Backend:** Python 3.11, FastAPI, Uvicorn
+- **ML Stack:** XGBoost, scikit-learn, pandas, numpy
+- **Data Sources:** yfinance, FMP API (US macro + earnings)
+- **Frontend:** React 18, Vite, TailwindCSS, shadcn/ui
+- **Deployment:** Docker, Docker Compose, Nginx, Systemd
 
 ---
 

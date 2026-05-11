@@ -1,1 +1,56 @@
-[]
+[
+  {
+    "symbol": "ABB",
+    "date": "2026-05-08",
+    "outcome": "LOSS",
+    "signal_type": "STD",
+    "postmortem": "The RSI and ADX indicators gave false signals, as the trade resulted in a loss. The MACD Hist correctly signaled a potential downturn. This loss will be used to improve future model training.",
+    "entry_price": 7012.5,
+    "exit_price": 6588.08,
+    "pnl_pct": -6.1,
+    "days_held": 1,
+    "confidence": 99.79,
+    "indicators": {
+      "rsi": 52.28,
+      "adx": 30.37,
+      "macd_hist": -60.52491,
+      "volume_ratio": 0.98,
+      "bb_pct": 0.317,
+      "stoch_k": 2.63
+    },
+    "timestamp": "2026-05-11T09:21:41.778068"
+  },
+  {
+    "type": "batch_insights",
+    "insights": "Losses occur when RSI is around 52, ADX strength is above 30, and volume ratio is below 1 (0.98). Wins are unknown due to lack of data. More trades are needed to identify win patterns.",
+    "timestamp": "2026-05-11T09:21:42.775621",
+    "trades": 1
+  },
+  {
+    "symbol": "LUPIN",
+    "date": "2026-05-08",
+    "outcome": "LOSS",
+    "signal_type": "HC",
+    "postmortem": "The MACD Hist and Volume Ratio indicators gave false signals, while the RSI and low ADX suggested a choppy regime, consistent with the loss. The high confidence level was also misplaced. This loss will inform future model training.",
+    "entry_price": 2379.5,
+    "exit_price": 2261.25,
+    "pnl_pct": -5.0,
+    "days_held": 1,
+    "confidence": 79.53,
+    "indicators": {
+      "rsi": 56.15,
+      "adx": 12.7,
+      "macd_hist": 10.30562,
+      "volume_ratio": 2.7,
+      "bb_pct": 0.746,
+      "stoch_k": 51.01
+    },
+    "timestamp": "2026-05-11T09:55:11.798743"
+  },
+  {
+    "type": "batch_insights",
+    "insights": "Based on 1 trade, patterns that predict losses include: \nRSI range above 55, \nADX strength below 15, \nvolume ratio above 2.5.",
+    "timestamp": "2026-05-11T09:55:12.984275",
+    "trades": 1
+  }
+]

@@ -93,12 +93,38 @@ def add_features(df: pd.DataFrame, macro_df: pd.DataFrame = None) -> pd.DataFram
     # Rolling z-score of RSI over 20 bars — captures RSI momentum relative to recent history
     df['rsi_zscore'] = (df['rsi'] - df['rsi'].rolling(20).mean()) / (df['rsi'].rolling(20).std() + 1e-9)
 
+    # ── US yield curve features (merged from macro_df if present) ─────────────
+    # These are already merged via macro_df above if present; add defaults if absent
+    for col in ['us_yield_2y', 'us_yield_10y', 'us_yield_spread']:
+        if col not in df.columns:
+            df[col] = 0.0
+
     return df.dropna()
 
 
-def create_labels(df: pd.DataFrame, target_atr_mult=5.0, sl_atr_mult=2.0, lookahead=60) -> pd.DataFrame:
+def _us_rr_multipliers(atr_pct: float):
+    """Return (target_mult, sl_mult) scaled by ATR% for US stocks."""
+    if atr_pct < 0.02:       # low-vol  (<2%): target 3x, stop 1.5x
+        return 3.0, 1.5
+    elif atr_pct < 0.04:     # mid-vol  (2-4%): target 4x, stop 2x
+        return 4.0, 2.0
+    else:                    # high-vol (>4%): target 5x, stop 2x
+        return 5.0, 2.0
+
+
+def _compute_symbol_atr_band(df: pd.DataFrame) -> float:
+    """Compute average ATR% over the dataset to determine fixed R:R band for this symbol."""
+    if 'atr' not in df.columns or 'close' not in df.columns:
+        return 0.03  # default mid-vol
+    atr_pcts = df['atr'] / df['close'].replace(0, np.nan)
+    return atr_pcts.mean()
+
+
+def create_labels(df: pd.DataFrame, target_atr_mult=5.0, sl_atr_mult=2.0, lookahead=60,
+                  adaptive_rr: bool = False, symbol_atr_band: float = None) -> pd.DataFrame:
     """
     Look ahead logic: Does the price hit Target before Stoploss within lookahead window?
+    If adaptive_rr=True, uses per-symbol fixed R:R band (not per-bar) for consistency.
     """
     df = df.copy()
     df['label'] = 0
@@ -115,14 +141,21 @@ def create_labels(df: pd.DataFrame, target_atr_mult=5.0, sl_atr_mult=2.0, lookah
 
     labels = np.zeros(len(df))
 
+    # Determine fixed multipliers for this symbol
+    if adaptive_rr:
+        band = symbol_atr_band if symbol_atr_band is not None else _compute_symbol_atr_band(df)
+        t_mult_fixed, sl_mult_fixed = _us_rr_multipliers(band)
+    else:
+        t_mult_fixed, sl_mult_fixed = target_atr_mult, sl_atr_mult
+
     for i in range(len(df) - 1): # stop 1 bar early
         if np.isnan(atrs[i]):
             continue
 
         # Use next-bar open as realistic execution price
         entry = opens[i + 1]
-        target = entry + (target_atr_mult * atrs[i])
-        stoploss = entry - (sl_atr_mult * atrs[i])
+        target   = entry + (t_mult_fixed  * atrs[i])
+        stoploss = entry - (sl_mult_fixed * atrs[i])
 
         hit = 0
         end_idx = min(len(df), i + lookahead + 1)
@@ -203,7 +236,8 @@ class IntradayModel:
             'above_ema20', 'above_ema50', 'ema_spread',
             'bb_pct', 'adx', 'stoch_k', 'stoch_d',
             'roc5', 'roc10', 'pct_from_high',
-            'macro_vix', 'macro_usdinr', 'macro_brent'
+            'macro_vix', 'macro_usdinr', 'macro_brent',     # NSE macro
+            'us_yield_2y', 'us_yield_10y', 'us_yield_spread' # US yield curve
         ]
 
     def train(self, df: pd.DataFrame, sample_weights: np.ndarray = None):

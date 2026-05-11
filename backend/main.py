@@ -381,7 +381,9 @@ US_HC_CACHE = {
 
 _US_SEED_PROGRESS = {"running": False, "done": 0, "total": 0, "status": "idle"}
 
-US_LEDGER_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "us_signals_ledger.json")
+US_LEDGER_FILE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "us_signals_ledger.json")
+SNAPSHOTS_DIR   = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "ledger_snapshots")
+os.makedirs(SNAPSHOTS_DIR, exist_ok=True)
 
 # --- Initialize historical data on boot from the persistent ledger ---
 _startup_ledger = load_ledger()
@@ -391,10 +393,6 @@ HC_PROB_UP    = 0.72   # at least 72% ML confidence
 HC_VOL_RATIO  = 1.5    # at least 1.5x average volume spike
 HC_ATR_FILTER = 0.015  # require at least 1.5% ATR (avoid noise)
 
-# US HC Thresholds — tighter than NSE to improve win rate (#1 fine-tuning)
-US_HC_PROB_UP    = 0.78   # 78% confidence — top-decile signals only
-US_HC_VOL_RATIO  = 2.0    # 2x volume — strong institutional conviction
-US_HC_ATR_FILTER = 0.018  # 1.8% ATR — trending/volatile stocks only
 
 _nifty_bullish  = True  # global cache for regime; updated with each scan
 _current_regime = "UNKNOWN"  # 3-state: TRENDING / CHOPPY / VOLATILE
@@ -897,8 +895,10 @@ def load_us_ledger():
     return ledger
 
 def save_us_ledger(ledger):
-    with open(US_LEDGER_FILE, "w") as f:
+    tmp = US_LEDGER_FILE + ".tmp"
+    with open(tmp, "w") as f:
         json.dump(ledger, f, indent=2)
+    os.replace(tmp, US_LEDGER_FILE)  # atomic rename — prevents partial-write corruption
 
 def update_us_cache():
     if US_BUY_CACHE["is_scanning"]:
@@ -906,18 +906,21 @@ def update_us_cache():
     US_BUY_CACHE["is_scanning"] = True
     print(f"Starting background scan of {len(US_UNIVERSE)} US stocks for BUY signals...")
 
-    from data_fetcher import fetch_daily_data, fetch_macro_data
-    from ml_model import add_features, create_labels, IntradayModel
+    from data_fetcher import fetch_daily_data, fetch_us_macro_data, fetch_earnings_blackout
+    from ml_model import add_features, create_labels, IntradayModel, _us_rr_multipliers, _compute_symbol_atr_band
 
     buys = []
     hc_buys = []
-    historical_map = {}
-    hc_historical_map = {}
 
     try:
-        macro_df = fetch_macro_data(years=2)
+        macro_df = fetch_us_macro_data(years=2)
     except Exception:
         macro_df = None
+
+    try:
+        earnings_blackout = fetch_earnings_blackout(US_UNIVERSE)
+    except Exception:
+        earnings_blackout = set()
 
     ledger = load_us_ledger()
     needs_save = False
@@ -931,19 +934,21 @@ def update_us_cache():
                 continue
             df = add_features(df, macro_df)
             if len(df) < 80: continue
-            df = create_labels(df)
             if len(df) < 50: continue
 
+            # Compute fixed ATR band for this symbol (consistent across all bars)
+            symbol_atr_band = _compute_symbol_atr_band(df)
+            t_mult, sl_mult = _us_rr_multipliers(symbol_atr_band)
+
             model = IntradayModel()
-            model.train(df[:-60])
+            df_labels = create_labels(df, adaptive_rr=True, symbol_atr_band=symbol_atr_band)
+            model.train(df_labels[:-60])
 
-            # Walk-forward for historical accuracy tracking
-            df['prob_up'] = model.predict_proba_walk_forward(df)
+            # Walk-forward uses df_labels (has label column needed internally)
+            df_labels['prob_up'] = model.predict_proba_walk_forward(df_labels)
+            df_labels['prob_up'] = model.predict_proba(df_labels)
 
-            # In-sample prediction for the latest bar only (same as NSE)
-            df['prob_up'] = model.predict_proba(df)
-
-            latest = df.iloc[-1]
+            latest = df_labels.iloc[-1]
             latest_close = float(latest['close'])
             latest_date = df.index[-1]
             latest_date_str = latest_date.strftime("%Y-%m-%d") if hasattr(latest_date, 'strftime') else str(latest_date)[:10]
@@ -970,38 +975,23 @@ def update_us_cache():
                         }
                         needs_save = True
 
-                    # HC gate: tighter thresholds + 50 EMA trend filter
-                    ema50 = float(df['close'].ewm(span=50, adjust=False).mean().iloc[-1])
-                    above_ema50 = latest_close > ema50
-                    if adjusted_prob >= US_HC_PROB_UP and vol_ratio >= US_HC_VOL_RATIO and atr / latest_close >= US_HC_ATR_FILTER and above_ema50:
+                    # HC gate: earnings blackout + per-symbol fixed R:R
+                    in_blackout = (symbol, latest_date_str) in earnings_blackout
+                    if adjusted_prob >= 0.72 and vol_ratio >= 1.5 and atr / latest_close >= 0.015 and not in_blackout:
                         if latest_date_str not in ledger["US_HIGH_CONVICTION"]:
                             ledger["US_HIGH_CONVICTION"][latest_date_str] = {}
-                        if symbol not in ledger["US_HIGH_CONVICTION"][latest_date_str]:
-                            ledger["US_HIGH_CONVICTION"][latest_date_str][symbol] = {
-                                "entry": round(latest_close, 2),
-                                "target": round(latest_close + 5.0 * atr, 2),
-                                "stoploss": round(latest_close - 2.0 * atr, 2),
-                                "confidence": round(adjusted_prob, 4),
-                                "volume_ratio": round(vol_ratio, 2),
-                                "atr": round(atr, 4),
-                                "sector": sector,
-                            }
-                            needs_save = True
+                        ledger["US_HIGH_CONVICTION"][latest_date_str][symbol] = {
+                            "entry": round(latest_close, 2),
+                            "target": round(latest_close + t_mult * atr, 2),
+                            "stoploss": round(latest_close - sl_mult * atr, 2),
+                            "confidence": round(adjusted_prob, 4),
+                            "volume_ratio": round(vol_ratio, 2),
+                            "atr": round(atr, 4),
+                            "sector": sector,
+                        }
+                        needs_save = True
 
-            # Build frozen historical signals
-            for date_str, sigs in ledger["US_BUYS"].items():
-                if symbol in sigs:
-                    if date_str not in historical_map:
-                        historical_map[date_str] = []
-                    historical_map[date_str].append(build_signal_frozen(sigs[symbol], date_str, df, symbol, latest_close, ledger=ledger, ledger_section="US_BUYS"))
-
-            for date_str, sigs in ledger["US_HIGH_CONVICTION"].items():
-                if symbol in sigs:
-                    if date_str not in hc_historical_map:
-                        hc_historical_map[date_str] = []
-                    hc_historical_map[date_str].append(build_signal_frozen(sigs[symbol], date_str, df, symbol, latest_close, ledger=ledger, ledger_section="US_HIGH_CONVICTION"))
-
-            # Live signal cards
+            # Live signal cards (use fixed symbol multipliers)
             if adjusted_prob > 0.55 and vol_ratio > 1.0:
                 entry = round(latest_close, 2)
                 atr_v = round(atr, 4)
@@ -1017,16 +1007,16 @@ def update_us_cache():
                     "sector": sector,
                     "close": latest_close,
                 })
-            ema50_live = float(df['close'].ewm(span=50, adjust=False).mean().iloc[-1])
-            if adjusted_prob >= US_HC_PROB_UP and vol_ratio >= US_HC_VOL_RATIO and atr / latest_close >= US_HC_ATR_FILTER and latest_close > ema50_live:
+            in_blackout_live = (symbol, today_date_str) in earnings_blackout
+            if adjusted_prob >= 0.72 and vol_ratio >= 1.5 and atr / latest_close >= 0.015 and not in_blackout_live:
                 entry = round(latest_close, 2)
                 hc_buys.append({
                     "symbol": symbol,
                     "action": "STRONG BUY",
                     "confidence": round(adjusted_prob * 100, 2),
                     "entry": entry,
-                    "target": round(entry + 5.0 * atr, 2),
-                    "stoploss": round(entry - 2.0 * atr, 2),
+                    "target": round(entry + t_mult * atr, 2),
+                    "stoploss": round(entry - sl_mult * atr, 2),
                     "volume_ratio": round(vol_ratio, 2),
                     "atr": atr_v,
                     "sector": sector,
@@ -1040,29 +1030,14 @@ def update_us_cache():
     if needs_save:
         save_us_ledger(ledger)
 
-    # Build sorted history lists
-    hist_list = []
-    for d in sorted(historical_map.keys()):
-        sigs = historical_map[d]
-        hist_list.append({"date": d, "count": len(sigs), "stocks": [s["symbol"] for s in sigs], "signals": sigs})
-
-    hc_hist_list = []
-    for d in sorted(hc_historical_map.keys()):
-        sigs = hc_historical_map[d]
-        hc_hist_list.append({"date": d, "count": len(sigs), "stocks": [s["symbol"] for s in sigs], "signals": sigs})
-
     buys.sort(key=lambda x: x['confidence'], reverse=True)
     hc_buys.sort(key=lambda x: x['confidence'], reverse=True)
 
     US_BUY_CACHE["data"] = buys
-    US_BUY_CACHE["historical"] = hist_list
-    US_BUY_CACHE["backtest_summary"] = compute_hc_historical_stats(historical_map)
     US_BUY_CACHE["last_updated"] = datetime.utcnow().isoformat() + "Z"
     US_BUY_CACHE["is_scanning"] = False
 
     US_HC_CACHE["data"] = hc_buys
-    US_HC_CACHE["historical"] = hc_hist_list
-    US_HC_CACHE["backtest_summary"] = compute_hc_historical_stats(hc_historical_map)
     US_HC_CACHE["last_updated"] = datetime.utcnow().isoformat() + "Z"
 
     print(f"US scan complete! {len(buys)} BUY | {len(hc_buys)} HC signals.")
@@ -1073,9 +1048,14 @@ def _us_seed_ledger_task(years: int = 2):
     For each stock in US_UNIVERSE, trains on rolling window and generates
     historical BUY / HC signals for each trading day over the past `years`.
     """
-    from data_fetcher import fetch_daily_data
-    from ml_model import add_features, create_labels, IntradayModel
+    from data_fetcher import fetch_daily_data, fetch_us_macro_data
+    from ml_model import add_features, create_labels, IntradayModel, _us_rr_multipliers, _compute_symbol_atr_band
     import pandas as pd
+
+    try:
+        macro_df = fetch_us_macro_data(years=years + 1)
+    except Exception:
+        macro_df = None
 
     total = len(US_UNIVERSE)
     print(f"[US Seed] Starting US ledger backfill for {years} years across {total} stocks…")
@@ -1093,20 +1073,21 @@ def _us_seed_ledger_task(years: int = 2):
             df = fetch_daily_data(symbol, years=years + 1)
             if df is None or len(df) < 150:
                 continue
-            df = add_features(df, None)
+            df = add_features(df, macro_df)
             if len(df) < 100:
                 continue
-            df = create_labels(df)
-            if len(df) < 60:
-                continue
+
+            # Compute fixed ATR band for this symbol
+            symbol_atr_band = _compute_symbol_atr_band(df)
+            t_mult, sl_mult = _us_rr_multipliers(symbol_atr_band)
 
             model = IntradayModel()
-            model.train(df[:-60])
-            df['prob_up'] = model.predict_proba_walk_forward(df)
-            df['ema50'] = df['close'].ewm(span=50, adjust=False).mean()
+            df_labels = create_labels(df, adaptive_rr=True, symbol_atr_band=symbol_atr_band)
+            model.train(df_labels[:-60])
+            df_labels['prob_up'] = model.predict_proba_walk_forward(df_labels)
 
             cutoff = pd.Timestamp.now(tz='UTC') - pd.DateOffset(years=years)
-            df_window = df[df.index >= cutoff] if df.index.tz is not None else df[df.index >= cutoff.replace(tzinfo=None)]
+            df_window = df_labels[df_labels.index >= cutoff] if df_labels.index.tz is not None else df_labels[df_labels.index >= cutoff.replace(tzinfo=None)]
 
             for date, row in df_window.iterrows():
                 date_str = date.strftime("%Y-%m-%d") if hasattr(date, 'strftime') else str(date)[:10]
@@ -1114,7 +1095,6 @@ def _us_seed_ledger_task(years: int = 2):
                 vol   = float(row.get('volume_ratio', 1))
                 close = float(row.get('close', 0))
                 atr   = float(row.get('atr', 0))
-                ema50_row = float(row.get('ema50', 0))
                 if close <= 0 or atr <= 0:
                     continue
 
@@ -1133,22 +1113,20 @@ def _us_seed_ledger_task(years: int = 2):
                         }
                         needs_save = True
 
-                # HC gate: tighter thresholds + 50 EMA trend filter
-                above_ema_seed = (ema50_row > 0 and close > ema50_row)
-                if prob >= US_HC_PROB_UP and vol >= US_HC_VOL_RATIO and atr / close >= US_HC_ATR_FILTER and above_ema_seed:
+                # HC gate: per-symbol fixed R:R scaling — always overwrite
+                if prob >= 0.72 and vol >= 1.5 and atr / close >= 0.015:
                     if date_str not in ledger["US_HIGH_CONVICTION"]:
                         ledger["US_HIGH_CONVICTION"][date_str] = {}
-                    if symbol not in ledger["US_HIGH_CONVICTION"][date_str]:
-                        ledger["US_HIGH_CONVICTION"][date_str][symbol] = {
-                            "entry": round(close, 2),
-                            "target": round(close + 5.0 * atr, 2),
-                            "stoploss": round(close - 2.0 * atr, 2),
-                            "confidence": round(prob, 4),
-                            "volume_ratio": round(vol, 2),
-                            "atr": round(atr, 4),
-                            "sector": "US Equities",
-                        }
-                        needs_save = True
+                    ledger["US_HIGH_CONVICTION"][date_str][symbol] = {
+                        "entry": round(close, 2),
+                        "target": round(close + t_mult * atr, 2),
+                        "stoploss": round(close - sl_mult * atr, 2),
+                        "confidence": round(prob, 4),
+                        "volume_ratio": round(vol, 2),
+                        "atr": round(atr, 4),
+                        "sector": "US Equities",
+                    }
+                    needs_save = True
 
             # Save + refresh cache every 10 stocks so UI shows partial progress
             if needs_save and (i + 1) % 10 == 0:
@@ -1222,6 +1200,16 @@ def _us_resolve_statuses_task():
     """Resolve TARGET HIT / SL HIT / ACTIVE for all existing US ledger entries."""
     from data_fetcher import fetch_daily_data
     ledger = load_us_ledger()
+
+    # Strip all cached statuses so entries are re-evaluated against current targets/stops
+    cleared = 0
+    for sigs in ledger["US_HIGH_CONVICTION"].values():
+        for s in sigs.values():
+            if "_closed_status" in s:
+                del s["_closed_status"]
+                cleared += 1
+    print(f"[US Resolve] Cleared {cleared} stale cached statuses from HC ledger")
+
     all_symbols = set()
     for sigs in ledger["US_BUYS"].values():
         all_symbols.update(sigs.keys())
@@ -1259,6 +1247,56 @@ async def us_resolve_statuses():
     """Resolve TARGET HIT / SL HIT for all existing US ledger entries."""
     threading.Thread(target=_us_resolve_statuses_task, daemon=True).start()
     return {"status": "started", "message": "Status resolution started in background."}
+
+# ── Ledger Snapshot Endpoints ─────────────────────────────────────────────────
+
+@app.post("/api/us_save_snapshot")
+async def us_save_snapshot(name: str):
+    """Save the current US ledger as a named snapshot for instant rollback."""
+    if not name or not name.replace('-', '').replace('_', '').isalnum():
+        return {"status": "error", "message": "Snapshot name must be alphanumeric (hyphens/underscores allowed)."}
+    dest = os.path.join(SNAPSHOTS_DIR, f"us_signals_ledger.{name}.json")
+    try:
+        import shutil
+        shutil.copy2(US_LEDGER_FILE, dest)
+        size_kb = round(os.path.getsize(dest) / 1024, 0)
+        return {"status": "saved", "name": name, "file": dest, "size_kb": size_kb}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/us_restore_snapshot")
+async def us_restore_snapshot(name: str):
+    """Restore a named ledger snapshot and reload the cache instantly (no re-seed needed)."""
+    src = os.path.join(SNAPSHOTS_DIR, f"us_signals_ledger.{name}.json")
+    if not os.path.exists(src):
+        snaps = [f.replace('us_signals_ledger.', '').replace('.json', '')
+                 for f in os.listdir(SNAPSHOTS_DIR) if f.endswith('.json')]
+        return {"status": "error", "message": f"Snapshot '{name}' not found.", "available": snaps}
+    try:
+        import shutil
+        shutil.copy2(src, US_LEDGER_FILE)
+        load_us_ledger()
+        hc_days  = len(US_HC_CACHE['historical'])
+        buy_days = len(US_BUY_CACHE['historical'])
+        return {"status": "restored", "name": name, "hc_days": hc_days, "buy_days": buy_days}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/us_list_snapshots")
+async def us_list_snapshots():
+    """List all available ledger snapshots."""
+    snaps = []
+    for fname in sorted(os.listdir(SNAPSHOTS_DIR)):
+        if fname.endswith('.json'):
+            fpath = os.path.join(SNAPSHOTS_DIR, fname)
+            stat  = os.stat(fpath)
+            snaps.append({
+                "name":     fname.replace('us_signals_ledger.', '').replace('.json', ''),
+                "file":     fname,
+                "size_kb":  round(stat.st_size / 1024, 0),
+                "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
+            })
+    return {"snapshots": snaps}
 
 @app.get("/api/us_seed_progress")
 async def us_seed_progress():

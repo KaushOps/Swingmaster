@@ -1,0 +1,26 @@
+[Unit]
+Description=TradeFlex AI Trading Signals Platform
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/tradeflex/backend
+Environment=PATH=/usr/bin:/usr/local/bin
+Environment=PYTHONPATH=/opt/tradeflex/backend
+Environment=VITE_API_URL=http://localhost:8000
+Environment=ALLOWED_ORIGINS=http://localhost,https://tradeflex.in,https://www.tradeflex.in
+
+# Backend service
+ExecStart=/usr/local/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
+
+Restart=always
+RestartSec=10
+
+# Resource limits
+LimitNOFILE=65535
+MemoryMax=2G
+CPUQuota=200%
+
+[Install]
+WantedBy=multi-user.target
