@@ -1580,8 +1580,8 @@ function MainApp({ onLogout }) {
                 <div style={{ marginBottom:'24px', padding:'24px', background:'linear-gradient(135deg, #1a0533 0%, var(--bg-base) 100%)', borderRadius:'15px', border:'1px solid #7c3aed44' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px', flexWrap:'wrap', gap:'12px' }}>
                     <div>
-                      <h2 style={{ color:'#e2e8f0', margin:0, fontSize:'1.3rem' }}>🧠 Renaissance Multibagger Engine</h2>
-                      <p style={{ color:'#94a3b8', margin:'4px 0 0', fontSize:'0.85rem' }}>Quantitative anomaly detection · R² trend analysis · Volume accumulation scoring</p>
+                      <h2 style={{ color:'#e2e8f0', margin:0, fontSize:'1.3rem' }}>🏆 NSE Fundamental Multibagger Engine</h2>
+                      <p style={{ color:'#94a3b8', margin:'4px 0 0', fontSize:'0.85rem' }}>Fundamental-first scoring · Revenue growth · FCF margin · Balance sheet · Once qualified, stays qualified until business deteriorates</p>
                     </div>
                     <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
                       <button onClick={() => setMbView('live')} style={{ padding:'8px 16px', borderRadius:'8px', border: mbView==='live' ? '1px solid #a855f7' : '1px solid var(--border-muted)', background: mbView==='live' ? 'rgba(168,85,247,0.2)' : 'var(--bg-elevated)', color: mbView==='live' ? '#a855f7' : 'var(--text-main)', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600', boxShadow: mbView==='live' ? '0 2px 8px rgba(168,85,247,0.25)' : 'none' }}>📡 Live Predictions</button>
@@ -1623,13 +1623,19 @@ function MainApp({ onLogout }) {
                 </div>
 
                 {mbLoading ? (
-                  <div className="loader">🧠 Renaissance engine scanning {mbView === 'backtest' ? 'historical data' : '60+ NSE stocks'}…<br /><span style={{fontSize:'0.9rem',opacity:0.6}}>This may take 30-60 seconds.</span></div>
+                  <div className="loader">🏆 Fetching fundamentals for 200 NSE stocks…<br /><span style={{fontSize:'0.9rem',opacity:0.6}}>Scoring on revenue growth, FCF, margins and balance sheet. ~60–120 seconds.</span></div>
                 ) : (
                   <div className="grid">
                     {(mbView === 'live' ? mbData : (mbBacktest?.picks || [])).map((stock, i) => (
                       <StockCard
                         key={stock.symbol}
-                        stock={{ ...stock, action: 'STRONG BUY', entry: stock.current_price, confidence: stock.score }}
+                        stock={{
+                          ...stock,
+                          action: 'STRONG BUY',
+                          entry: stock.current_price,
+                          confidence: stock.score,
+                          sector: stock.sector || 'NSE',
+                        }}
                         variant="multibagger"
                         currency="₹"
                         showBacktest={false}
@@ -1639,8 +1645,8 @@ function MainApp({ onLogout }) {
                         onToggleWatchlist={toggleWatchlist}
                       />
                     ))}
-                    {mbView === 'live' && mbLastUpdated && mbData.length === 0 && <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'60px'}}>No multibagger candidates found matching the strict criteria.</div>}
-                    {mbView === 'backtest' && mbBacktest && (mbBacktest.picks || []).length === 0 && <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'60px'}}>No multibagger candidates found in this historical period.</div>}
+                    {mbView === 'live' && mbLastUpdated && mbData.length === 0 && <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'60px'}}>Click <strong>Refresh Scan</strong> to run the NSE fundamental multibagger engine.</div>}
+                    {mbView === 'backtest' && mbBacktest && (mbBacktest.picks || []).length === 0 && <div className="no-data" style={{gridColumn:'1/-1',textAlign:'center',padding:'60px'}}>No NSE multibagger candidates found in this historical period.</div>}
                   </div>
                 )}
               </>

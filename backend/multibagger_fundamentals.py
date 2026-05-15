@@ -37,28 +37,35 @@ from scipy.stats import linregress
 logger = logging.getLogger(__name__)
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
-LEDGER_FILE = os.path.join(DATA_DIR, "multibagger_ledger.json")
 os.makedirs(DATA_DIR, exist_ok=True)
+
+# Separate ledger files for US and NSE
+LEDGER_FILE_US  = os.path.join(DATA_DIR, "multibagger_ledger.json")
+LEDGER_FILE_NSE = os.path.join(DATA_DIR, "multibagger_ledger_nse.json")
+
+def _ledger_path(market: str = "US") -> str:
+    return LEDGER_FILE_NSE if market.upper() == "NSE" else LEDGER_FILE_US
 
 
 # ─────────────────────────────────────────────
 #  LEDGER — persistent signal store
 # ─────────────────────────────────────────────
 
-def load_ledger() -> Dict:
+def load_ledger(market: str = "US") -> Dict:
     """Load the persistent multibagger ledger from disk."""
-    if os.path.exists(LEDGER_FILE):
+    path = _ledger_path(market)
+    if os.path.exists(path):
         try:
-            with open(LEDGER_FILE, "r") as f:
+            with open(path, "r") as f:
                 return json.load(f)
         except Exception:
             pass
     return {}
 
 
-def save_ledger(ledger: Dict):
+def save_ledger(ledger: Dict, market: str = "US"):
     """Save the ledger to disk."""
-    with open(LEDGER_FILE, "w") as f:
+    with open(_ledger_path(market), "w") as f:
         json.dump(ledger, f, indent=2, default=str)
 
 
@@ -91,7 +98,7 @@ def add_to_ledger(ledger: Dict, symbol: str, score_data: Dict) -> Dict:
     return ledger
 
 
-def remove_from_ledger(ledger: Dict, symbol: str, reason: str) -> Dict:
+def remove_from_ledger(ledger: Dict, symbol: str, reason: str, market: str = "US") -> Dict:
     """
     Mark a stock as REMOVED due to fundamental deterioration.
     We keep the record for audit — we just change status.
@@ -107,17 +114,23 @@ def remove_from_ledger(ledger: Dict, symbol: str, reason: str) -> Dict:
 #  FUNDAMENTAL FETCHER
 # ─────────────────────────────────────────────
 
-def fetch_fundamentals(symbol: str) -> Optional[Dict]:
+def fetch_fundamentals(symbol: str, market: str = "US") -> Optional[Dict]:
     """
     Fetch fundamental data via yfinance.
+    For NSE stocks, appends .NS suffix automatically if not present.
     Returns a clean dict of financial metrics, or None if data is insufficient.
     """
     try:
-        ticker = yf.Ticker(symbol)
+        # Resolve yfinance ticker
+        if market.upper() == "NSE":
+            yf_ticker = symbol if symbol.endswith(".NS") else f"{symbol}.NS"
+        else:
+            yf_ticker = symbol
+
+        ticker = yf.Ticker(yf_ticker)
         info = ticker.info or {}
 
         if not info or info.get("quoteType") not in ("EQUITY", "ETF", None):
-            # Allow None quoteType as some stocks don't have it set
             if info.get("regularMarketPrice") is None and info.get("currentPrice") is None:
                 return None
 
@@ -129,10 +142,16 @@ def fetch_fundamentals(symbol: str) -> Optional[Dict]:
                 return default
             return val
 
-        # ── Market cap gate ──
+        # Market cap gate: $500M for US, ~5000 Cr INR (~$600M) for NSE
         market_cap = safe("marketCap", 0)
-        if market_cap < 500_000_000:  # < $500M → skip
-            return None
+        if market.upper() == "NSE":
+            # yfinance returns marketCap in INR for .NS tickers
+            # 5000 Crore = 50 billion INR
+            if market_cap < 50_000_000_000:
+                return None
+        else:
+            if market_cap < 500_000_000:
+                return None
 
         # ── Revenue growth (yoy) ──
         rev_growth = safe("revenueGrowth")        # trailing 12m YoY
@@ -183,7 +202,9 @@ def fetch_fundamentals(symbol: str) -> Optional[Dict]:
         analyst_rating = safe("recommendationKey", "").upper()
 
         return {
-            "symbol": symbol,
+            "symbol": symbol,       # clean symbol (no .NS)
+            "yf_ticker": yf_ticker, # actual ticker used
+            "market": market,
             "name": name,
             "sector": sector,
             "industry": industry,
@@ -464,11 +485,26 @@ def score_fundamentals(f: Dict, df: pd.DataFrame = None) -> Optional[Dict]:
     total = growth_score + profit_score + balance_score + val_score + price_score
     total = round(min(total, 100), 1)
 
-    # Minimum qualifying score: 45/100
-    # Rationale: valuation data (PEG, P/S) is often missing from yfinance,
-    # so 10 pts may be permanently unavailable. 45 ensures strong-fundamental
-    # stocks (like GTLB with 23% growth + 29% FCF margin) still qualify.
-    qualifies = total >= 45
+    # ── HIGH-GROWTH BONUS ──────────────────────────────────────────────────
+    # Companies with exceptional revenue growth (≥30% YoY) get a bonus of up
+    # to +8 pts. Rationale: fast-growers often carry higher debt to fund
+    # expansion (RBLX, SMCI), and the growth itself is the story — the
+    # balance sheet will improve as free cash flow accumulates.
+    hg_bonus = 0.0
+    if rev_growth is not None:
+        if rev_growth >= 0.50:      hg_bonus = 8.0   # 50%+ YoY: exceptional
+        elif rev_growth >= 0.40:    hg_bonus = 6.0   # 40%+ YoY: very strong
+        elif rev_growth >= 0.30:    hg_bonus = 4.0   # 30%+ YoY: strong
+
+    total = growth_score + profit_score + balance_score + val_score + price_score + hg_bonus
+    total = round(min(total, 100), 1)
+    breakdown["high_growth_bonus"] = round(hg_bonus, 1)
+
+    # Minimum qualifying score: 40/100
+    # Rationale: valuation data (PEG, P/S) is often missing from yfinance
+    # (10 pts unavailable), and high-growth companies naturally score lower on
+    # balance sheet while their business is scaling. 40 is the right floor.
+    qualifies = total >= 40
 
     return {
         "pass": qualifies,
@@ -500,31 +536,33 @@ def scan_fundamentals(
     symbols: List[str],
     price_data_fn=None,
     max_workers: int = 8,
-    top_n: int = 20,
-    qualify_threshold: int = 50,
+    top_n: int = 100,
+    qualify_threshold: int = 40,
+    market: str = "US",
 ) -> List[Dict]:
     """
     Scan universe for fundamental multibaggers.
     Uses the persistent ledger — once qualified, a stock STAYS until fundamentals break.
 
     Args:
-        symbols:         List of ticker symbols to scan
-        price_data_fn:   Optional callable(symbol) → pd.DataFrame (for price structure)
-        max_workers:     Parallel fetch threads
-        top_n:           Return top N results
-        qualify_threshold: Minimum score to qualify (default 50/100)
+        symbols:           List of ticker symbols (without .NS for NSE — added automatically)
+        price_data_fn:     Optional callable(symbol) → pd.DataFrame (for price structure)
+        max_workers:       Parallel fetch threads
+        top_n:             Return top N results
+        qualify_threshold: Minimum score to qualify (default 40/100)
+        market:            'US' or 'NSE'
 
     Returns:
         List of qualified stock dicts, sorted by score descending
     """
     import concurrent.futures
 
-    ledger = load_ledger()
+    ledger = load_ledger(market)
     results = []
 
     def process(symbol):
         try:
-            f = fetch_fundamentals(symbol)
+            f = fetch_fundamentals(symbol, market=market)
             if f is None:
                 return None, symbol, "insufficient_data"
 
@@ -554,7 +592,7 @@ def scan_fundamentals(
             return scored, symbol, "qualified"
 
         except Exception as e:
-            logger.warning(f"[FundamentalScan] Error on {symbol}: {e}")
+            logger.warning(f"[FundamentalScan-{market}] Error on {symbol}: {e}")
             return None, symbol, f"error: {e}"
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
@@ -568,36 +606,37 @@ def scan_fundamentals(
                 # If previously in ledger as ACTIVE and now fails → check if fundamental break
                 if symbol in ledger and ledger[symbol]["status"] == "ACTIVE":
                     if "declining" in status or "extreme debt" in status.lower() or "distress" in status.lower():
-                        ledger = remove_from_ledger(ledger, symbol, status)
+                        ledger = remove_from_ledger(ledger, symbol, status, market)
                     # Otherwise: don't remove — data gaps are common, benefit of the doubt
 
-    save_ledger(ledger)
+    save_ledger(ledger, market)
 
     # Sort by score
     results.sort(key=lambda x: x["total_score"], reverse=True)
     return results[:top_n]
 
 
-def get_ledger_active(top_n: int = 50) -> List[Dict]:
+def get_ledger_active(top_n: int = 100, market: str = "US") -> List[Dict]:
     """
     Return all currently ACTIVE stocks from the ledger, sorted by score.
     This is what the UI shows — persistent, not recomputed on every load.
     """
-    ledger = load_ledger()
+    ledger = load_ledger(market)
     active = [v for v in ledger.values() if v.get("status") == "ACTIVE"]
     active.sort(key=lambda x: x.get("current_score", 0), reverse=True)
     return active[:top_n]
 
 
-def get_ledger_stats() -> Dict:
+def get_ledger_stats(market: str = "US") -> Dict:
     """Return ledger statistics for display."""
-    ledger = load_ledger()
+    ledger = load_ledger(market)
     active = [v for v in ledger.values() if v.get("status") == "ACTIVE"]
     removed = [v for v in ledger.values() if v.get("status") == "REMOVED"]
     return {
         "total_tracked": len(ledger),
         "active": len(active),
         "removed": len(removed),
+        "market": market,
         "last_entry": max((v.get("last_refreshed", "") for v in ledger.values()), default=None),
         "removal_reasons": [v.get("removal_reason") for v in removed if v.get("removal_reason")],
     }

@@ -1812,91 +1812,122 @@ async def stock_detail(symbol: str):
 
 
 
-# Cache for multibagger results
-_multibagger_cache = {"data": None, "timestamp": None}
-_multibagger_cache_ttl = 300  # 5 minutes
+# Cache for NSE fundamental multibagger scan (refreshes daily)
+_nse_fundamental_cache = {"data": None, "timestamp": None}
+_NSE_FUNDAMENTAL_CACHE_TTL = 86400  # 24 hours
+
 
 @app.get("/api/multibagger/live")
 async def multibagger_live(refresh: bool = False):
     """
-    Returns the top 20 current NSE multibagger candidates scored by
-    the ML-based LightGBM model with calibrated probabilities.
+    Returns NSE multibagger candidates scored on FUNDAMENTALS (revenue growth,
+    FCF, margins, balance sheet, valuation). Same philosophy as US engine:
+    once qualified, stays qualified until the BUSINESS deteriorates.
+    Separate persistent ledger: data/multibagger_ledger_nse.json
+    Cache TTL: 24 hours (fundamentals are quarterly, not daily).
     """
-    from ml_multibagger_model import scan_multibaggers_ml
+    from multibagger_fundamentals import scan_fundamentals, get_ledger_active, get_ledger_stats
     from symbols import NSE_200
     from datetime import datetime
     import time
-    
-    global _multibagger_cache
-    
-    # Return cached result if available and not expired
-    if not refresh and _multibagger_cache["data"] is not None:
-        if time.time() - _multibagger_cache["timestamp"] < _multibagger_cache_ttl:
-            return _multibagger_cache["data"]
-    
-    model = _get_nse_ml_multibagger_model()
-    if model.calibrated_model is None:
-        # Fallback to rules-based if ML model not trained
-        from multibagger_model import scan_multibaggers
-        symbols = [s.replace(".NS", "") for s in NSE_200]
-        results = scan_multibaggers(symbols, target_date=None, max_workers=30, top_n=20)
-        return {"status": "success", "data": results, "timestamp": datetime.utcnow().isoformat() + "Z", "model": "rules-based"}
-    
-    # Use NSE symbols (with .NS suffix handled internally)
-    # Use optimized scan function - get all predictions without threshold filter
-    from ml_multibagger_model import scan_multibaggers_ml
-    
-    # Scan with higher top_n to get all candidates, then filter
-    # Use fewer workers and add timeout protection
-    import concurrent.futures
-    
-    def scan_with_timeout():
-        return scan_multibaggers_ml(NSE_200, model, max_workers=4, top_n=50, min_prob=0.0)
-    
+
+    global _nse_fundamental_cache
+
+    # Serve from cache unless forced refresh or cache is stale
+    if not refresh and _nse_fundamental_cache["data"] is not None:
+        if time.time() - _nse_fundamental_cache["timestamp"] < _NSE_FUNDAMENTAL_CACHE_TTL:
+            return _nse_fundamental_cache["data"]
+
+    # Clean symbols: NSE_200 may have special chars — normalize for yfinance
+    clean_symbols = [s.replace(".NS", "").replace("&", "_") for s in NSE_200]
+
+    # Run fundamental scan — updates NSE ledger internally
     try:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(scan_with_timeout)
-            all_results = future.result(timeout=60)  # 60 second timeout
-    except concurrent.futures.TimeoutError:
-        # Return cached data if scan times out
-        if _multibagger_cache["data"] is not None:
-            return _multibagger_cache["data"]
-        return {"status": "error", "message": "Scan timeout", "data": []}
-    
-    # Sort by probability and take top 20
-    all_results.sort(key=lambda x: x['prob_multibagger'], reverse=True)
-    top_results = all_results[:20]
-    
-    # Transform to old format for frontend compatibility
-    formatted_results = []
-    for r in top_results:
-        formatted_results.append({
-            "symbol": r["symbol"].replace(".NS", ""),
-            "score": round(r["prob_multibagger"] * 100, 1),
-            "prob_multibagger": r["prob_multibagger"],
-            "prediction": r["prediction"],
-            "confidence": r["confidence"],
-            "key_drivers": r["key_drivers"],
-            "r_squared": r["features"].get("trend_r2_3y", 0),
-            "return_1y": r["features"].get("annualized_return_3y", 0),
-            "accumulation_ratio": r["features"].get("volume_accumulation_1y", 1.0),
-            "max_drawdown": r["features"].get("max_drawdown_3y", 0),
+        results = scan_fundamentals(
+            clean_symbols,
+            price_data_fn=None,    # skip price structure for NSE speed
+            max_workers=6,
+            top_n=200,
+            qualify_threshold=40,
+            market="NSE",
+        )
+    except Exception as e:
+        logger.error(f"[NSE Multibagger] Scan failed: {e}")
+        results = []
+
+    # Merge with persistent NSE ledger (stocks from past scans stay visible)
+    ledger_active = get_ledger_active(top_n=200, market="NSE")
+    seen = {r["symbol"] for r in results}
+    for entry in ledger_active:
+        sym = entry["symbol"]
+        if sym not in seen:
+            results.append({
+                "symbol": sym,
+                "total_score": entry.get("current_score", 0),
+                "breakdown": entry.get("score_breakdown", {}),
+                "fundamentals": entry.get("fundamentals", {}),
+                "name": entry.get("name", sym),
+                "sector": entry.get("sector", "Unknown"),
+                "data_source": "ledger_cache",
+            })
+
+    results.sort(key=lambda x: x.get("total_score", 0), reverse=True)
+    stats = get_ledger_stats(market="NSE")
+
+    # Format for frontend
+    formatted = []
+    for r in results:
+        bd = r.get("breakdown", {})
+        fu = r.get("fundamentals", {})
+        formatted.append({
+            "symbol": r["symbol"],
+            "name": r.get("name", r["symbol"]),
+            "sector": r.get("sector", "Unknown"),
+            "score": r.get("total_score", 0),
+            "current_price": r.get("current_price"),
+            "analyst_rating": r.get("analyst_rating"),
+            # Score breakdown
+            "score_growth": bd.get("growth", 0),
+            "score_profitability": bd.get("profitability", 0),
+            "score_balance_sheet": bd.get("balance_sheet", 0),
+            "score_valuation": bd.get("valuation", 0),
+            "score_price_structure": bd.get("price_structure", 0),
+            "score_high_growth_bonus": bd.get("high_growth_bonus", 0),
+            # Key fundamentals
+            "revenue_growth_pct": fu.get("revenue_growth_yoy_pct"),
+            "earnings_growth_pct": fu.get("earnings_growth_yoy_pct"),
+            "gross_margin_pct": fu.get("gross_margin_pct"),
+            "fcf_margin_pct": fu.get("fcf_margin_pct"),
+            "roe_pct": fu.get("roe_pct"),
+            "debt_to_equity": fu.get("debt_to_equity"),
+            "peg_ratio": fu.get("peg_ratio"),
+            # Legacy compat fields (NSE frontend card still uses these keys)
+            "r_squared": bd.get("price_structure", 5) / 10,
+            "return_1y": 0,
+            "accumulation_ratio": 1.0,
+            "prob_multibagger": round(r.get("total_score", 0) / 100, 3),
+            "confidence": r.get("total_score", 0),
+            "key_drivers": [
+                f"Rev Growth: {fu.get('revenue_growth_yoy_pct', '?')}%",
+                f"FCF Margin: {fu.get('fcf_margin_pct', '?')}%",
+                f"ROE: {fu.get('roe_pct', '?')}%",
+            ],
+            "data_source": r.get("data_source", "live_scan"),
         })
-    
-    result = {
-        "status": "success", 
-        "data": formatted_results, 
+
+    response = {
+        "status": "success",
+        "data": formatted,
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "model": "ml-lightgbm",
-        "model_threshold": model.threshold,
-        "matches": len([r for r in top_results if r['prob_multibagger'] >= model.threshold])
+        "model": "fundamental-v1-nse",
+        "engine": "Fundamental scoring — revenue growth, FCF, margins, balance sheet, valuation (NSE)",
+        "ledger_stats": stats,
+        "cache_ttl_hours": _NSE_FUNDAMENTAL_CACHE_TTL // 3600,
     }
-    
-    # Update cache
-    _multibagger_cache["data"] = result
-    _multibagger_cache["timestamp"] = time.time()
-    
-    return result
+
+    _nse_fundamental_cache["data"] = response
+    _nse_fundamental_cache["timestamp"] = time.time()
+    return response
 
 
 @app.get("/api/multibagger/backtest")
@@ -1949,8 +1980,8 @@ async def us_multibagger_live(refresh: bool = False):
             US_100,
             price_data_fn=fetch_daily_data,
             max_workers=8,
-            top_n=30,
-            qualify_threshold=50,
+            top_n=100,          # scan all, filter in display
+            qualify_threshold=40,  # must match QUALIFY_THRESHOLD in multibagger_fundamentals.py
         )
     except Exception as e:
         # On error, serve whatever is in the persistent ledger
@@ -1977,9 +2008,10 @@ async def us_multibagger_live(refresh: bool = False):
     results.sort(key=lambda x: x.get("total_score", 0), reverse=True)
     stats = get_ledger_stats()
 
-    # Format for frontend compatibility
+    # Format for frontend — show ALL qualifiers (sorted by score)
+    # No arbitrary top-20 cap: if a stock earns a pass on fundamentals it deserves to be shown.
     formatted = []
-    for r in results[:20]:
+    for r in results:
         bd = r.get("breakdown", {})
         fu = r.get("fundamentals", {})
         formatted.append({
