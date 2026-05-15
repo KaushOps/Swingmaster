@@ -1918,47 +1918,132 @@ async def multibagger_backtest(years_ago: int = 1):
     return {"status": "success", **result}
 
 
+# Cache for US fundamental multibagger scan (refreshes daily)
+_us_fundamental_cache = {"data": None, "timestamp": None}
+_US_FUNDAMENTAL_CACHE_TTL = 86400  # 24 hours — fundamentals don't change intraday
+
 @app.get("/api/us_multibagger/live")
-async def us_multibagger_live():
+async def us_multibagger_live(refresh: bool = False):
     """
-    Returns the top 20 current US multibagger candidates scored by
-    the ML-based LightGBM model with calibrated probabilities.
+    Returns US multibagger candidates scored on FUNDAMENTALS (revenue growth,
+    FCF, margins, balance sheet, valuation). Uses a persistent ledger so that
+    once a stock qualifies it stays until its BUSINESS deteriorates — not because
+    the stock had a bad week. Cache TTL is 24 hours (fundamentals are quarterly).
     """
-    from ml_multibagger_model import scan_multibaggers_ml
+    from multibagger_fundamentals import scan_fundamentals, get_ledger_active, get_ledger_stats
+    from data_fetcher import fetch_daily_data
     from symbols import US_100
     from datetime import datetime
-    
-    model = _get_ml_multibagger_model()
-    if model.calibrated_model is None:
-        # Fallback to rules-based if ML model not trained
-        from multibagger_model import scan_multibaggers_us
-        results = scan_multibaggers_us(US_100, target_date=None, max_workers=20, top_n=20)
-        return {"status": "success", "data": results, "timestamp": datetime.utcnow().isoformat() + "Z", "model": "rules-based"}
-    
-    results = scan_multibaggers_ml(US_100, model, max_workers=12, top_n=20)
-    
-    # Transform to old format for frontend compatibility
-    formatted_results = []
-    for r in results:
-        formatted_results.append({
+    import time
+
+    global _us_fundamental_cache
+
+    # Serve from cache unless forced refresh or cache is stale
+    if not refresh and _us_fundamental_cache["data"] is not None:
+        if time.time() - _us_fundamental_cache["timestamp"] < _US_FUNDAMENTAL_CACHE_TTL:
+            return _us_fundamental_cache["data"]
+
+    # Run fundamental scan — updates ledger internally
+    try:
+        results = scan_fundamentals(
+            US_100,
+            price_data_fn=fetch_daily_data,
+            max_workers=8,
+            top_n=30,
+            qualify_threshold=50,
+        )
+    except Exception as e:
+        # On error, serve whatever is in the persistent ledger
+        logger.error(f"[US Multibagger] Scan failed: {e}")
+        results = []
+
+    # Merge with persistent ledger (catches stocks from past scans not in this run)
+    ledger_active = get_ledger_active(top_n=50)
+    seen = {r["symbol"] for r in results}
+    for entry in ledger_active:
+        sym = entry["symbol"]
+        if sym not in seen:
+            # Stock was in ledger from a prior scan — keep it, just mark data as cached
+            results.append({
+                "symbol": sym,
+                "total_score": entry.get("current_score", 0),
+                "breakdown": entry.get("score_breakdown", {}),
+                "fundamentals": entry.get("fundamentals", {}),
+                "name": entry.get("name", sym),
+                "sector": entry.get("sector", "Unknown"),
+                "data_source": "ledger_cache",
+            })
+
+    results.sort(key=lambda x: x.get("total_score", 0), reverse=True)
+    stats = get_ledger_stats()
+
+    # Format for frontend compatibility
+    formatted = []
+    for r in results[:20]:
+        bd = r.get("breakdown", {})
+        fu = r.get("fundamentals", {})
+        formatted.append({
             "symbol": r["symbol"],
-            "score": round(r["prob_multibagger"] * 100, 1),  # Convert prob to score
-            "prob_multibagger": r["prob_multibagger"],
-            "prediction": r["prediction"],
-            "confidence": r["confidence"],
-            "key_drivers": r["key_drivers"],
-            "r_squared": r["features"].get("trend_r2_3y", 0),
-            "return_1y": r["features"].get("annualized_return_3y", 0),
-            "accumulation_ratio": r["features"].get("volume_accumulation_1y", 1.0),
-            "max_drawdown": r["features"].get("max_drawdown_3y", 0),
+            "name": r.get("name", r["symbol"]),
+            "sector": r.get("sector", "Unknown"),
+            "score": r.get("total_score", 0),
+            "current_price": r.get("current_price"),
+            "market_cap_b": fu.get("market_cap_b"),
+            "analyst_rating": r.get("analyst_rating"),
+            # Score breakdown
+            "score_growth": bd.get("growth", 0),
+            "score_profitability": bd.get("profitability", 0),
+            "score_balance_sheet": bd.get("balance_sheet", 0),
+            "score_valuation": bd.get("valuation", 0),
+            "score_price_structure": bd.get("price_structure", 0),
+            # Key fundamentals (for tooltip/detail panel)
+            "revenue_growth_pct": fu.get("revenue_growth_yoy_pct"),
+            "earnings_growth_pct": fu.get("earnings_growth_yoy_pct"),
+            "gross_margin_pct": fu.get("gross_margin_pct"),
+            "fcf_margin_pct": fu.get("fcf_margin_pct"),
+            "roe_pct": fu.get("roe_pct"),
+            "debt_to_equity": fu.get("debt_to_equity"),
+            "peg_ratio": fu.get("peg_ratio"),
+            "price_to_sales": fu.get("price_to_sales"),
+            # Ledger metadata
+            "data_source": r.get("data_source", "live_scan"),
         })
-    
-    return {
-        "status": "success", 
-        "data": formatted_results, 
+
+    response = {
+        "status": "success",
+        "data": formatted,
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "model": "ml-lightgbm",
-        "model_threshold": model.threshold
+        "model": "fundamental-v1",
+        "engine": "Fundamental scoring — revenue growth, FCF, margins, balance sheet, valuation",
+        "ledger_stats": stats,
+        "cache_ttl_hours": _US_FUNDAMENTAL_CACHE_TTL // 3600,
+    }
+
+    _us_fundamental_cache["data"] = response
+    _us_fundamental_cache["timestamp"] = time.time()
+    return response
+
+
+@app.get("/api/us_multibagger/ledger")
+async def us_multibagger_ledger():
+    """
+    Returns the full persistent multibagger ledger (active + removed).
+    Active stocks retain their original entry_date even after corrections.
+    """
+    from multibagger_fundamentals import load_ledger, get_ledger_stats
+    from datetime import datetime
+
+    ledger = load_ledger()
+    stats = get_ledger_stats()
+
+    all_entries = list(ledger.values())
+    all_entries.sort(key=lambda x: x.get("current_score", 0), reverse=True)
+
+    return {
+        "status": "success",
+        "stats": stats,
+        "entries": all_entries,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
     }
 
 

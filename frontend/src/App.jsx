@@ -1430,8 +1430,8 @@ function MainApp({ onLogout }) {
                 <div style={{ marginBottom:'24px', padding:'24px', background:'linear-gradient(135deg, #001a33 0%, var(--bg-base) 100%)', borderRadius:'15px', border:'1px solid #0ea5e944' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px', flexWrap:'wrap', gap:'12px' }}>
                     <div>
-                      <h2 style={{ color:'var(--text-bright)', margin:0, fontSize:'1.3rem' }}>🏆 US Multibagger Engine</h2>
-                      <p style={{ color:'var(--text-dim)', margin:'4px 0 0', fontSize:'0.85rem' }}>Quantitative anomaly detection · R² trend analysis · Volume accumulation · 100 US stocks</p>
+                      <h2 style={{ color:'var(--text-bright)', margin:0, fontSize:'1.3rem' }}>🏆 US Fundamental Multibagger Engine</h2>
+                      <p style={{ color:'var(--text-dim)', margin:'4px 0 0', fontSize:'0.85rem' }}>Fundamental-first scoring · Revenue growth · FCF margin · Balance sheet · Once qualified, stays qualified until business deteriorates</p>
                     </div>
                     <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
                       <button onClick={() => setUsMbView('live')} style={{ padding:'8px 16px', borderRadius:'8px', border: usMbView==='live' ? '1px solid #0ea5e9' : '1px solid var(--border-subtle)', background: usMbView==='live' ? 'rgba(14,165,233,0.2)' : 'var(--bg-elevated)', color: usMbView==='live' ? '#38bdf8' : 'var(--text-main)', cursor:'pointer', fontSize:'0.85rem', fontWeight:'600' }}>📡 Live Predictions</button>
@@ -1472,13 +1472,20 @@ function MainApp({ onLogout }) {
                 </div>
 
                 {usMbLoading ? (
-                  <div className="loader">🏆 Scanning 100 US stocks for multibagger footprints…<br /><span style={{fontSize:'0.9rem',opacity:0.6}}>This may take 30–60 seconds.</span></div>
+                  <div className="loader">🏆 Fetching fundamentals for 100 US stocks…<br /><span style={{fontSize:'0.9rem',opacity:0.6}}>Scoring on revenue growth, FCF, margins and balance sheet. ~30–60 seconds.</span></div>
                 ) : (
                   <div className="grid">
                     {(usMbView === 'live' ? usMbData : (usMbBacktest?.picks || [])).map((stock, i) => (
                       <StockCard
                         key={stock.symbol}
-                        stock={{ ...stock, action: 'STRONG BUY', entry: stock.current_price, confidence: stock.score }}
+                        stock={{
+                          ...stock,
+                          action: 'STRONG BUY',
+                          entry: stock.current_price,
+                          confidence: stock.score,
+                          // pass fundamental fields through to card
+                          sector: stock.sector || 'US Equities',
+                        }}
                         variant="multibagger"
                         currency="$"
                         showBacktest={false}

@@ -141,26 +141,51 @@ export default function StockCard({
 
         {/* Pricing Grid */}
         {variant === 'multibagger' ? (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, textAlign: 'center', marginBottom: 20 }}>
-            <div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: 600, marginBottom: 4 }}>R² Trend</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-bright)' }}>
-                {stock.r_squared != null ? stock.r_squared.toFixed(2) : '—'}
+          <>
+            {/* Fundamental score bar */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: 6 }}>
+                <span>Fundamental Score</span>
+                <span style={{ color: '#0ea5e9', fontWeight: 800 }}>{stock.score != null ? `${stock.score}/100` : '—'}</span>
+              </div>
+              <div style={{ height: 6, background: 'var(--border-subtle)', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${Math.min(100, stock.score || 0)}%`,
+                  background: stock.score >= 70 ? '#10b981' : stock.score >= 55 ? '#0ea5e9' : '#f59e0b',
+                  borderRadius: 3, transition: 'width 0.6s ease-out'
+                }} />
+              </div>
+              {/* Score breakdown mini pills */}
+              <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+                {stock.score_growth   != null && <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>Growth {stock.score_growth}</span>}
+                {stock.score_profitability != null && <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'rgba(14,165,233,0.12)', color: '#38bdf8' }}>Profit {stock.score_profitability}</span>}
+                {stock.score_balance_sheet != null && <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'rgba(168,85,247,0.12)', color: '#a78bfa' }}>B/S {stock.score_balance_sheet}</span>}
+                {stock.score_valuation    != null && <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'rgba(251,191,36,0.12)', color: '#fbbf24' }}>Val {stock.score_valuation}</span>}
               </div>
             </div>
-            <div style={{ borderLeft: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-subtle)' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: 600, marginBottom: 4 }}>1Y Return</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--up-color)' }}>
-                {stock.return_1y != null ? `${stock.return_1y}%` : '—'}
+            {/* Key fundamental metrics */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, textAlign: 'center', marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 600, marginBottom: 4 }}>Rev Growth</div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: stock.revenue_growth_pct >= 25 ? '#10b981' : stock.revenue_growth_pct >= 10 ? '#38bdf8' : 'var(--text-bright)' }}>
+                  {stock.revenue_growth_pct != null ? `${stock.revenue_growth_pct > 0 ? '+' : ''}${stock.revenue_growth_pct}%` : '—'}
+                </div>
+              </div>
+              <div style={{ borderLeft: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-subtle)' }}>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 600, marginBottom: 4 }}>FCF Margin</div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: stock.fcf_margin_pct >= 15 ? '#10b981' : stock.fcf_margin_pct >= 0 ? '#38bdf8' : '#f87171' }}>
+                  {stock.fcf_margin_pct != null ? `${stock.fcf_margin_pct > 0 ? '+' : ''}${stock.fcf_margin_pct}%` : '—'}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontWeight: 600, marginBottom: 4 }}>D/E Ratio</div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: stock.debt_to_equity <= 0.5 ? '#10b981' : stock.debt_to_equity <= 1.5 ? '#fbbf24' : '#f87171' }}>
+                  {stock.debt_to_equity != null ? `${stock.debt_to_equity.toFixed(2)}x` : '—'}
+                </div>
               </div>
             </div>
-            <div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: 600, marginBottom: 4 }}>Volume Acc</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--accent-purple)' }}>
-                {stock.accumulation_ratio != null ? `${stock.accumulation_ratio.toFixed(2)}x` : '—'}
-              </div>
-            </div>
-          </div>
+          </>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, textAlign: 'center', marginBottom: 20 }}>
             <div>
