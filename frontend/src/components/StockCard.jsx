@@ -158,10 +158,12 @@ export default function StockCard({
               </div>
               {/* Score breakdown mini pills */}
               <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
-                {stock.score_growth   != null && <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>Growth {stock.score_growth}</span>}
-                {stock.score_profitability != null && <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'rgba(14,165,233,0.12)', color: '#38bdf8' }}>Profit {stock.score_profitability}</span>}
-                {stock.score_balance_sheet != null && <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'rgba(168,85,247,0.12)', color: '#a78bfa' }}>B/S {stock.score_balance_sheet}</span>}
-                {stock.score_valuation    != null && <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'rgba(251,191,36,0.12)', color: '#fbbf24' }}>Val {stock.score_valuation}</span>}
+                {stock.score_growth        != null && <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>Growth {stock.score_growth}</span>}
+                {stock.score_unit_economics != null && <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'rgba(14,165,233,0.12)', color: '#38bdf8' }}>Unit Econ {stock.score_unit_economics}</span>}
+                {(stock.score_profitability != null && stock.score_unit_economics == null) && <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'rgba(14,165,233,0.12)', color: '#38bdf8' }}>Profit {stock.score_profitability}</span>}
+                {stock.score_runway        != null && <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'rgba(168,85,247,0.12)', color: '#a78bfa' }}>Runway {stock.score_runway}</span>}
+                {(stock.score_balance_sheet != null && stock.score_runway == null) && <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'rgba(168,85,247,0.12)', color: '#a78bfa' }}>B/S {stock.score_balance_sheet}</span>}
+                {stock.score_valuation     != null && <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'rgba(251,191,36,0.12)', color: '#fbbf24' }}>Val {stock.score_valuation}</span>}
               </div>
             </div>
             {/* Key fundamental metrics */}

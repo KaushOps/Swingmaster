@@ -1888,11 +1888,9 @@ async def multibagger_live(refresh: bool = False):
             "analyst_rating": r.get("analyst_rating"),
             # Score breakdown
             "score_growth": bd.get("growth", 0),
-            "score_profitability": bd.get("profitability", 0),
-            "score_balance_sheet": bd.get("balance_sheet", 0),
+            "score_unit_economics": bd.get("unit_economics", 0),
+            "score_runway": bd.get("runway", 0),
             "score_valuation": bd.get("valuation", 0),
-            "score_price_structure": bd.get("price_structure", 0),
-            "score_high_growth_bonus": bd.get("high_growth_bonus", 0),
             # Key fundamentals
             "revenue_growth_pct": fu.get("revenue_growth_yoy_pct"),
             "earnings_growth_pct": fu.get("earnings_growth_yoy_pct"),
@@ -2024,10 +2022,9 @@ async def us_multibagger_live(refresh: bool = False):
             "analyst_rating": r.get("analyst_rating"),
             # Score breakdown
             "score_growth": bd.get("growth", 0),
-            "score_profitability": bd.get("profitability", 0),
-            "score_balance_sheet": bd.get("balance_sheet", 0),
+            "score_unit_economics": bd.get("unit_economics", 0),
+            "score_runway": bd.get("runway", 0),
             "score_valuation": bd.get("valuation", 0),
-            "score_price_structure": bd.get("price_structure", 0),
             # Key fundamentals (for tooltip/detail panel)
             "revenue_growth_pct": fu.get("revenue_growth_yoy_pct"),
             "earnings_growth_pct": fu.get("earnings_growth_yoy_pct"),

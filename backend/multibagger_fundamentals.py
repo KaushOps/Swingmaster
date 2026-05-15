@@ -142,15 +142,21 @@ def fetch_fundamentals(symbol: str, market: str = "US") -> Optional[Dict]:
                 return default
             return val
 
-        # Market cap gate: $500M for US, ~5000 Cr INR (~$600M) for NSE
+        # ── Market cap gates (floor AND ceiling) ──
+        # A multibagger needs ROOM to grow. $3T companies cannot 5-10x.
+        # NVDA/AAPL/MSFT are great businesses but NOT multibagger candidates.
         market_cap = safe("marketCap", 0)
         if market.upper() == "NSE":
-            # yfinance returns marketCap in INR for .NS tickers
-            # 5000 Crore = 50 billion INR
-            if market_cap < 50_000_000_000:
+            # INR: min ₹2,000 Cr ($240M), max ₹200,000 Cr (~$24B)
+            if market_cap < 20_000_000_000:          # < ₹2,000 Cr
+                return None
+            if market_cap > 2_000_000_000_000:        # > ₹200,000 Cr
                 return None
         else:
-            if market_cap < 500_000_000:
+            # USD: min $500M, max $300B
+            if market_cap < 500_000_000:              # < $500M
+                return None
+            if market_cap > 300_000_000_000:          # > $300B — already too big
                 return None
 
         # ── Revenue growth (yoy) ──
@@ -290,8 +296,21 @@ def score_price_structure(df: pd.DataFrame) -> float:
 
 
 # ─────────────────────────────────────────────
-#  FUNDAMENTAL SCORER
+#  FUNDAMENTAL SCORER  (Multibagger Edition)
 # ─────────────────────────────────────────────
+#
+# Philosophy: A multibagger is a company at the BEGINNING of its exponential
+# growth curve — not a mature giant. NVDA was a multibagger at $10B, not $3T.
+# Scoring weights:
+#   [50 pts] Revenue growth — THE primary signal
+#   [25 pts] Unit economics — gross margin & FCF prove scalability
+#   [15 pts] Financial runway — enough cash to keep executing
+#   [10 pts] Valuation entry — not already priced for perfection
+#
+# Hard disqualifiers:
+#   • Revenue growth < 15% YoY (slow growers can't multibag)
+#   • D/E > 5x (financial distress)
+#   • FCF negative AND operating margin < -30% (burning with no path)
 
 def score_fundamentals(f: Dict, df: pd.DataFrame = None) -> Optional[Dict]:
     """
@@ -306,28 +325,198 @@ def score_fundamentals(f: Dict, df: pd.DataFrame = None) -> Optional[Dict]:
         dict with total_score, breakdown, pass/fail, disqualifier
     """
     breakdown = {}
-    disqualifier = None
 
-    # ══════════════════════════════════════════
-    #  HARD DISQUALIFIERS — returns None
-    # ══════════════════════════════════════════
-
-    # 1. Revenue declining
     rev_growth = f.get("revenue_growth_yoy")
-    if rev_growth is not None and rev_growth < -0.05:  # -5% threshold (mild declines are OK)
-        return {"pass": False, "disqualifier": f"Revenue declining YoY ({rev_growth*100:.1f}%)"}
-
-    # 2. Extreme debt (financial distress)
-    # debt_to_equity is already normalized to ratio (not %) in fetch_fundamentals()
+    earn_growth = f.get("earnings_growth_yoy")
+    gm = f.get("gross_margin")
+    op_margin = f.get("operating_margin")
+    roe = f.get("roe")
     de = f.get("debt_to_equity")
+    cr = f.get("current_ratio")
+    cash = f.get("total_cash", 0) or 0
+    debt = f.get("total_debt", 0) or 0
+    fcf = f.get("free_cashflow")
+    revenue = f.get("revenue_ttm")
+    eps_ttm = f.get("eps_ttm")
+    eps_fwd = f.get("eps_forward")
+    peg = f.get("peg_ratio")
+    ps = f.get("price_to_sales")
+    ev_rev = f.get("ev_to_revenue")
+
+    fcf_margin = (fcf / revenue) if (fcf and revenue and revenue > 0) else None
+
+    # ══════════════════════════════════════════
+    #  HARD DISQUALIFIERS
+    # ══════════════════════════════════════════
+
+    # 1. Revenue growth below 15% — slow growers cannot multibag
+    if rev_growth is not None and rev_growth < 0.15:
+        return {"pass": False, "disqualifier": f"Revenue growth too slow ({rev_growth*100:.1f}% < 15% required)"}
+
+    # 2. Revenue actively shrinking (catch None case above)
+    if rev_growth is None:
+        pass  # benefit of doubt if yfinance missing data
+
+    # 3. Extreme leverage
     if de is not None and de > 5.0:
         return {"pass": False, "disqualifier": f"Extreme debt/equity ({de:.2f}x)"}
 
-    # 3. Negative FCF + negative margins (burning cash with no path)
-    fcf = f.get("free_cashflow")
-    op_margin = f.get("operating_margin")
-    if fcf is not None and fcf < 0 and op_margin is not None and op_margin < -0.30:
-        return {"pass": False, "disqualifier": "Deeply FCF negative with -30%+ operating losses"}
+    # 4. Cash incinerator with no path to profitability
+    if fcf_margin is not None and fcf_margin < -0.30 and (op_margin is not None and op_margin < -0.30):
+        return {"pass": False, "disqualifier": "Burning >30% of revenue with negative operating margin"}
+
+    # ══════════════════════════════════════════
+    #  [50 pts] GROWTH ENGINE — primary signal
+    # ══════════════════════════════════════════
+    # Revenue growth is THE multibagger predictor.
+    # NVDA grew 100%+ before exploding. NFLX grew 30%+ for years.
+
+    growth_score = 0.0
+
+    if rev_growth is not None:
+        if rev_growth >= 1.00:      growth_score += 40   # 100%+: hypergrowth (SMCI, early NVDA)
+        elif rev_growth >= 0.60:    growth_score += 35   # 60%+: explosive
+        elif rev_growth >= 0.40:    growth_score += 30   # 40%+: very strong
+        elif rev_growth >= 0.30:    growth_score += 25   # 30%+: strong
+        elif rev_growth >= 0.20:    growth_score += 18   # 20%+: good
+        elif rev_growth >= 0.15:    growth_score += 12   # 15%+: minimum qualifying
+
+    # Earnings growth acceleration (0–6 pts)
+    if earn_growth is not None and earn_growth > 0:
+        if earn_growth >= 1.00:     growth_score += 6
+        elif earn_growth >= 0.50:   growth_score += 5
+        elif earn_growth >= 0.25:   growth_score += 3
+        elif earn_growth >= 0.10:   growth_score += 1
+
+    # Forward EPS acceleration (0–4 pts) — market's forward bet
+    if eps_ttm and eps_fwd and eps_ttm != 0:
+        eps_accel = (eps_fwd - eps_ttm) / abs(eps_ttm)
+        if eps_accel >= 0.50:   growth_score += 4
+        elif eps_accel >= 0.25: growth_score += 3
+        elif eps_accel >= 0.10: growth_score += 2
+        elif eps_accel >= 0.0:  growth_score += 1
+
+    growth_score = min(growth_score, 50)
+    breakdown["growth"] = round(growth_score, 1)
+
+    # ══════════════════════════════════════════
+    #  [25 pts] UNIT ECONOMICS
+    # ══════════════════════════════════════════
+    # Gross margin shows scalability and pricing power (moat).
+    # FCF proves the business model actually generates real cash.
+
+    unit_score = 0.0
+
+    # Gross margin (0–15 pts)
+    if gm is not None:
+        if gm >= 0.70:      unit_score += 15   # SaaS/IP: DDOG, NET, CRWD
+        elif gm >= 0.55:    unit_score += 12
+        elif gm >= 0.40:    unit_score += 9
+        elif gm >= 0.25:    unit_score += 5
+        elif gm >= 0.10:    unit_score += 2
+
+    # FCF margin (0–10 pts)
+    if fcf_margin is not None:
+        if fcf_margin >= 0.25:      unit_score += 10
+        elif fcf_margin >= 0.15:    unit_score += 8
+        elif fcf_margin >= 0.05:    unit_score += 5
+        elif fcf_margin >= 0.0:     unit_score += 2
+        elif fcf_margin >= -0.15:   unit_score += 1   # slight FCF burn is OK for hypergrowth
+
+    unit_score = min(unit_score, 25)
+    breakdown["unit_economics"] = round(unit_score, 1)
+
+    # ══════════════════════════════════════════
+    #  [15 pts] FINANCIAL RUNWAY
+    # ══════════════════════════════════════════
+    # Can the company keep growing without diluting shareholders?
+
+    runway_score = 0.0
+
+    if de is not None:
+        if de <= 0.0:       runway_score += 8    # Net cash — maximum flexibility
+        elif de <= 0.50:    runway_score += 7
+        elif de <= 1.00:    runway_score += 5
+        elif de <= 2.00:    runway_score += 3
+        elif de <= 4.00:    runway_score += 1
+
+    if cr is not None:
+        if cr >= 2.0:   runway_score += 4
+        elif cr >= 1.5: runway_score += 3
+        elif cr >= 1.0: runway_score += 1
+
+    if cash > debt:
+        runway_score += 3   # Net cash positive
+
+    runway_score = min(runway_score, 15)
+    breakdown["runway"] = round(runway_score, 1)
+
+    # ══════════════════════════════════════════
+    #  [10 pts] VALUATION ENTRY
+    # ══════════════════════════════════════════
+    # Growth stocks are "expensive" by PE — use EV/Revenue or P/S vs growth.
+    # A company growing 40%+ at 10x P/S is CHEAP. At 50x P/S, it's priced for perfection.
+
+    val_score = 0.0
+
+    # EV/Revenue adjusted for growth (0–6 pts)
+    if ev_rev is not None and rev_growth is not None and rev_growth > 0:
+        ev_to_growth = ev_rev / (rev_growth * 100)   # lower = better entry
+        if ev_to_growth <= 0.10:    val_score += 6
+        elif ev_to_growth <= 0.20:  val_score += 5
+        elif ev_to_growth <= 0.40:  val_score += 4
+        elif ev_to_growth <= 0.80:  val_score += 3
+        elif ev_to_growth <= 1.50:  val_score += 2
+        else:                        val_score += 1   # expensive but growing
+    elif ps is not None and rev_growth is not None and rev_growth > 0:
+        ps_to_growth = ps / (rev_growth * 100)
+        if ps_to_growth <= 0.10:    val_score += 5
+        elif ps_to_growth <= 0.25:  val_score += 4
+        elif ps_to_growth <= 0.50:  val_score += 3
+        elif ps_to_growth <= 1.00:  val_score += 2
+        else:                        val_score += 1
+
+    # PEG (0–4 pts) — only meaningful if profitable
+    if peg is not None and 0 < peg:
+        if peg <= 0.5:      val_score += 4
+        elif peg <= 1.0:    val_score += 3
+        elif peg <= 1.5:    val_score += 2
+        elif peg <= 2.5:    val_score += 1
+
+    val_score = min(val_score, 10)
+    breakdown["valuation"] = round(val_score, 1)
+
+    # ══════════════════════════════════════════
+    #  TOTAL
+    # ══════════════════════════════════════════
+
+    total = growth_score + unit_score + runway_score + val_score
+    total = round(min(total, 100), 1)
+
+    # Qualify at 35/100 — valuation data is often missing from yfinance,
+    # and fast-growing companies with thin data still deserve a chance.
+    qualifies = total >= 35
+
+    return {
+        "pass": qualifies,
+        "total_score": total,
+        "breakdown": breakdown,
+        "fundamentals": {
+            "revenue_growth_yoy_pct": round(rev_growth * 100, 1) if rev_growth is not None else None,
+            "earnings_growth_yoy_pct": round(earn_growth * 100, 1) if earn_growth is not None else None,
+            "gross_margin_pct": round(gm * 100, 1) if gm is not None else None,
+            "operating_margin_pct": round(op_margin * 100, 1) if op_margin is not None else None,
+            "roe_pct": round(roe * 100, 1) if roe is not None else None,
+            "fcf_margin_pct": round(fcf_margin * 100, 1) if fcf_margin is not None else None,
+            "debt_to_equity": round(de, 2) if de is not None else None,
+            "current_ratio": round(cr, 2) if cr is not None else None,
+            "peg_ratio": round(peg, 2) if peg is not None else None,
+            "price_to_sales": round(ps, 2) if ps is not None else None,
+            "ev_to_revenue": round(ev_rev, 2) if ev_rev is not None else None,
+            "market_cap_b": round(f.get("market_cap", 0) / 1e9, 2),
+            "sector": f.get("sector"),
+        },
+    }
 
     # ══════════════════════════════════════════
     #  [35 pts] GROWTH ENGINE
