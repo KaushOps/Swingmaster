@@ -528,14 +528,6 @@ ssh -i "c:\...\key" ubuntu@129.159.226.235 "
 | `LLM_POSTMORTEM` | `true`/`false` — enable trade post-mortems |
 | `API_KEY` | Backend API key for protected endpoints |
 
-### Login Credentials
-
-| Field | Value |
-|-------|-------|
-| Username | `Kaushik` |
-| Password | `TradeFlex@1018` |
-
----
 
 ## Technical Stack
 
