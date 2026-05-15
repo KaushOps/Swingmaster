@@ -1,0 +1,112 @@
+{
+  "model_name": "us_multibagger_v1",
+  "threshold": 0.3,
+  "features": [
+    "trend_r2_3y",
+    "trend_slope_3y",
+    "trend_pvalue",
+    "annualized_return_3y",
+    "trend_acceleration",
+    "trend_consistency",
+    "hurst_exponent",
+    "realized_vol_1y",
+    "realized_vol_3y",
+    "garch_vol_forecast",
+    "volatility_trend",
+    "vol_of_vol",
+    "sharpe_ratio_3y",
+    "sortino_ratio",
+    "max_drawdown_3y",
+    "calmar_ratio",
+    "return_maxdd_ratio",
+    "volume_accumulation_1y",
+    "volume_accumulation_3y",
+    "volume_trend",
+    "obv_trend",
+    "obv_r2",
+    "pct_from_52w_high",
+    "pct_from_3y_high",
+    "price_vs_sma50",
+    "price_vs_sma200",
+    "sma50_vs_sma200",
+    "consistency_score",
+    "max_consecutive_up",
+    "avg_consecutive_up",
+    "win_rate_1y",
+    "rsi_14",
+    "bb_position",
+    "macd",
+    "momentum_1m",
+    "momentum_3m",
+    "momentum_6m",
+    "momentum_shift_6m_to_1m"
+  ],
+  "performance_metrics": {
+    "cv_scores": [
+      {
+        "fold": 0,
+        "auc": 0.3636363636363637,
+        "average_precision": 0.16204912193731275,
+        "precision": 0.07142857142857142,
+        "n_train": 120,
+        "n_val": 116
+      },
+      {
+        "fold": 1,
+        "auc": 0.8416728902165796,
+        "average_precision": 0.5576876644989437,
+        "precision": 0.3333333333333333,
+        "n_train": 236,
+        "n_val": 116
+      },
+      {
+        "fold": 2,
+        "auc": 0.6484848484848486,
+        "average_precision": 0.23721172679598154,
+        "precision": 0.14285714285714285,
+        "n_train": 352,
+        "n_val": 116
+      },
+      {
+        "fold": 3,
+        "auc": 0.46625129802699894,
+        "average_precision": 0.18491927310528622,
+        "precision": 0.3333333333333333,
+        "n_train": 468,
+        "n_val": 116
+      },
+      {
+        "fold": 4,
+        "auc": 0.5878623188405797,
+        "average_precision": 0.33900341062383665,
+        "precision": 0.5,
+        "n_train": 584,
+        "n_val": 116
+      }
+    ],
+    "mean_auc": 0.5815815438410741,
+    "mean_ap": 0.2961742393922722,
+    "optimal_threshold": 0.3,
+    "training_samples": 700,
+    "positive_rate": 0.12428571428571429,
+    "training_date": "2026-05-11T19:42:28.864118",
+    "feature_importance": {
+      "max_drawdown_3y": 683,
+      "vol_of_vol": 524,
+      "realized_vol_3y": 474,
+      "volume_trend": 424,
+      "garch_vol_forecast": 414,
+      "hurst_exponent": 410,
+      "volatility_trend": 388,
+      "obv_trend": 371,
+      "trend_slope_3y": 366,
+      "realized_vol_1y": 340,
+      "trend_consistency": 321,
+      "pct_from_3y_high": 274,
+      "macd": 268,
+      "avg_consecutive_up": 257,
+      "obv_r2": 253
+    }
+  },
+  "training_date": "2026-05-11T19:42:29.001871"
+}

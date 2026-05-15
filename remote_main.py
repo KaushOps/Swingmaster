@@ -379,11 +379,7 @@ US_HC_CACHE = {
     "is_scanning": False
 }
 
-_US_SEED_PROGRESS = {"running": False, "done": 0, "total": 0, "status": "idle"}
-
-US_LEDGER_FILE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "us_signals_ledger.json")
-SNAPSHOTS_DIR   = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "ledger_snapshots")
-os.makedirs(SNAPSHOTS_DIR, exist_ok=True)
+US_LEDGER_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "us_signals_ledger.json")
 
 # --- Initialize historical data on boot from the persistent ledger ---
 _startup_ledger = load_ledger()
@@ -392,7 +388,6 @@ _startup_ledger = load_ledger()
 HC_PROB_UP    = 0.72   # at least 72% ML confidence
 HC_VOL_RATIO  = 1.5    # at least 1.5x average volume spike
 HC_ATR_FILTER = 0.015  # require at least 1.5% ATR (avoid noise)
-
 
 _nifty_bullish  = True  # global cache for regime; updated with each scan
 _current_regime = "UNKNOWN"  # 3-state: TRENDING / CHOPPY / VOLATILE
@@ -511,10 +506,9 @@ def update_universe_cache():
     if GLOBAL_BUY_CACHE["is_scanning"]:
         return
         
-    # Circuit Breaker Check
+    # Circuit Breaker Check (LOG ONLY - scans continue for data collection)
     if PerformanceMonitor.check_circuit_breaker():
-        print("CIRCUIT BREAKER TRIGGERED: Win rate < 40% or Kill Switch Active. Halting scans.")
-        return
+        print("CIRCUIT BREAKER WARNING: Win rate < 40% - scan continues for data collection.")
 
     GLOBAL_BUY_CACHE["is_scanning"] = True
     print(f"Starting background scan of {len(NSE_UNIVERSE)} NSE Universe stocks for BUY signals...")
@@ -533,9 +527,9 @@ def update_universe_cache():
     market_bullish  = _nifty_bullish and _india_vix < 25.0  # halt if VIX >= 25
     vix_safe        = _india_vix < 20.0
 
-    print(f"Nifty 50 regime: {'BULLISH [OK]' if _nifty_bullish else 'BEARISH [WARN]'} | "
+    print(f"Nifty 50 regime: {'BULLISH ✅' if _nifty_bullish else 'BEARISH ⚠️'} | "
           f"3-State: {_current_regime} | India VIX: {_india_vix:.1f} | "
-          f"VIX Safe: {'[OK]' if vix_safe else '[ALERT]'}")
+          f"VIX Safe: {'✅' if vix_safe else '🔴'}")
 
     # Refresh adaptive thresholds before scanning
     _adaptive_thresholds = ThresholdCalibrator.get_dynamic_thresholds()
@@ -814,12 +808,12 @@ def update_universe_cache():
     GLOBAL_BUY_CACHE["data"] = buys
     GLOBAL_BUY_CACHE["historical"] = hist_list
     GLOBAL_BUY_CACHE["backtest_summary"] = nse_stats
-    GLOBAL_BUY_CACHE["last_updated"] = datetime.utcnow().isoformat() + "Z"
+    GLOBAL_BUY_CACHE["last_updated"] = datetime.now().isoformat()
     GLOBAL_BUY_CACHE["is_scanning"] = False
     HC_CACHE["data"] = hc_buys
     HC_CACHE["historical"] = hc_hist_list
     HC_CACHE["backtest_summary"] = hc_stats
-    HC_CACHE["last_updated"] = datetime.utcnow().isoformat() + "Z"
+    HC_CACHE["last_updated"] = datetime.now().isoformat()
     HC_CACHE["is_scanning"] = False
     if needs_save:
         save_ledger(ledger)
@@ -863,30 +857,24 @@ def load_us_ledger():
     for date_str, sigs in ledger.get("US_BUYS", {}).items():
         us_hist_map[date_str] = []
         for sym, s in sigs.items():
-            closed = s.get("_closed_status")
             us_hist_map[date_str].append({
                 "symbol": sym, "action": "BUY",
                 "entry": s["entry"], "target": s["target"], "stoploss": s["stoploss"],
                 "confidence": round(s["confidence"] * 100 if s["confidence"] <= 1.0 else s["confidence"], 1),
                 "volume_ratio": s.get("volume_ratio", 1.0),
                 "sector": s.get("sector", "US Equities"),
-                "status": closed if closed else "ACTIVE",
-                "close": s["entry"], "atr": s.get("atr", 0),
-                "days_in_trade": s.get("_days_in_trade", 0),
+                "status": "SYNCING", "close": s["entry"], "atr": s.get("atr", 0),
             })
     for date_str, sigs in ledger.get("US_HIGH_CONVICTION", {}).items():
         us_hc_hist_map[date_str] = []
         for sym, s in sigs.items():
-            closed = s.get("_closed_status")
             us_hc_hist_map[date_str].append({
                 "symbol": sym, "action": "STRONG BUY",
                 "entry": s["entry"], "target": s["target"], "stoploss": s["stoploss"],
                 "confidence": round(s["confidence"] * 100 if s["confidence"] <= 1.0 else s["confidence"], 1),
                 "volume_ratio": s.get("volume_ratio", 1.0),
                 "sector": s.get("sector", "US Equities"),
-                "status": closed if closed else "ACTIVE",
-                "close": s["entry"], "atr": s.get("atr", 0),
-                "days_in_trade": s.get("_days_in_trade", 0),
+                "status": "SYNCING", "close": s["entry"], "atr": s.get("atr", 0),
             })
     US_BUY_CACHE["historical"] = sorted([{"date": k, "signals": v} for k, v in us_hist_map.items()], key=lambda x: x["date"])
     US_HC_CACHE["historical"] = sorted([{"date": k, "signals": v} for k, v in us_hc_hist_map.items()], key=lambda x: x["date"])
@@ -895,10 +883,8 @@ def load_us_ledger():
     return ledger
 
 def save_us_ledger(ledger):
-    tmp = US_LEDGER_FILE + ".tmp"
-    with open(tmp, "w") as f:
+    with open(US_LEDGER_FILE, "w") as f:
         json.dump(ledger, f, indent=2)
-    os.replace(tmp, US_LEDGER_FILE)  # atomic rename — prevents partial-write corruption
 
 def update_us_cache():
     if US_BUY_CACHE["is_scanning"]:
@@ -906,56 +892,44 @@ def update_us_cache():
     US_BUY_CACHE["is_scanning"] = True
     print(f"Starting background scan of {len(US_UNIVERSE)} US stocks for BUY signals...")
 
-    from data_fetcher import fetch_daily_data, fetch_us_macro_data, fetch_earnings_blackout
-    from ml_model import add_features, create_labels, IntradayModel, _us_rr_multipliers, _compute_symbol_atr_band
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-    import time
+    from data_fetcher import fetch_daily_data, fetch_macro_data
+    from ml_model import add_features, create_labels, IntradayModel
 
     buys = []
     hc_buys = []
-    scan_start_time = time.time()
-    max_scan_time = 300  # 5 minutes max per scan
+    historical_map = {}
+    hc_historical_map = {}
 
     try:
-        macro_df = fetch_us_macro_data(years=2)
+        macro_df = fetch_macro_data(years=2)
     except Exception:
         macro_df = None
-
-    try:
-        earnings_blackout = fetch_earnings_blackout(US_UNIVERSE)
-    except Exception:
-        earnings_blackout = set()
 
     ledger = load_us_ledger()
     needs_save = False
     is_seed_run = (len(ledger["US_BUYS"]) == 0)
     today_date_str = datetime.now().strftime("%Y-%m-%d")
 
-    def process_symbol(symbol):
-        # Check time limit
-        if time.time() - scan_start_time > max_scan_time:
-            return None, None
+    for symbol in US_UNIVERSE:
         try:
             df = fetch_daily_data(symbol, years=2)
             if df is None or len(df) < 100:
-                return None, None
+                continue
             df = add_features(df, macro_df)
-            if len(df) < 80:
-                return None, None
-
-            # Compute fixed ATR band for this symbol (consistent across all bars)
-            symbol_atr_band = _compute_symbol_atr_band(df)
-            t_mult, sl_mult = _us_rr_multipliers(symbol_atr_band)
+            if len(df) < 80: continue
+            df = create_labels(df)
+            if len(df) < 50: continue
 
             model = IntradayModel()
-            df_labels = create_labels(df, adaptive_rr=True, symbol_atr_band=symbol_atr_band)
-            model.train(df_labels[:-60])
+            model.train(df[:-60])
 
-            # Walk-forward uses df_labels (has label column needed internally)
-            df_labels['prob_up'] = model.predict_proba_walk_forward(df_labels)
-            df_labels['prob_up'] = model.predict_proba(df_labels)
+            # Walk-forward for historical accuracy tracking
+            df['prob_up'] = model.predict_proba_walk_forward(df)
 
-            latest = df_labels.iloc[-1]
+            # In-sample prediction for the latest bar only (same as NSE)
+            df['prob_up'] = model.predict_proba(df)
+
+            latest = df.iloc[-1]
             latest_close = float(latest['close'])
             latest_date = df.index[-1]
             latest_date_str = latest_date.strftime("%Y-%m-%d") if hasattr(latest_date, 'strftime') else str(latest_date)[:10]
@@ -964,9 +938,6 @@ def update_us_cache():
             vol_ratio = float(latest['volume_ratio'])
             atr = float(latest['atr'])
             sector = "US Equities"
-            
-            buy_signal = None
-            hc_signal = None
 
             # Seed or today signal — persist to ledger
             if is_seed_run or latest_date_str == today_date_str:
@@ -983,27 +954,42 @@ def update_us_cache():
                             "atr": round(atr, 4),
                             "sector": sector,
                         }
+                        needs_save = True
 
-                    # HC gate: earnings blackout + per-symbol fixed R:R
-                    in_blackout = (symbol, latest_date_str) in earnings_blackout
-                    if adjusted_prob >= 0.72 and vol_ratio >= 1.5 and atr / latest_close >= 0.015 and not in_blackout:
+                    # HC gate: same strict thresholds as NSE HC
+                    if adjusted_prob >= 0.72 and vol_ratio >= 1.5 and atr / latest_close >= 0.015:
                         if latest_date_str not in ledger["US_HIGH_CONVICTION"]:
                             ledger["US_HIGH_CONVICTION"][latest_date_str] = {}
-                        ledger["US_HIGH_CONVICTION"][latest_date_str][symbol] = {
-                            "entry": round(latest_close, 2),
-                            "target": round(latest_close + t_mult * atr, 2),
-                            "stoploss": round(latest_close - sl_mult * atr, 2),
-                            "confidence": round(adjusted_prob, 4),
-                            "volume_ratio": round(vol_ratio, 2),
-                            "atr": round(atr, 4),
-                            "sector": sector,
-                        }
+                        if symbol not in ledger["US_HIGH_CONVICTION"][latest_date_str]:
+                            ledger["US_HIGH_CONVICTION"][latest_date_str][symbol] = {
+                                "entry": round(latest_close, 2),
+                                "target": round(latest_close + 5.0 * atr, 2),
+                                "stoploss": round(latest_close - 2.0 * atr, 2),
+                                "confidence": round(adjusted_prob, 4),
+                                "volume_ratio": round(vol_ratio, 2),
+                                "atr": round(atr, 4),
+                                "sector": sector,
+                            }
+                            needs_save = True
 
-            # Live signal cards (use fixed symbol multipliers)
+            # Build frozen historical signals
+            for date_str, sigs in ledger["US_BUYS"].items():
+                if symbol in sigs:
+                    if date_str not in historical_map:
+                        historical_map[date_str] = []
+                    historical_map[date_str].append(build_signal_frozen(sigs[symbol], date_str, df, symbol, latest_close))
+
+            for date_str, sigs in ledger["US_HIGH_CONVICTION"].items():
+                if symbol in sigs:
+                    if date_str not in hc_historical_map:
+                        hc_historical_map[date_str] = []
+                    hc_historical_map[date_str].append(build_signal_frozen(sigs[symbol], date_str, df, symbol, latest_close))
+
+            # Live signal cards
             if adjusted_prob > 0.55 and vol_ratio > 1.0:
                 entry = round(latest_close, 2)
                 atr_v = round(atr, 4)
-                buy_signal = {
+                buys.append({
                     "symbol": symbol,
                     "action": "BUY",
                     "confidence": round(adjusted_prob * 100, 2),
@@ -1014,318 +1000,55 @@ def update_us_cache():
                     "atr": atr_v,
                     "sector": sector,
                     "close": latest_close,
-                }
-            in_blackout_live = (symbol, today_date_str) in earnings_blackout
-            if adjusted_prob >= 0.72 and vol_ratio >= 1.5 and atr / latest_close >= 0.015 and not in_blackout_live:
+                })
+            if adjusted_prob >= 0.72 and vol_ratio >= 1.5 and atr / latest_close >= 0.015:
                 entry = round(latest_close, 2)
-                hc_signal = {
+                hc_buys.append({
                     "symbol": symbol,
                     "action": "STRONG BUY",
                     "confidence": round(adjusted_prob * 100, 2),
                     "entry": entry,
-                    "target": round(entry + t_mult * atr, 2),
-                    "stoploss": round(entry - sl_mult * atr, 2),
+                    "target": round(entry + 5.0 * atr, 2),
+                    "stoploss": round(entry - 2.0 * atr, 2),
                     "volume_ratio": round(vol_ratio, 2),
                     "atr": atr_v,
                     "sector": sector,
                     "close": latest_close,
-                }
-            
-            return buy_signal, hc_signal
+                })
 
         except Exception as e:
             print(f"US scan error for {symbol}: {e}")
-            return None, None
+            continue
 
-    # Process symbols with ThreadPoolExecutor for parallelization
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = {executor.submit(process_symbol, sym): sym for sym in US_UNIVERSE}
-        for future in as_completed(futures):
-            buy_sig, hc_sig = future.result()
-            if buy_sig:
-                buys.append(buy_sig)
-            if hc_sig:
-                hc_buys.append(hc_sig)
-
-    if is_seed_run and (ledger["US_BUYS"] or ledger["US_HIGH_CONVICTION"]):
+    if needs_save:
         save_us_ledger(ledger)
+
+    # Build sorted history lists
+    hist_list = []
+    for d in sorted(historical_map.keys()):
+        sigs = historical_map[d]
+        hist_list.append({"date": d, "count": len(sigs), "stocks": [s["symbol"] for s in sigs], "signals": sigs})
+
+    hc_hist_list = []
+    for d in sorted(hc_historical_map.keys()):
+        sigs = hc_historical_map[d]
+        hc_hist_list.append({"date": d, "count": len(sigs), "stocks": [s["symbol"] for s in sigs], "signals": sigs})
 
     buys.sort(key=lambda x: x['confidence'], reverse=True)
     hc_buys.sort(key=lambda x: x['confidence'], reverse=True)
 
     US_BUY_CACHE["data"] = buys
-    US_BUY_CACHE["last_updated"] = datetime.utcnow().isoformat() + "Z"
+    US_BUY_CACHE["historical"] = hist_list
+    US_BUY_CACHE["backtest_summary"] = compute_hc_historical_stats(historical_map)
+    US_BUY_CACHE["last_updated"] = datetime.now().isoformat()
     US_BUY_CACHE["is_scanning"] = False
 
     US_HC_CACHE["data"] = hc_buys
-    US_HC_CACHE["last_updated"] = datetime.utcnow().isoformat() + "Z"
+    US_HC_CACHE["historical"] = hc_hist_list
+    US_HC_CACHE["backtest_summary"] = compute_hc_historical_stats(hc_historical_map)
+    US_HC_CACHE["last_updated"] = datetime.now().isoformat()
 
     print(f"US scan complete! {len(buys)} BUY | {len(hc_buys)} HC signals.")
-
-def _us_seed_ledger_task(years: int = 2):
-    """
-    Walk-forward backfill for US signals ledger.
-    For each stock in US_UNIVERSE, trains on rolling window and generates
-    historical BUY / HC signals for each trading day over the past `years`.
-    """
-    from data_fetcher import fetch_daily_data, fetch_us_macro_data
-    from ml_model import add_features, create_labels, IntradayModel, _us_rr_multipliers, _compute_symbol_atr_band
-    import pandas as pd
-
-    try:
-        macro_df = fetch_us_macro_data(years=years + 1)
-    except Exception:
-        macro_df = None
-
-    total = len(US_UNIVERSE)
-    print(f"[US Seed] Starting US ledger backfill for {years} years across {total} stocks…")
-    _US_SEED_PROGRESS["running"] = True
-    _US_SEED_PROGRESS["done"] = 0
-    _US_SEED_PROGRESS["total"] = total
-    _US_SEED_PROGRESS["status"] = "running"
-
-    ledger = load_us_ledger()
-    needs_save = False
-
-    for i, symbol in enumerate(US_UNIVERSE):
-        _US_SEED_PROGRESS["done"] = i
-        try:
-            df = fetch_daily_data(symbol, years=years + 1)
-            if df is None or len(df) < 150:
-                continue
-            df = add_features(df, macro_df)
-            if len(df) < 100:
-                continue
-
-            # Compute fixed ATR band for this symbol
-            symbol_atr_band = _compute_symbol_atr_band(df)
-            t_mult, sl_mult = _us_rr_multipliers(symbol_atr_band)
-
-            model = IntradayModel()
-            df_labels = create_labels(df, adaptive_rr=True, symbol_atr_band=symbol_atr_band)
-            model.train(df_labels[:-60])
-            df_labels['prob_up'] = model.predict_proba_walk_forward(df_labels)
-
-            cutoff = pd.Timestamp.now(tz='UTC') - pd.DateOffset(years=years)
-            df_window = df_labels[df_labels.index >= cutoff] if df_labels.index.tz is not None else df_labels[df_labels.index >= cutoff.replace(tzinfo=None)]
-
-            for date, row in df_window.iterrows():
-                date_str = date.strftime("%Y-%m-%d") if hasattr(date, 'strftime') else str(date)[:10]
-                prob  = float(row.get('prob_up', 0))
-                vol   = float(row.get('volume_ratio', 1))
-                close = float(row.get('close', 0))
-                atr   = float(row.get('atr', 0))
-                if close <= 0 or atr <= 0:
-                    continue
-
-                if prob > 0.55 and vol > 1.0:
-                    if date_str not in ledger["US_BUYS"]:
-                        ledger["US_BUYS"][date_str] = {}
-                    if symbol not in ledger["US_BUYS"][date_str]:
-                        ledger["US_BUYS"][date_str][symbol] = {
-                            "entry": round(close, 2),
-                            "target": round(close + 5.0 * atr, 2),
-                            "stoploss": round(close - 2.0 * atr, 2),
-                            "confidence": round(prob, 4),
-                            "volume_ratio": round(vol, 2),
-                            "atr": round(atr, 4),
-                            "sector": "US Equities",
-                        }
-                        needs_save = True
-
-                # HC gate: per-symbol fixed R:R scaling — always overwrite
-                if prob >= 0.72 and vol >= 1.5 and atr / close >= 0.015:
-                    if date_str not in ledger["US_HIGH_CONVICTION"]:
-                        ledger["US_HIGH_CONVICTION"][date_str] = {}
-                    ledger["US_HIGH_CONVICTION"][date_str][symbol] = {
-                        "entry": round(close, 2),
-                        "target": round(close + t_mult * atr, 2),
-                        "stoploss": round(close - sl_mult * atr, 2),
-                        "confidence": round(prob, 4),
-                        "volume_ratio": round(vol, 2),
-                        "atr": round(atr, 4),
-                        "sector": "US Equities",
-                    }
-                    needs_save = True
-
-            # Save + refresh cache every 10 stocks so UI shows partial progress
-            if needs_save and (i + 1) % 10 == 0:
-                save_us_ledger(ledger)
-                load_us_ledger()
-                buy_days = len(ledger["US_BUYS"])
-                hc_days  = len(ledger["US_HIGH_CONVICTION"])
-                print(f"[US Seed] Progress {i+1}/{total} — {buy_days} buy-days, {hc_days} HC-days so far")
-                needs_save = False
-
-        except Exception as e:
-            print(f"[US Seed] Error for {symbol}: {e}")
-            continue
-
-    if needs_save:
-        save_us_ledger(ledger)
-        load_us_ledger()
-
-    # ── Status resolution pass ────────────────────────────────────────────
-    # Now fetch price data per symbol and resolve TARGET HIT / SL HIT / ACTIVE
-    # by calling build_signal_frozen, caching _closed_status back into the ledger.
-    _US_SEED_PROGRESS["status"] = "resolving"
-    print("[US Seed] Running status resolution pass...")
-    all_symbols = set()
-    for sigs in ledger["US_BUYS"].values():
-        all_symbols.update(sigs.keys())
-    for sigs in ledger["US_HIGH_CONVICTION"].values():
-        all_symbols.update(sigs.keys())
-
-    resolved = 0
-    for sym in all_symbols:
-        try:
-            df = fetch_daily_data(sym, years=years + 1)
-            if df is None or len(df) < 10:
-                continue
-            latest_close = float(df['close'].iloc[-1])
-            for date_str, sigs in ledger["US_BUYS"].items():
-                if sym in sigs:
-                    build_signal_frozen(sigs[sym], date_str, df, sym, latest_close,
-                                        ledger=ledger, ledger_section="US_BUYS")
-            for date_str, sigs in ledger["US_HIGH_CONVICTION"].items():
-                if sym in sigs:
-                    build_signal_frozen(sigs[sym], date_str, df, sym, latest_close,
-                                        ledger=ledger, ledger_section="US_HIGH_CONVICTION")
-            resolved += 1
-            if resolved % 10 == 0:
-                save_us_ledger(ledger)
-                load_us_ledger()
-                print(f"[US Seed] Resolved {resolved}/{len(all_symbols)} symbols")
-        except Exception as e:
-            print(f"[US Seed] Resolution error for {sym}: {e}")
-
-    save_us_ledger(ledger)
-    load_us_ledger()
-
-    _US_SEED_PROGRESS["done"] = total
-    _US_SEED_PROGRESS["running"] = False
-    _US_SEED_PROGRESS["status"] = "done"
-    print(f"[US Seed] Complete. {len(ledger['US_BUYS'])} buy-days, {len(ledger['US_HIGH_CONVICTION'])} HC-days.")
-
-
-@app.post("/api/us_seed_ledger")
-async def us_seed_ledger(years: int = 2):
-    """Trigger a background walk-forward backfill of the US signals ledger."""
-    if _US_SEED_PROGRESS["running"]:
-        return {"status": "already_running", **_US_SEED_PROGRESS}
-    threading.Thread(target=_us_seed_ledger_task, args=(years,), daemon=True).start()
-    return {"status": "started", "message": f"US ledger backfill started for {years} years. Check back in 5–10 minutes."}
-
-def _us_resolve_statuses_task():
-    """Resolve TARGET HIT / SL HIT / ACTIVE for all existing US ledger entries."""
-    from data_fetcher import fetch_daily_data
-    ledger = load_us_ledger()
-
-    # Strip all cached statuses so entries are re-evaluated against current targets/stops
-    cleared = 0
-    for sigs in ledger["US_HIGH_CONVICTION"].values():
-        for s in sigs.values():
-            if "_closed_status" in s:
-                del s["_closed_status"]
-                cleared += 1
-    print(f"[US Resolve] Cleared {cleared} stale cached statuses from HC ledger")
-
-    all_symbols = set()
-    for sigs in ledger["US_BUYS"].values():
-        all_symbols.update(sigs.keys())
-    for sigs in ledger["US_HIGH_CONVICTION"].values():
-        all_symbols.update(sigs.keys())
-    print(f"[US Resolve] Resolving statuses for {len(all_symbols)} symbols...")
-    resolved = 0
-    for sym in all_symbols:
-        try:
-            df = fetch_daily_data(sym, years=3)
-            if df is None or len(df) < 10:
-                continue
-            latest_close = float(df['close'].iloc[-1])
-            for date_str, sigs in ledger["US_BUYS"].items():
-                if sym in sigs:
-                    build_signal_frozen(sigs[sym], date_str, df, sym, latest_close,
-                                        ledger=ledger, ledger_section="US_BUYS")
-            for date_str, sigs in ledger["US_HIGH_CONVICTION"].items():
-                if sym in sigs:
-                    build_signal_frozen(sigs[sym], date_str, df, sym, latest_close,
-                                        ledger=ledger, ledger_section="US_HIGH_CONVICTION")
-            resolved += 1
-            if resolved % 10 == 0:
-                save_us_ledger(ledger)
-                load_us_ledger()
-                print(f"[US Resolve] {resolved}/{len(all_symbols)} done")
-        except Exception as e:
-            print(f"[US Resolve] Error for {sym}: {e}")
-    save_us_ledger(ledger)
-    load_us_ledger()
-    print(f"[US Resolve] Done. Statuses resolved for {resolved} symbols.")
-
-@app.post("/api/us_resolve_statuses")
-async def us_resolve_statuses():
-    """Resolve TARGET HIT / SL HIT for all existing US ledger entries."""
-    threading.Thread(target=_us_resolve_statuses_task, daemon=True).start()
-    return {"status": "started", "message": "Status resolution started in background."}
-
-# ── Ledger Snapshot Endpoints ─────────────────────────────────────────────────
-
-@app.post("/api/us_save_snapshot")
-async def us_save_snapshot(name: str):
-    """Save the current US ledger as a named snapshot for instant rollback."""
-    if not name or not name.replace('-', '').replace('_', '').isalnum():
-        return {"status": "error", "message": "Snapshot name must be alphanumeric (hyphens/underscores allowed)."}
-    dest = os.path.join(SNAPSHOTS_DIR, f"us_signals_ledger.{name}.json")
-    try:
-        import shutil
-        shutil.copy2(US_LEDGER_FILE, dest)
-        size_kb = round(os.path.getsize(dest) / 1024, 0)
-        return {"status": "saved", "name": name, "file": dest, "size_kb": size_kb}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-@app.post("/api/us_restore_snapshot")
-async def us_restore_snapshot(name: str):
-    """Restore a named ledger snapshot and reload the cache instantly (no re-seed needed)."""
-    src = os.path.join(SNAPSHOTS_DIR, f"us_signals_ledger.{name}.json")
-    if not os.path.exists(src):
-        snaps = [f.replace('us_signals_ledger.', '').replace('.json', '')
-                 for f in os.listdir(SNAPSHOTS_DIR) if f.endswith('.json')]
-        return {"status": "error", "message": f"Snapshot '{name}' not found.", "available": snaps}
-    try:
-        import shutil
-        shutil.copy2(src, US_LEDGER_FILE)
-        load_us_ledger()
-        hc_days  = len(US_HC_CACHE['historical'])
-        buy_days = len(US_BUY_CACHE['historical'])
-        return {"status": "restored", "name": name, "hc_days": hc_days, "buy_days": buy_days}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-@app.get("/api/us_list_snapshots")
-async def us_list_snapshots():
-    """List all available ledger snapshots."""
-    snaps = []
-    for fname in sorted(os.listdir(SNAPSHOTS_DIR)):
-        if fname.endswith('.json'):
-            fpath = os.path.join(SNAPSHOTS_DIR, fname)
-            stat  = os.stat(fpath)
-            snaps.append({
-                "name":     fname.replace('us_signals_ledger.', '').replace('.json', ''),
-                "file":     fname,
-                "size_kb":  round(stat.st_size / 1024, 0),
-                "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
-            })
-    return {"snapshots": snaps}
-
-@app.get("/api/us_seed_progress")
-async def us_seed_progress():
-    """Check the progress of the US ledger seed backfill."""
-    buy_days = len(US_BUY_CACHE.get("historical", []))
-    hc_days  = len(US_HC_CACHE.get("historical", []))
-    pct = round(_US_SEED_PROGRESS["done"] / max(_US_SEED_PROGRESS["total"], 1) * 100, 1)
-    return {**_US_SEED_PROGRESS, "pct": pct, "buy_days_loaded": buy_days, "hc_days_loaded": hc_days}
-
 
 # Kick off initial US scan on boot
 threading.Thread(target=update_us_cache, daemon=True).start()
@@ -1383,7 +1106,7 @@ except Exception as _e:
 
 @app.get("/api/health")
 def health_check():
-    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat() + "Z"}
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 @app.get("/api/scan_universe_buys")
 def scan_universe_buys() -> Dict[str, Any]:
@@ -1491,13 +1214,7 @@ async def stock_detail_us(symbol: str):
     try:
         from data_fetcher import fetch_daily_data
         from ml_model import add_features
-        import concurrent.futures
-        
-        # Use timeout to prevent slow API calls from blocking
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(fetch_daily_data, symbol.upper(), 2)
-            df = future.result(timeout=8)  # 8 second timeout for data fetch
-            
+        df = fetch_daily_data(symbol.upper(), years=2)
         if df is not None and not df.empty:
             df = add_features(df)
             if not df.empty:
@@ -1515,8 +1232,6 @@ async def stock_detail_us(symbol: str):
                     "roc10":        round(sv("roc10"), 2),
                     "stoch_k":      round(sv("stoch_k"), 1),
                 }
-    except concurrent.futures.TimeoutError:
-        print(f"US signal logic timeout for {symbol}")
     except Exception as e:
         print(f"US signal logic error for {symbol}: {e}")
 
@@ -1574,7 +1289,7 @@ def toggle_kill_switch(halt: bool = True) -> Dict[str, Any]:
 @app.get("/api/scan", dependencies=[Depends(get_api_key)])
 def scan_markets(market: str = "IN") -> Dict[str, Any]:
     if PerformanceMonitor.check_circuit_breaker():
-        return {"status": "error", "message": "Circuit Breaker Active - Scanning halted."}
+        print("CIRCUIT BREAKER WARNING: Win rate low - /api/scan continues for data collection.")
         
     in_stocks, us_stocks = get_stocks_from_sheet()
     
@@ -1641,7 +1356,7 @@ def scan_markets(market: str = "IN") -> Dict[str, Any]:
             
     return {
         "status": "success", 
-        "timestamp": datetime.utcnow().isoformat() + "Z", 
+        "timestamp": datetime.now().isoformat(), 
         "market": market, 
         "market_bullish": _nifty_bullish if market == "IN" else True, # market filter currently only for India
         "data": results
@@ -1812,91 +1527,20 @@ async def stock_detail(symbol: str):
 
 
 
-# Cache for multibagger results
-_multibagger_cache = {"data": None, "timestamp": None}
-_multibagger_cache_ttl = 300  # 5 minutes
-
 @app.get("/api/multibagger/live")
-async def multibagger_live(refresh: bool = False):
+async def multibagger_live():
     """
-    Returns the top 20 current NSE multibagger candidates scored by
-    the ML-based LightGBM model with calibrated probabilities.
+    Returns the top 20 current multibagger candidates scored by
+    the Renaissance-style quantitative algorithm.
     """
-    from ml_multibagger_model import scan_multibaggers_ml
+    from multibagger_model import scan_multibaggers
     from symbols import NSE_200
     from datetime import datetime
-    import time
-    
-    global _multibagger_cache
-    
-    # Return cached result if available and not expired
-    if not refresh and _multibagger_cache["data"] is not None:
-        if time.time() - _multibagger_cache["timestamp"] < _multibagger_cache_ttl:
-            return _multibagger_cache["data"]
-    
-    model = _get_nse_ml_multibagger_model()
-    if model.calibrated_model is None:
-        # Fallback to rules-based if ML model not trained
-        from multibagger_model import scan_multibaggers
-        symbols = [s.replace(".NS", "") for s in NSE_200]
-        results = scan_multibaggers(symbols, target_date=None, max_workers=30, top_n=20)
-        return {"status": "success", "data": results, "timestamp": datetime.utcnow().isoformat() + "Z", "model": "rules-based"}
-    
-    # Use NSE symbols (with .NS suffix handled internally)
-    # Use optimized scan function - get all predictions without threshold filter
-    from ml_multibagger_model import scan_multibaggers_ml
-    
-    # Scan with higher top_n to get all candidates, then filter
-    # Use fewer workers and add timeout protection
-    import concurrent.futures
-    
-    def scan_with_timeout():
-        return scan_multibaggers_ml(NSE_200, model, max_workers=4, top_n=50, min_prob=0.0)
-    
-    try:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(scan_with_timeout)
-            all_results = future.result(timeout=60)  # 60 second timeout
-    except concurrent.futures.TimeoutError:
-        # Return cached data if scan times out
-        if _multibagger_cache["data"] is not None:
-            return _multibagger_cache["data"]
-        return {"status": "error", "message": "Scan timeout", "data": []}
-    
-    # Sort by probability and take top 20
-    all_results.sort(key=lambda x: x['prob_multibagger'], reverse=True)
-    top_results = all_results[:20]
-    
-    # Transform to old format for frontend compatibility
-    formatted_results = []
-    for r in top_results:
-        formatted_results.append({
-            "symbol": r["symbol"].replace(".NS", ""),
-            "score": round(r["prob_multibagger"] * 100, 1),
-            "prob_multibagger": r["prob_multibagger"],
-            "prediction": r["prediction"],
-            "confidence": r["confidence"],
-            "key_drivers": r["key_drivers"],
-            "r_squared": r["features"].get("trend_r2_3y", 0),
-            "return_1y": r["features"].get("annualized_return_3y", 0),
-            "accumulation_ratio": r["features"].get("volume_accumulation_1y", 1.0),
-            "max_drawdown": r["features"].get("max_drawdown_3y", 0),
-        })
-    
-    result = {
-        "status": "success", 
-        "data": formatted_results, 
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-        "model": "ml-lightgbm",
-        "model_threshold": model.threshold,
-        "matches": len([r for r in top_results if r['prob_multibagger'] >= model.threshold])
-    }
-    
-    # Update cache
-    _multibagger_cache["data"] = result
-    _multibagger_cache["timestamp"] = time.time()
-    
-    return result
+    # Strip .NS suffix for the model (it adds it back internally)
+    # Memory Cap removed, Oracle Server 24GB active. Processing up to 500 liquid stocks with 30 threads.
+    symbols = [s.replace(".NS", "") for s in NSE_200]
+    results = scan_multibaggers(symbols, target_date=None, max_workers=30, top_n=20)
+    return {"status": "success", "data": results, "timestamp": datetime.now().isoformat()}
 
 
 @app.get("/api/multibagger/backtest")
@@ -1916,527 +1560,6 @@ async def multibagger_backtest(years_ago: int = 1):
     symbols = [s.replace(".NS", "") for s in NSE_200]
     result = run_backtest_with_benchmark(symbols, target_date=target_date, max_workers=30, top_n=10)
     return {"status": "success", **result}
-
-
-@app.get("/api/us_multibagger/live")
-async def us_multibagger_live():
-    """
-    Returns the top 20 current US multibagger candidates scored by
-    the ML-based LightGBM model with calibrated probabilities.
-    """
-    from ml_multibagger_model import scan_multibaggers_ml
-    from symbols import US_100
-    from datetime import datetime
-    
-    model = _get_ml_multibagger_model()
-    if model.calibrated_model is None:
-        # Fallback to rules-based if ML model not trained
-        from multibagger_model import scan_multibaggers_us
-        results = scan_multibaggers_us(US_100, target_date=None, max_workers=20, top_n=20)
-        return {"status": "success", "data": results, "timestamp": datetime.utcnow().isoformat() + "Z", "model": "rules-based"}
-    
-    results = scan_multibaggers_ml(US_100, model, max_workers=12, top_n=20)
-    
-    # Transform to old format for frontend compatibility
-    formatted_results = []
-    for r in results:
-        formatted_results.append({
-            "symbol": r["symbol"],
-            "score": round(r["prob_multibagger"] * 100, 1),  # Convert prob to score
-            "prob_multibagger": r["prob_multibagger"],
-            "prediction": r["prediction"],
-            "confidence": r["confidence"],
-            "key_drivers": r["key_drivers"],
-            "r_squared": r["features"].get("trend_r2_3y", 0),
-            "return_1y": r["features"].get("annualized_return_3y", 0),
-            "accumulation_ratio": r["features"].get("volume_accumulation_1y", 1.0),
-            "max_drawdown": r["features"].get("max_drawdown_3y", 0),
-        })
-    
-    return {
-        "status": "success", 
-        "data": formatted_results, 
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-        "model": "ml-lightgbm",
-        "model_threshold": model.threshold
-    }
-
-
-@app.get("/api/us_multibagger/backtest")
-async def us_multibagger_backtest(years_ago: int = 1):
-    """
-    Time-machine backtest for US stocks: scores all stocks as-of N years ago,
-    picks the top 10, and measures their actual forward return to today.
-    Compares against the S&P 500 benchmark.
-    """
-    from multibagger_model import run_us_backtest_with_benchmark
-    from symbols import US_100
-    from datetime import datetime, timedelta
-    target_date = (datetime.now() - timedelta(days=years_ago * 365)).strftime("%Y-%m-%d")
-    result = run_us_backtest_with_benchmark(US_100, target_date=target_date, max_workers=20, top_n=10)
-    return {"status": "success", **result}
-
-
-# === ML Multibagger Endpoints (v6.2.0) ===
-
-# Global model instance (lazy loaded)
-_ml_multibagger_model = None
-
-def _get_ml_multibagger_model():
-    """Lazy load the US ML multibagger model."""
-    global _ml_multibagger_model
-    if _ml_multibagger_model is None:
-        from ml_multibagger_model import MLMultibaggerModel
-        _ml_multibagger_model = MLMultibaggerModel("us_multibagger_v1")
-        # Try to load existing model, train if not available
-        if not _ml_multibagger_model.load():
-            print("[ML Multibagger US] Model not found. Train with /api/ml_multibagger/train")
-    return _ml_multibagger_model
-
-
-# NSE ML Multibagger model instance
-_nse_ml_multibagger_model = None
-
-def _get_nse_ml_multibagger_model():
-    """Lazy load the NSE ML multibagger model."""
-    global _nse_ml_multibagger_model
-    if _nse_ml_multibagger_model is None:
-        from ml_multibagger_model import MLMultibaggerModel
-        _nse_ml_multibagger_model = MLMultibaggerModel("nse_multibagger_v1")
-        # Try to load existing model, train if not available
-        if not _nse_ml_multibagger_model.load():
-            print("[ML Multibagger NSE] Model not found. Train with /api/nse/ml_multibagger/train")
-    return _nse_ml_multibagger_model
-
-
-@app.get("/api/ml_multibagger/live")
-async def ml_multibagger_live(top_n: int = 20, min_prob: float = 0.65):
-    """
-    ML-based multibagger predictions using LightGBM with calibrated probabilities.
-    Returns top candidates with probability scores and key drivers.
-    """
-    from ml_multibagger_model import scan_multibaggers_ml
-    from symbols import US_100
-    from datetime import datetime
-    
-    model = _get_ml_multibagger_model()
-    if model.calibrated_model is None:
-        return {
-            "status": "error",
-            "message": "Model not trained. Call /api/ml_multibagger/train first",
-            "model_status": "untrained"
-        }
-    
-    results = scan_multibaggers_ml(US_100, model, max_workers=12, top_n=top_n)
-    
-    # Filter by minimum probability
-    filtered = [r for r in results if r['prob_multibagger'] >= min_prob]
-    
-    return {
-        "status": "success",
-        "data": filtered,
-        "model_threshold": model.threshold,
-        "min_prob_used": min_prob,
-        "total_scanned": len(US_100),
-        "matches": len(filtered),
-        "timestamp": datetime.utcnow().isoformat() + "Z"
-    }
-
-
-@app.post("/api/ml_multibagger/train")
-async def ml_multibagger_train(max_symbols: int = 100):
-    """
-    Train the ML multibagger model on historical data.
-    Generates training samples, performs purged CV, and calibrates probabilities.
-    """
-    from ml_multibagger_model import MLMultibaggerModel
-    from symbols import US_100
-    import asyncio
-    
-    model = MLMultibaggerModel("us_multibagger_v1")
-    
-    # Generate training data
-    symbols_to_train = US_100[:max_symbols]
-    train_df = model.generate_training_data(symbols_to_train, max_workers=8)
-    
-    if len(train_df) < 50:
-        return {
-            "status": "error",
-            "message": f"Insufficient training data: {len(train_df)} samples",
-            "min_required": 50
-        }
-    
-    # Train model
-    metrics = model.train(train_df, optimize_threshold=True)
-    
-    # Save model
-    model.save()
-    
-    # Update global instance
-    global _ml_multibagger_model
-    _ml_multibagger_model = model
-    
-    return {
-        "status": "success",
-        "message": f"Model trained on {len(train_df)} samples",
-        "metrics": metrics,
-        "model_path": f"data/multibagger_models/{model.model_name}_calibrated.pkl"
-    }
-
-
-@app.get("/api/ml_multibagger/backtest")
-async def ml_multibagger_backtest(years_ago: int = 2, top_n: int = 10):
-    """
-    True out-of-sample backtest for ML multibagger model.
-    Scores stocks as-of N years ago, measures forward returns to today.
-    """
-    from ml_multibagger_model import run_ml_backtest
-    from symbols import US_100
-    from datetime import datetime
-    
-    model = _get_ml_multibagger_model()
-    if model.calibrated_model is None:
-        return {
-            "status": "error",
-            "message": "Model not trained. Call /api/ml_multibagger/train first"
-        }
-    
-    result = run_ml_backtest(model, US_100, years_ago=years_ago, top_n=top_n)
-    
-    return {
-        "status": "success",
-        "backtest_date": result['target_date'],
-        "summary": {
-            "n_picks": result['n_picks'],
-            "avg_return": result['avg_return'],
-            "median_return": result['median_return'],
-            "hit_rate_2x": result['hit_rate']
-        },
-        "picks": result['top_10'],
-        "timestamp": datetime.utcnow().isoformat() + "Z"
-    }
-
-
-@app.get("/api/ml_multibagger/model_info")
-async def ml_multibagger_model_info():
-    """Get model metadata, performance metrics, and feature importance."""
-    model = _get_ml_multibagger_model()
-    
-    if model.calibrated_model is None:
-        return {
-            "status": "untrained",
-            "message": "Model not yet trained"
-        }
-    
-    return {
-        "status": "trained",
-        "model_name": model.model_name,
-        "threshold": model.threshold,
-        "n_features": len(model.features),
-        "performance": model.performance_metrics,
-        "feature_importance": model.performance_metrics.get('feature_importance', {}),
-        "last_training": model.performance_metrics.get('training_date', 'unknown')
-    }
-
-
-# === NSE ML Multibagger Endpoints ===
-
-@app.post("/api/nse/ml_multibagger/train")
-async def nse_ml_multibagger_train(max_symbols: int = 100):
-    """
-    Train the NSE ML multibagger model on historical data.
-    """
-    from ml_multibagger_model import MLMultibaggerModel
-    from symbols import NSE_200
-    
-    model = MLMultibaggerModel("nse_multibagger_v1")
-    
-    # Generate training data
-    symbols_to_train = NSE_200[:max_symbols]
-    train_df = model.generate_training_data(symbols_to_train, max_workers=8)
-    
-    if len(train_df) < 50:
-        return {
-            "status": "error",
-            "message": f"Insufficient training data: {len(train_df)} samples",
-            "min_required": 50
-        }
-    
-    # Train model
-    metrics = model.train(train_df, optimize_threshold=True)
-    
-    # Save model
-    model.save()
-    
-    # Update global instance
-    global _nse_ml_multibagger_model
-    _nse_ml_multibagger_model = model
-    
-    return {
-        "status": "success",
-        "message": f"NSE Model trained on {len(train_df)} samples",
-        "metrics": metrics,
-        "model_path": f"data/multibagger_models/{model.model_name}_calibrated.pkl"
-    }
-
-
-@app.get("/api/nse/ml_multibagger/model_info")
-async def nse_ml_multibagger_model_info():
-    """Get NSE model metadata, performance metrics, and feature importance."""
-    model = _get_nse_ml_multibagger_model()
-    
-    if model.calibrated_model is None:
-        return {
-            "status": "untrained",
-            "message": "NSE Model not yet trained"
-        }
-    
-    return {
-        "status": "trained",
-        "model_name": model.model_name,
-        "threshold": model.threshold,
-        "n_features": len(model.features),
-        "performance": model.performance_metrics,
-        "feature_importance": model.performance_metrics.get('feature_importance', {}),
-        "last_training": model.performance_metrics.get('training_date', 'unknown')
-    }
-
-
-CONGRESS_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "congress_trades_cache.json")
-
-def _fetch_congress_trades_raw():
-    """
-    Scrapes live Senate stock trade disclosures directly from the official eFD search.
-    Fetches all PTR (Periodic Transaction Reports) since 2024, parses each report page
-    for individual trades. Returns recent_trades, top_tickers, top_traders.
-    """
-    import requests as req
-    import yfinance as yf
-    from datetime import datetime
-    from bs4 import BeautifulSoup
-    from collections import Counter
-    import time
-
-    EFD_BASE = "https://efdsearch.senate.gov"
-    UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-
-    session = req.Session()
-    session.headers.update({"User-Agent": UA})
-
-    # Step 1: get CSRF token
-    session.get(f"{EFD_BASE}/search/", timeout=15)
-    csrf = session.cookies.get("csrftoken", "")
-
-    # Step 2: agree to ToS (required by eFD)
-    session.post(f"{EFD_BASE}/search/home/", data={
-        "csrfmiddlewaretoken": csrf,
-        "prohibition_agreement": "1",
-    }, headers={"Referer": f"{EFD_BASE}/search/"}, timeout=15)
-    csrf = session.cookies.get("csrftoken", csrf)
-
-    # Step 3: fetch all PTR listings since Jan 2024 (paginate 100 at a time)
-    all_ptrs = []
-    start = 0
-    while True:
-        r = session.post(f"{EFD_BASE}/search/report/data/", data={
-            "start": str(start), "length": "100",
-            "report_types": "[11]",
-            "filer_types": "[]",
-            "submitted_start_date": "01/01/2024 00:00:00",
-            "submitted_end_date": "",
-            "candidate_state": "", "senator_state": "",
-            "office_id": "", "first_name": "", "last_name": "",
-            "csrfmiddlewaretoken": csrf,
-        }, headers={
-            "Referer": f"{EFD_BASE}/search/",
-            "X-Requested-With": "XMLHttpRequest",
-        }, timeout=20)
-
-        if r.status_code != 200:
-            break
-        data = r.json()
-        records = data.get("data", [])
-        if not records:
-            break
-
-        for rec in records:
-            soup = BeautifulSoup(rec[3], "html.parser")
-            a = soup.find("a")
-            if a:
-                all_ptrs.append({
-                    "senator": f"{rec[0]} {rec[1]}".strip(),
-                    "url": EFD_BASE + a["href"],
-                    "filed_date": rec[4],
-                })
-
-        total = data.get("recordsTotal", 0)
-        start += 100
-        if start >= total:
-            break
-        time.sleep(0.3)  # polite delay
-
-    print(f"[Congress] Found {len(all_ptrs)} PTR filings since 2024")
-
-    # Step 4: fetch each PTR detail page and extract trades
-    stock_trades = []
-    for ptr in all_ptrs[:120]:  # cap at 120 PTRs to stay fast
-        try:
-            r2 = session.get(ptr["url"], timeout=12)
-            if r2.status_code != 200:
-                continue
-            soup2 = BeautifulSoup(r2.text, "html.parser")
-            table = soup2.find("table")
-            if not table:
-                continue
-            rows = table.find_all("tr")[1:]  # skip header
-            for row in rows:
-                cols = [c.get_text(strip=True) for c in row.find_all("td")]
-                if len(cols) < 8:
-                    continue
-                # cols: #, transaction_date, owner, ticker, asset_name, asset_type, type, amount, comment
-                asset_type = cols[5]
-                ticker = cols[3].strip().lstrip("$")
-                if asset_type not in ("Stock", "Stock Option") or not ticker or ticker == "--":
-                    continue
-                stock_trades.append({
-                    "senator": ptr["senator"],
-                    "transaction_date": cols[1],
-                    "owner": cols[2],
-                    "ticker": ticker,
-                    "company": cols[4],
-                    "asset_type": asset_type,
-                    "type": cols[6],
-                    "amount": cols[7],
-                    "comment": cols[8] if len(cols) > 8 else "",
-                    "ptr_link": ptr["url"],
-                    "filed_date": ptr["filed_date"],
-                    "is_buy": "purchase" in cols[6].lower(),
-                })
-            time.sleep(0.15)
-        except Exception as e:
-            print(f"[Congress] PTR fetch error for {ptr.get('senator')}: {e}")
-            continue
-
-    print(f"[Congress] Parsed {len(stock_trades)} stock trades from live eFD")
-
-    # Sort most recent first by filed date
-    def parse_date(d):
-        for fmt in ("%m/%d/%Y", "%Y-%m-%d"):
-            try: return datetime.strptime(d, fmt)
-            except: pass
-        return datetime.min
-
-    stock_trades.sort(key=lambda x: parse_date(x.get("filed_date", "")), reverse=True)
-
-    # Enrich top tickers with current yfinance price
-    unique_tickers = list(set(t["ticker"] for t in stock_trades if t["ticker"]))[:60]
-    price_map = {}
-    if unique_tickers:
-        try:
-            if len(unique_tickers) == 1:
-                tk = yf.Ticker(unique_tickers[0])
-                hist = tk.history(period="2d")
-                if not hist.empty:
-                    price_map[unique_tickers[0]] = round(float(hist["Close"].iloc[-1]), 2)
-            else:
-                yf_data = yf.download(unique_tickers, period="2d", interval="1d", progress=False, threads=True)
-                closes = yf_data["Close"]
-                for sym in unique_tickers:
-                    try:
-                        if sym in closes.columns and not closes[sym].dropna().empty:
-                            price_map[sym] = round(float(closes[sym].dropna().iloc[-1]), 2)
-                    except:
-                        pass
-        except Exception as e:
-            print(f"[Congress] yfinance enrichment error: {e}")
-
-    # Build recent_trades list (all trades, front-end will page/filter)
-    recent_trades = []
-    for t in stock_trades:
-        recent_trades.append({
-            "senator": t["senator"],
-            "ticker": t["ticker"],
-            "company": t["company"],
-            "type": t["type"],
-            "is_buy": t["is_buy"],
-            "amount": t["amount"],
-            "transaction_date": t["transaction_date"],
-            "filed_date": t["filed_date"],
-            "owner": t["owner"],
-            "ptr_link": t["ptr_link"],
-            "current_price": price_map.get(t["ticker"]),
-        })
-
-    # Top tickers
-    buy_counts = Counter()
-    sell_counts = Counter()
-    ticker_names = {}
-    for t in stock_trades:
-        sym = t["ticker"]
-        ticker_names[sym] = t["company"]
-        if t["is_buy"]:
-            buy_counts[sym] += 1
-        else:
-            sell_counts[sym] += 1
-
-    top_tickers = [
-        {
-            "ticker": sym,
-            "company": ticker_names.get(sym, sym),
-            "buy_count": count,
-            "sell_count": sell_counts.get(sym, 0),
-            "current_price": price_map.get(sym),
-        }
-        for sym, count in buy_counts.most_common(25)
-    ]
-
-    # Top traders
-    trader_counts = Counter(t["senator"] for t in stock_trades)
-    top_traders = []
-    for name, total in trader_counts.most_common(20):
-        senator_trades = [t for t in stock_trades if t["senator"] == name]
-        top_traders.append({
-            "senator": name,
-            "total_trades": total,
-            "buys": sum(1 for t in senator_trades if t["is_buy"]),
-            "sells": sum(1 for t in senator_trades if not t["is_buy"]),
-        })
-
-    return {
-        "recent_trades": recent_trades,
-        "top_tickers": top_tickers,
-        "top_traders": top_traders,
-        "total_trades": len(stock_trades),
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-    }
-
-
-@app.get("/api/congress_trades")
-async def congress_trades():
-    """
-    Returns Senate stock trade disclosures, enriched with current prices.
-    Data: recent trades, top tickers by buy count, most active traders.
-    Caches for 6 hours.
-    """
-    # Check cache
-    try:
-        if os.path.exists(CONGRESS_CACHE_FILE):
-            with open(CONGRESS_CACHE_FILE, "r") as f:
-                cache = json.load(f)
-            age = (datetime.utcnow() - datetime.fromisoformat(cache.get("timestamp", "2000-01-01").replace("Z",""))).total_seconds()
-            if age < 21600:  # 6 hours
-                return {"status": "success", **cache, "cached": True}
-    except Exception:
-        pass
-
-    try:
-        data = _fetch_congress_trades_raw()
-        os.makedirs(os.path.dirname(CONGRESS_CACHE_FILE), exist_ok=True)
-        with open(CONGRESS_CACHE_FILE, "w") as f:
-            json.dump(data, f)
-        return {"status": "success", **data, "cached": False}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
 
 
 @app.get("/api/trending_sectors")
@@ -2648,7 +1771,7 @@ def save_ticker_cache(scan_results: list, nifty_bullish: bool = True):
         # For now, indices show as cached data
         
         cache = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now().isoformat(),
             "data": ticker_data
         }
         os.makedirs(os.path.dirname(TICKER_FILE), exist_ok=True)
@@ -2696,11 +1819,6 @@ US_TICKER_YF_MAP = {
     "QQQ": "QQQ",
     "SPY": "SPY",
     "NDX": "^NDX",
-    "S&P 500": "^GSPC",
-    "NASDAQ": "^IXIC",
-    "Dow Jones": "^DJI",
-    "Russell 2K": "^RUT",
-    "VIX": "^VIX",
 }
 
 def fetch_ticker_data():
@@ -2740,15 +1858,13 @@ def fetch_ticker_data():
     return results
 
 def fetch_us_ticker_data():
-    """Fetch live US ticker data from yfinance for US_TICKER_YF_MAP.
-    Uses 5d window so weekends/holidays always yield the last 2 trading days."""
+    """Fetch live US ticker data from yfinance for US_TICKER_YF_MAP."""
     import yfinance as yf
     results = []
     for display_sym, yf_sym in US_TICKER_YF_MAP.items():
         try:
             ticker = yf.Ticker(yf_sym)
-            # 5d ensures we get last 2 trading days even on weekends/holidays
-            hist = ticker.history(period="5d", interval="1d")
+            hist = ticker.history(period="2d", interval="1d")
             hist = hist.dropna(subset=['Close'])
             if len(hist) >= 2:
                 current = float(hist['Close'].iloc[-1])
@@ -2765,7 +1881,7 @@ def fetch_us_ticker_data():
                 results.append({
                     "sym": display_sym,
                     "price": f"${current:,.2f}",
-                    "chg": "Fri Close",
+                    "chg": "+0.00%",
                     "up": True
                 })
             else:
@@ -2789,7 +1905,7 @@ async def market_ticker():
             with open(TICKER_FILE, "r") as f:
                 cache = json.load(f)
                 cache_time = datetime.fromisoformat(cache.get("timestamp", "2000-01-01T00:00:00"))
-                age_seconds = (datetime.utcnow() - cache_time).total_seconds()
+                age_seconds = (datetime.now() - cache_time).total_seconds()
                 if age_seconds < 3600:  # 1 hour cache
                     cache_fresh = True
                 cached_data = cache.get("data", [])
@@ -2818,9 +1934,9 @@ async def market_ticker():
 async def us_market_ticker():
     """
     Returns US market data for ticker banner.
-    Caches data for 15 minutes to reduce API calls.
+    Caches data for 1 hour to reduce API calls.
     """
-    # Check cache - only refetch if cache is older than 15 minutes or missing
+    # Check cache - only refetch if cache is older than 1 hour or missing
     cached_data = []
     cache_fresh = False
     try:
@@ -2828,8 +1944,8 @@ async def us_market_ticker():
             with open(US_TICKER_FILE, "r") as f:
                 cache = json.load(f)
                 cache_time = datetime.fromisoformat(cache.get("timestamp", "2000-01-01T00:00:00"))
-                age_seconds = (datetime.utcnow() - cache_time).total_seconds()
-                if age_seconds < 900:  # 15 min cache
+                age_seconds = (datetime.now() - cache_time).total_seconds()
+                if age_seconds < 3600:  # 1 hour cache
                     cache_fresh = True
                 cached_data = cache.get("data", [])
     except Exception:

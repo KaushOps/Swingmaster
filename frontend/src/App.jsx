@@ -99,16 +99,21 @@ function NiftyRegimeBanner({ niftyBullish, scanAt }) {
 function StockDetailDrawer({ symbol, onClose, isUS = false }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const baseUrl = "";
   const cur = isUS ? '$' : '₹';
 
   useEffect(() => {
     setLoading(true);
+    setError(null);
     const endpoint = isUS ? `/api/stock_detail_us/${symbol}` : `/api/stock_detail/${symbol}`;
     fetch(`${baseUrl}${endpoint}`)
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then(d => { setDetail(d); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch(err => { console.error('Stock detail error:', err); setError(err.message); setLoading(false); });
   }, [symbol, isUS]);
 
   const gate = (label, pass, value) => (
@@ -135,6 +140,11 @@ function StockDetailDrawer({ symbol, onClose, isUS = false }) {
 
       {loading ? (
         <div style={{ padding:'40px', textAlign:'center', color:'var(--text-dim)' }}>Loading data...</div>
+      ) : error ? (
+        <div style={{ padding:'40px', textAlign:'center', color:'var(--down-color)' }}>
+          <div>Failed to load data.</div>
+          <div style={{ fontSize:'0.8rem', marginTop:'8px', opacity:0.7 }}>{error}</div>
+        </div>
       ) : !detail ? (
         <div style={{ padding:'40px', textAlign:'center', color:'var(--down-color)' }}>Failed to load data.</div>
       ) : (

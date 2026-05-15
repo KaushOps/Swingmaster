@@ -599,17 +599,17 @@
     "symbol": "LUPIN",
     "regime": "CHOPPY",
     "features": {
-      "rsi": 42.15,
-      "macd_hist": 0.29245,
-      "adx": 12.69,
-      "volume_ratio": 1.41,
-      "confidence": 57.52,
-      "above_ema20": 0,
-      "bb_pct": 0.099,
-      "stoch_k": 9.42,
-      "signal_type": "STD"
+      "rsi": 56.15,
+      "macd_hist": 7.89314,
+      "adx": 12.64,
+      "volume_ratio": 2.54,
+      "confidence": 83.46,
+      "above_ema20": 1,
+      "bb_pct": 0.728,
+      "stoch_k": 51.01,
+      "signal_type": "HC"
     },
-    "saved_at": "2026-05-11T12:27:03.472259"
+    "saved_at": "2026-05-12T00:37:32.729569"
   },
   "2026-05-11_ICICIBANK": {
     "date": "2026-05-11",
@@ -916,5 +916,838 @@
       "signal_type": "STD"
     },
     "saved_at": "2026-05-11T16:12:07.121780"
+  },
+  "2026-05-12_MARUTI": {
+    "date": "2026-05-12",
+    "symbol": "MARUTI",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 51.74,
+      "macd_hist": 43.82659,
+      "adx": 15.44,
+      "volume_ratio": 1.24,
+      "confidence": 72.52,
+      "above_ema20": 1,
+      "bb_pct": 0.613,
+      "stoch_k": 57.06,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:07:16.387127"
+  },
+  "2026-05-12_NTPC": {
+    "date": "2026-05-12",
+    "symbol": "NTPC",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 49.77,
+      "macd_hist": -1.72105,
+      "adx": 16.28,
+      "volume_ratio": 1.1,
+      "confidence": 98.51,
+      "above_ema20": 0,
+      "bb_pct": 0.2,
+      "stoch_k": 8.33,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:07:31.109007"
+  },
+  "2026-05-12_POWERGRID": {
+    "date": "2026-05-12",
+    "symbol": "POWERGRID",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 48.48,
+      "macd_hist": -1.6802,
+      "adx": 28.97,
+      "volume_ratio": 0.85,
+      "confidence": 64.33,
+      "above_ema20": 0,
+      "bb_pct": 0.036,
+      "stoch_k": 9.35,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:07:38.881371"
+  },
+  "2026-05-12_TCS": {
+    "date": "2026-05-12",
+    "symbol": "TCS",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 38.44,
+      "macd_hist": -7.28117,
+      "adx": 23.77,
+      "volume_ratio": 0.57,
+      "confidence": 63.29,
+      "above_ema20": 0,
+      "bb_pct": 0.204,
+      "stoch_k": 11.62,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:08:23.531885"
+  },
+  "2026-05-12_TATASTEEL": {
+    "date": "2026-05-12",
+    "symbol": "TATASTEEL",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 54.73,
+      "macd_hist": -0.53812,
+      "adx": 20.47,
+      "volume_ratio": 0.72,
+      "confidence": 77.55,
+      "above_ema20": 1,
+      "bb_pct": 0.443,
+      "stoch_k": 32.83,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:08:37.985735"
+  },
+  "2026-05-12_TECHM": {
+    "date": "2026-05-12",
+    "symbol": "TECHM",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 51.81,
+      "macd_hist": -0.09601,
+      "adx": 13.1,
+      "volume_ratio": 0.58,
+      "confidence": 83.99,
+      "above_ema20": 1,
+      "bb_pct": 0.495,
+      "stoch_k": 75.86,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:08:42.891088"
+  },
+  "2026-05-12_ULTRACEMCO": {
+    "date": "2026-05-12",
+    "symbol": "ULTRACEMCO",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 52.07,
+      "macd_hist": -3.96883,
+      "adx": 17.37,
+      "volume_ratio": 0.61,
+      "confidence": 79.52,
+      "above_ema20": 1,
+      "bb_pct": 0.427,
+      "stoch_k": 47.87,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:08:58.823406"
+  },
+  "2026-05-12_BRITANNIA": {
+    "date": "2026-05-12",
+    "symbol": "BRITANNIA",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 36.03,
+      "macd_hist": -31.08896,
+      "adx": 16.37,
+      "volume_ratio": 1.14,
+      "confidence": 88.48,
+      "above_ema20": 0,
+      "bb_pct": -0.081,
+      "stoch_k": 3.12,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:09:20.263323"
+  },
+  "2026-05-12_UPL": {
+    "date": "2026-05-12",
+    "symbol": "UPL",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 60.49,
+      "macd_hist": 2.43896,
+      "adx": 14.47,
+      "volume_ratio": 3.45,
+      "confidence": 90.86,
+      "above_ema20": 1,
+      "bb_pct": 0.942,
+      "stoch_k": 74.24,
+      "signal_type": "HC"
+    },
+    "saved_at": "2026-05-12T09:09:37.220180"
+  },
+  "2026-05-12_PFC": {
+    "date": "2026-05-12",
+    "symbol": "PFC",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 50.39,
+      "macd_hist": -3.57546,
+      "adx": 18.71,
+      "volume_ratio": 0.61,
+      "confidence": 74.56,
+      "above_ema20": 0,
+      "bb_pct": 0.197,
+      "stoch_k": 10.59,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:09:55.138461"
+  },
+  "2026-05-12_KALYANKJIL": {
+    "date": "2026-05-12",
+    "symbol": "KALYANKJIL",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 38.13,
+      "macd_hist": -3.50679,
+      "adx": 13.02,
+      "volume_ratio": 4.17,
+      "confidence": 55.41,
+      "above_ema20": 0,
+      "bb_pct": -0.037,
+      "stoch_k": 10.29,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:10:08.003793"
+  },
+  "2026-05-12_IDFCFIRSTB": {
+    "date": "2026-05-12",
+    "symbol": "IDFCFIRSTB",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 52.85,
+      "macd_hist": 0.09917,
+      "adx": 20.56,
+      "volume_ratio": 0.82,
+      "confidence": 77.14,
+      "above_ema20": 1,
+      "bb_pct": 0.564,
+      "stoch_k": 53.15,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:10:12.317979"
+  },
+  "2026-05-12_PNB": {
+    "date": "2026-05-12",
+    "symbol": "PNB",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 35.68,
+      "macd_hist": -0.58288,
+      "adx": 21.99,
+      "volume_ratio": 1.06,
+      "confidence": 97.13,
+      "above_ema20": 0,
+      "bb_pct": -0.006,
+      "stoch_k": 5.88,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:10:16.713610"
+  },
+  "2026-05-12_UNIONBANK": {
+    "date": "2026-05-12",
+    "symbol": "UNIONBANK",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 37.25,
+      "macd_hist": -0.9976,
+      "adx": 21.46,
+      "volume_ratio": 0.51,
+      "confidence": 96.48,
+      "above_ema20": 0,
+      "bb_pct": 0.241,
+      "stoch_k": 7.09,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:10:22.638286"
+  },
+  "2026-05-12_ASHOKLEY": {
+    "date": "2026-05-12",
+    "symbol": "ASHOKLEY",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 41.85,
+      "macd_hist": -0.02938,
+      "adx": 16.27,
+      "volume_ratio": 0.9,
+      "confidence": 93.13,
+      "above_ema20": 0,
+      "bb_pct": 0.193,
+      "stoch_k": 15.26,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:10:34.475123"
+  },
+  "2026-05-12_MRF": {
+    "date": "2026-05-12",
+    "symbol": "MRF",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 40.78,
+      "macd_hist": -242.03135,
+      "adx": 13.4,
+      "volume_ratio": 0.66,
+      "confidence": 82.81,
+      "above_ema20": 0,
+      "bb_pct": 0.259,
+      "stoch_k": 9.11,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:10:41.178010"
+  },
+  "2026-05-12_BALKRISIND": {
+    "date": "2026-05-12",
+    "symbol": "BALKRISIND",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 45.14,
+      "macd_hist": -2.41332,
+      "adx": 14.53,
+      "volume_ratio": 2.1,
+      "confidence": 60.57,
+      "above_ema20": 0,
+      "bb_pct": 0.218,
+      "stoch_k": 24.84,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:10:42.714004"
+  },
+  "2026-05-12_GLENMARK": {
+    "date": "2026-05-12",
+    "symbol": "GLENMARK",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 57.7,
+      "macd_hist": -8.12346,
+      "adx": 26.86,
+      "volume_ratio": 1.22,
+      "confidence": 58.43,
+      "above_ema20": 1,
+      "bb_pct": 0.551,
+      "stoch_k": 51.62,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:10:56.363259"
+  },
+  "2026-05-12_ABB": {
+    "date": "2026-05-12",
+    "symbol": "ABB",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 34.95,
+      "macd_hist": -137.00166,
+      "adx": 29.85,
+      "volume_ratio": 3.79,
+      "confidence": 99.79,
+      "above_ema20": 0,
+      "bb_pct": -0.106,
+      "stoch_k": 4.94,
+      "signal_type": "HC"
+    },
+    "saved_at": "2026-05-12T09:11:03.378044"
+  },
+  "2026-05-12_FINCABLES": {
+    "date": "2026-05-12",
+    "symbol": "FINCABLES",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 79.35,
+      "macd_hist": 12.55103,
+      "adx": 45.45,
+      "volume_ratio": 1.14,
+      "confidence": 66.27,
+      "above_ema20": 1,
+      "bb_pct": 0.943,
+      "stoch_k": 81.23,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:11:18.901788"
+  },
+  "2026-05-12_NATIONALUM": {
+    "date": "2026-05-12",
+    "symbol": "NATIONALUM",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 42.45,
+      "macd_hist": -5.08641,
+      "adx": 15.47,
+      "volume_ratio": 0.7,
+      "confidence": 84.02,
+      "above_ema20": 0,
+      "bb_pct": 0.128,
+      "stoch_k": 11.33,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:11:31.685601"
+  },
+  "2026-05-12_JSWENERGY": {
+    "date": "2026-05-12",
+    "symbol": "JSWENERGY",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 40.82,
+      "macd_hist": -4.85028,
+      "adx": 14.35,
+      "volume_ratio": 0.56,
+      "confidence": 68.23,
+      "above_ema20": 0,
+      "bb_pct": -0.09,
+      "stoch_k": 6.86,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-12T09:21:06.975087"
+  },
+  "2026-05-15_BAJFINANCE": {
+    "date": "2026-05-15",
+    "symbol": "BAJFINANCE",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 46.44,
+      "macd_hist": -5.80426,
+      "adx": 18.82,
+      "volume_ratio": 0.68,
+      "confidence": 59.9,
+      "above_ema20": 0,
+      "bb_pct": 0.24,
+      "stoch_k": 20.77,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:34:29.654772"
+  },
+  "2026-05-15_BEL": {
+    "date": "2026-05-15",
+    "symbol": "BEL",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 42.1,
+      "macd_hist": -1.71436,
+      "adx": 14.51,
+      "volume_ratio": 0.66,
+      "confidence": 96.68,
+      "above_ema20": 0,
+      "bb_pct": 0.158,
+      "stoch_k": 28.8,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:34:38.863496"
+  },
+  "2026-05-15_COALINDIA": {
+    "date": "2026-05-15",
+    "symbol": "COALINDIA",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 52.11,
+      "macd_hist": -1.74318,
+      "adx": 18.15,
+      "volume_ratio": 0.71,
+      "confidence": 65.18,
+      "above_ema20": 1,
+      "bb_pct": 0.494,
+      "stoch_k": 27.01,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:34:51.462658"
+  },
+  "2026-05-15_EICHERMOT": {
+    "date": "2026-05-15",
+    "symbol": "EICHERMOT",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 44.35,
+      "macd_hist": -26.11665,
+      "adx": 12.96,
+      "volume_ratio": 0.7,
+      "confidence": 94.32,
+      "above_ema20": 0,
+      "bb_pct": 0.127,
+      "stoch_k": 27.34,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:34:59.263254"
+  },
+  "2026-05-15_HCLTECH": {
+    "date": "2026-05-15",
+    "symbol": "HCLTECH",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 26.71,
+      "macd_hist": -4.56134,
+      "adx": 38.36,
+      "volume_ratio": 0.65,
+      "confidence": 74.22,
+      "above_ema20": 0,
+      "bb_pct": 0.224,
+      "stoch_k": 22.58,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:35:10.235416"
+  },
+  "2026-05-15_ICICIBANK": {
+    "date": "2026-05-15",
+    "symbol": "ICICIBANK",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 40.12,
+      "macd_hist": -4.91157,
+      "adx": 16.05,
+      "volume_ratio": 0.69,
+      "confidence": 80.02,
+      "above_ema20": 0,
+      "bb_pct": 0.25,
+      "stoch_k": 19.12,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:35:27.572748"
+  },
+  "2026-05-15_INDIGO": {
+    "date": "2026-05-15",
+    "symbol": "INDIGO",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 46.27,
+      "macd_hist": -18.94691,
+      "adx": 13.05,
+      "volume_ratio": 0.6,
+      "confidence": 85.11,
+      "above_ema20": 0,
+      "bb_pct": 0.305,
+      "stoch_k": 38.49,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:35:31.137459"
+  },
+  "2026-05-15_INFY": {
+    "date": "2026-05-15",
+    "symbol": "INFY",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 33.79,
+      "macd_hist": -4.00288,
+      "adx": 30.95,
+      "volume_ratio": 1.36,
+      "confidence": 60.24,
+      "above_ema20": 0,
+      "bb_pct": 0.22,
+      "stoch_k": 28.3,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:35:34.913338"
+  },
+  "2026-05-15_LT": {
+    "date": "2026-05-15",
+    "symbol": "LT",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 46.68,
+      "macd_hist": -23.56607,
+      "adx": 10.6,
+      "volume_ratio": 0.51,
+      "confidence": 89.53,
+      "above_ema20": 0,
+      "bb_pct": 0.115,
+      "stoch_k": 21.2,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:35:52.653777"
+  },
+  "2026-05-15_M&M": {
+    "date": "2026-05-15",
+    "symbol": "M&M",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 46.39,
+      "macd_hist": -4.1935,
+      "adx": 12.74,
+      "volume_ratio": 0.72,
+      "confidence": 91.1,
+      "above_ema20": 0,
+      "bb_pct": 0.371,
+      "stoch_k": 21.62,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:35:57.011078"
+  },
+  "2026-05-15_MARUTI": {
+    "date": "2026-05-15",
+    "symbol": "MARUTI",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 47.34,
+      "macd_hist": -25.66378,
+      "adx": 14.47,
+      "volume_ratio": 0.6,
+      "confidence": 60.13,
+      "above_ema20": 0,
+      "bb_pct": 0.377,
+      "stoch_k": 34.23,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:36:01.342011"
+  },
+  "2026-05-15_NTPC": {
+    "date": "2026-05-15",
+    "symbol": "NTPC",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 52.04,
+      "macd_hist": -1.65668,
+      "adx": 14.13,
+      "volume_ratio": 0.8,
+      "confidence": 96.85,
+      "above_ema20": 1,
+      "bb_pct": 0.294,
+      "stoch_k": 33.27,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:36:10.087630"
+  },
+  "2026-05-15_ONGC": {
+    "date": "2026-05-15",
+    "symbol": "ONGC",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 60.94,
+      "macd_hist": 0.49677,
+      "adx": 27.87,
+      "volume_ratio": 0.77,
+      "confidence": 78.26,
+      "above_ema20": 1,
+      "bb_pct": 0.784,
+      "stoch_k": 72.7,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:36:13.815537"
+  },
+  "2026-05-15_TCS": {
+    "date": "2026-05-15",
+    "symbol": "TCS",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 29.8,
+      "macd_hist": -19.77262,
+      "adx": 29.45,
+      "volume_ratio": 0.92,
+      "confidence": 67.78,
+      "above_ema20": 0,
+      "bb_pct": 0.082,
+      "stoch_k": 19.73,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:36:37.042457"
+  },
+  "2026-05-15_TECHM": {
+    "date": "2026-05-15",
+    "symbol": "TECHM",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 40.49,
+      "macd_hist": -12.00647,
+      "adx": 17.36,
+      "volume_ratio": 2.09,
+      "confidence": 95.85,
+      "above_ema20": 0,
+      "bb_pct": 0.155,
+      "stoch_k": 26.17,
+      "signal_type": "HC"
+    },
+    "saved_at": "2026-05-15T19:36:47.973097"
+  },
+  "2026-05-15_ULTRACEMCO": {
+    "date": "2026-05-15",
+    "symbol": "ULTRACEMCO",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 43.96,
+      "macd_hist": -53.91801,
+      "adx": 15.57,
+      "volume_ratio": 0.83,
+      "confidence": 95.28,
+      "above_ema20": 0,
+      "bb_pct": 0.077,
+      "stoch_k": 6.58,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:37:00.985337"
+  },
+  "2026-05-15_BPCL": {
+    "date": "2026-05-15",
+    "symbol": "BPCL",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 38.4,
+      "macd_hist": -1.41932,
+      "adx": 13.8,
+      "volume_ratio": 1.3,
+      "confidence": 56.67,
+      "above_ema20": 0,
+      "bb_pct": -0.035,
+      "stoch_k": 2.84,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:37:36.679607"
+  },
+  "2026-05-15_UPL": {
+    "date": "2026-05-15",
+    "symbol": "UPL",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 46.37,
+      "macd_hist": -1.86642,
+      "adx": 14.34,
+      "volume_ratio": 0.71,
+      "confidence": 71.71,
+      "above_ema20": 0,
+      "bb_pct": 0.207,
+      "stoch_k": 16.57,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:37:42.474180"
+  },
+  "2026-05-15_IDFCFIRSTB": {
+    "date": "2026-05-15",
+    "symbol": "IDFCFIRSTB",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 47.52,
+      "macd_hist": -0.21876,
+      "adx": 16.32,
+      "volume_ratio": 1.37,
+      "confidence": 92.4,
+      "above_ema20": 0,
+      "bb_pct": 0.212,
+      "stoch_k": 21.49,
+      "signal_type": "HC"
+    },
+    "saved_at": "2026-05-15T19:39:06.404787"
+  },
+  "2026-05-15_PNB": {
+    "date": "2026-05-15",
+    "symbol": "PNB",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 34.15,
+      "macd_hist": -0.71313,
+      "adx": 26.01,
+      "volume_ratio": 1.07,
+      "confidence": 97.32,
+      "above_ema20": 0,
+      "bb_pct": 0.052,
+      "stoch_k": 6.01,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:39:09.731737"
+  },
+  "2026-05-15_UNIONBANK": {
+    "date": "2026-05-15",
+    "symbol": "UNIONBANK",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 37.2,
+      "macd_hist": -0.54714,
+      "adx": 22.23,
+      "volume_ratio": 0.51,
+      "confidence": 97.47,
+      "above_ema20": 0,
+      "bb_pct": 0.268,
+      "stoch_k": 14.99,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:39:12.577401"
+  },
+  "2026-05-15_ASHOKLEY": {
+    "date": "2026-05-15",
+    "symbol": "ASHOKLEY",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 35.81,
+      "macd_hist": -1.09774,
+      "adx": 19.22,
+      "volume_ratio": 1.24,
+      "confidence": 91.89,
+      "above_ema20": 0,
+      "bb_pct": 0.096,
+      "stoch_k": 14.14,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:39:20.066238"
+  },
+  "2026-05-15_MRF": {
+    "date": "2026-05-15",
+    "symbol": "MRF",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 43.47,
+      "macd_hist": -261.2832,
+      "adx": 13.08,
+      "volume_ratio": 0.75,
+      "confidence": 79.96,
+      "above_ema20": 0,
+      "bb_pct": 0.343,
+      "stoch_k": 40.65,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:39:23.689143"
+  },
+  "2026-05-15_APOLLOTYRE": {
+    "date": "2026-05-15",
+    "symbol": "APOLLOTYRE",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 34.68,
+      "macd_hist": -1.62442,
+      "adx": 16.15,
+      "volume_ratio": 6.28,
+      "confidence": 70.85,
+      "above_ema20": 0,
+      "bb_pct": 0.136,
+      "stoch_k": 5.27,
+      "signal_type": "HC"
+    },
+    "saved_at": "2026-05-15T19:39:26.235493"
+  },
+  "2026-05-15_TORNTPHARM": {
+    "date": "2026-05-15",
+    "symbol": "TORNTPHARM",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 58.77,
+      "macd_hist": 15.81446,
+      "adx": 24.57,
+      "volume_ratio": 1.08,
+      "confidence": 92.53,
+      "above_ema20": 1,
+      "bb_pct": 0.806,
+      "stoch_k": 63.47,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:39:31.556253"
+  },
+  "2026-05-15_JSWENERGY": {
+    "date": "2026-05-15",
+    "symbol": "JSWENERGY",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 41.22,
+      "macd_hist": -8.705,
+      "adx": 17.91,
+      "volume_ratio": 1.14,
+      "confidence": 70.64,
+      "above_ema20": 0,
+      "bb_pct": 0.066,
+      "stoch_k": 12.24,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:39:50.520458"
+  },
+  "2026-05-15_NATIONALUM": {
+    "date": "2026-05-15",
+    "symbol": "NATIONALUM",
+    "regime": "CHOPPY",
+    "features": {
+      "rsi": 48.32,
+      "macd_hist": -2.19835,
+      "adx": 13.35,
+      "volume_ratio": 0.99,
+      "confidence": 88.94,
+      "above_ema20": 0,
+      "bb_pct": 0.324,
+      "stoch_k": 30.59,
+      "signal_type": "STD"
+    },
+    "saved_at": "2026-05-15T19:39:57.141313"
   }
 }

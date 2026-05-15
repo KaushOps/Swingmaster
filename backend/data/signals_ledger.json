@@ -51152,7 +51152,9 @@
         "target": 1626.4140744344686,
         "stoploss": 1302.8544385855876,
         "confidence": 0.7505690162095959,
-        "volume_ratio": 0.6902908473950727
+        "volume_ratio": 0.6902908473950727,
+        "_closed_status": "TARGET HIT",
+        "_days_in_trade": 149
       },
       "THERMAX": {
         "entry": 2882.699951171875,
@@ -55165,7 +55167,9 @@
         "target": 1634.7394378335655,
         "stoploss": 1324.3042248665738,
         "confidence": 0.8327015348349012,
-        "volume_ratio": 0.7513944072111224
+        "volume_ratio": 0.7513944072111224,
+        "_closed_status": "TARGET HIT",
+        "_days_in_trade": 130
       },
       "NATIONALUM": {
         "entry": 326.708740234375,
@@ -64646,7 +64650,9 @@
         "target": 2739.1956412758545,
         "stoploss": 2279.021743489658,
         "confidence": 0.8403395521204732,
-        "volume_ratio": 0.6079294073817876
+        "volume_ratio": 0.6079294073817876,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 61
       },
       "LT": {
         "entry": 3439.0,
@@ -64780,7 +64786,9 @@
         "target": 2735.453011765079,
         "stoploss": 2278.698726934593,
         "confidence": 0.8900971136035248,
-        "volume_ratio": 1.0321899467800655
+        "volume_ratio": 1.0321899467800655,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 58
       },
       "INFY": {
         "entry": 1249.800048828125,
@@ -64916,7 +64924,9 @@
         "target": 2716.077793151279,
         "stoploss": 2261.9488143801136,
         "confidence": 0.9484229331205206,
-        "volume_ratio": 0.8105767815365611
+        "volume_ratio": 0.8105767815365611,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 58
       },
       "INFY": {
         "entry": 1232.9000244140625,
@@ -64982,14 +64992,18 @@
         "target": 2698.295198758309,
         "stoploss": 2219.0819204966765,
         "confidence": 0.7936123270599147,
-        "volume_ratio": 0.7601780790753833
+        "volume_ratio": 0.7601780790753833,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 56
       },
       "INFY": {
         "entry": 1220.800048828125,
         "target": 1418.1209318631643,
         "stoploss": 1141.8716956141093,
         "confidence": 0.8699812113240327,
-        "volume_ratio": 0.7303408906648988
+        "volume_ratio": 0.7303408906648988,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 54
       },
       "LT": {
         "entry": 3434.5,
@@ -65089,7 +65103,9 @@
         "target": 2726.9456567990105,
         "stoploss": 2256.061873999146,
         "confidence": 0.8792725597441364,
-        "volume_ratio": 1.1445039183556802
+        "volume_ratio": 1.1445039183556802,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 55
       },
       "INFY": {
         "entry": 1255.9000244140625,
@@ -65191,7 +65207,9 @@
         "target": 2717.12094261359,
         "stoploss": 2250.471691313939,
         "confidence": 0.9162382546286477,
-        "volume_ratio": 1.0284871860798497
+        "volume_ratio": 1.0284871860798497,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 52
       },
       "HDFCBANK": {
         "entry": 744.1500244140625,
@@ -65434,7 +65452,9 @@
         "target": 970.3093849957231,
         "stoploss": 816.7162118220233,
         "confidence": 0.5916159696207857,
-        "volume_ratio": 1.0386247776598654
+        "volume_ratio": 1.0386247776598654,
+        "_closed_status": "TARGET HIT",
+        "_days_in_trade": 52
       },
       "GLENMARK": {
         "entry": 2089.0,
@@ -65556,7 +65576,9 @@
         "target": 2728.4193804458782,
         "stoploss": 2266.952316181024,
         "confidence": 0.9636780876739682,
-        "volume_ratio": 0.9269752574740043
+        "volume_ratio": 0.9269752574740043,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 51
       },
       "TITAN": {
         "entry": 3899.5,
@@ -65676,7 +65698,9 @@
         "target": 2701.9750134274227,
         "stoploss": 2247.569857910281,
         "confidence": 0.963985928444309,
-        "volume_ratio": 1.6269492725145975
+        "volume_ratio": 1.6269492725145975,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 50
       },
       "WIPRO": {
         "entry": 189.0500030517578,
@@ -65706,7 +65730,9 @@
         "target": 467.27358569460796,
         "stoploss": 361.6805742670787,
         "confidence": 0.6738335721841948,
-        "volume_ratio": 2.310210645066247
+        "volume_ratio": 2.310210645066247,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 48
       },
       "ADANIGREEN": {
         "entry": 853.7999877929688,
@@ -65733,7 +65759,9 @@
         "target": 2707.155578874571,
         "stoploss": 2262.857836809547,
         "confidence": 0.9539223917336203,
-        "volume_ratio": 1.3605807744000218
+        "volume_ratio": 1.3605807744000218,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 48
       },
       "TITAN": {
         "entry": 3981.5,
@@ -65790,7 +65818,9 @@
         "target": 462.9933278297029,
         "stoploss": 358.4926774130407,
         "confidence": 0.843577048515898,
-        "volume_ratio": 1.4095505803756267
+        "volume_ratio": 1.4095505803756267,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 47
       },
       "BOSCHLTD": {
         "entry": 29615.0,
@@ -65842,7 +65872,9 @@
         "target": 2672.0871976826375,
         "stoploss": 2233.624984208195,
         "confidence": 0.9390389890666954,
-        "volume_ratio": 1.7781875435547443
+        "volume_ratio": 1.7781875435547443,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 45
       },
       "INFY": {
         "entry": 1250.5999755859375,
@@ -66057,7 +66089,9 @@
         "target": 2739.4096174352167,
         "stoploss": 2275.7160846665383,
         "confidence": 0.878430112227765,
-        "volume_ratio": 1.0935163055517718
+        "volume_ratio": 1.0935163055517718,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 42
       },
       "WIPRO": {
         "entry": 191.17999267578125,
@@ -66080,7 +66114,9 @@
         "target": 462.3115987830191,
         "stoploss": 357.0153690317142,
         "confidence": 0.8514645688056863,
-        "volume_ratio": 1.0007793958002478
+        "volume_ratio": 1.0007793958002478,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 42
       },
       "BOSCHLTD": {
         "entry": 30635.0,
@@ -74879,7 +74915,9 @@
         "target": 1637.0013016361636,
         "stoploss": 1302.6794109861596,
         "confidence": 0.8994416835834065,
-        "volume_ratio": 0.5176577523904577
+        "volume_ratio": 0.5176577523904577,
+        "_closed_status": "TARGET HIT",
+        "_days_in_trade": 134
       },
       "TORNTPOWER": {
         "entry": 1313.3907470703125,
@@ -80340,7 +80378,9 @@
         "target": 475.8524823208278,
         "stoploss": 347.18902416151263,
         "confidence": 0.8661598089897474,
-        "volume_ratio": 0.7876281186474432
+        "volume_ratio": 0.7876281186474432,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 99
       },
       "FEDERALBNK": {
         "entry": 285.5,
@@ -81159,7 +81199,9 @@
         "target": 464.898805700251,
         "stoploss": 340.65046917497773,
         "confidence": 0.9402719143605478,
-        "volume_ratio": 0.5249969251834333
+        "volume_ratio": 0.5249969251834333,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 97
       },
       "BANKBARODA": {
         "entry": 290.45001220703125,
@@ -81551,7 +81593,9 @@
         "target": 468.8381780295578,
         "stoploss": 344.81472878817686,
         "confidence": 0.9303399130430882,
-        "volume_ratio": 0.660940430698505
+        "volume_ratio": 0.660940430698505,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 96
       },
       "BANKBARODA": {
         "entry": 289.20001220703125,
@@ -87405,7 +87449,9 @@
         "target": 194.54104152084358,
         "stoploss": 147.05157655572506,
         "confidence": 0.5661126473947046,
-        "volume_ratio": 0.8993486721846824
+        "volume_ratio": 0.8993486721846824,
+        "_closed_status": "TARGET HIT",
+        "_days_in_trade": 36
       }
     },
     "2026-03-12": {
@@ -88187,7 +88233,9 @@
         "target": 471.81434434288155,
         "stoploss": 363.36427080776923,
         "confidence": 0.7608881041894991,
-        "volume_ratio": 0.92526163414579
+        "volume_ratio": 0.92526163414579,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 40
       },
       "ADANIGREEN": {
         "entry": 856.0,
@@ -88246,7 +88294,9 @@
         "target": 487.9818925090898,
         "stoploss": 420.38726008620785,
         "confidence": 0.9318057298660278,
-        "volume_ratio": 0.9398771619435844
+        "volume_ratio": 0.9398771619435844,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 4
       },
       "COALINDIA": {
         "entry": 456.3999938964844,
@@ -88274,7 +88324,9 @@
         "target": 1335.051507901162,
         "stoploss": 1116.8593284801602,
         "confidence": 0.7973455786705017,
-        "volume_ratio": 0.5730589103761807
+        "volume_ratio": 0.5730589103761807,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 6
       },
       "KOTAKBANK": {
         "entry": 380.79998779296875,
@@ -88295,21 +88347,27 @@
         "target": 345.7098807843088,
         "stoploss": 301.24606477612025,
         "confidence": 0.7187829613685608,
-        "volume_ratio": 0.7705142831245154
+        "volume_ratio": 0.7705142831245154,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 5
       },
       "TCS": {
         "entry": 2394.39990234375,
         "target": 2679.129867216776,
         "stoploss": 2280.5079163945397,
         "confidence": 0.6599768400192261,
-        "volume_ratio": 0.9490243505568042
+        "volume_ratio": 0.9490243505568042,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 5
       },
       "TECHM": {
         "entry": 1463.0,
         "target": 1660.2953406897248,
         "stoploss": 1384.0818637241102,
         "confidence": 0.8184688091278076,
-        "volume_ratio": 0.5809915457703392
+        "volume_ratio": 0.5809915457703392,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 5
       },
       "ULTRACEMCO": {
         "entry": 11950.0,
@@ -88323,7 +88381,9 @@
         "target": 217.5645841290315,
         "stoploss": 190.04817147534052,
         "confidence": 0.804886519908905,
-        "volume_ratio": 0.6242814951725777
+        "volume_ratio": 0.6242814951725777,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 4
       },
       "UPL": {
         "entry": 646.0,
@@ -88358,7 +88418,9 @@
         "target": 197.0946365982203,
         "stoploss": 157.16015561461813,
         "confidence": 0.938075602054596,
-        "volume_ratio": 0.7927493825149619
+        "volume_ratio": 0.7927493825149619,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 4
       },
       "MRF": {
         "entry": 130425.0,
@@ -88397,7 +88459,9 @@
         "target": 1358.432274142507,
         "stoploss": 1054.4471587023722,
         "confidence": 0.6547744870185852,
-        "volume_ratio": 2.951103944732393
+        "volume_ratio": 2.951103944732393,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 7
       },
       "NATIONALUM": {
         "entry": 401.95001220703125,
@@ -88434,7 +88498,9 @@
         "target": 460.09422968593617,
         "stoploss": 355.9423252154693,
         "confidence": 0.5704109072685242,
-        "volume_ratio": 3.1117500091972805
+        "volume_ratio": 3.1117500091972805,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 2
       },
       "INDIGO": {
         "entry": 4309.0,
@@ -88455,7 +88521,9 @@
         "target": 742.8610568777433,
         "stoploss": 624.8255601590589,
         "confidence": 0.8577036261558533,
-        "volume_ratio": 0.5205755736547134
+        "volume_ratio": 0.5205755736547134,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 1
       },
       "PNB": {
         "entry": 105.44000244140625,
@@ -88504,7 +88572,9 @@
         "target": 1066.2789800520468,
         "stoploss": 890.1884079791813,
         "confidence": 0.6778578758239746,
-        "volume_ratio": 0.5374910684256088
+        "volume_ratio": 0.5374910684256088,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 2
       },
       "NTPC": {
         "entry": 396.6499938964844,
@@ -88518,7 +88588,9 @@
         "target": 342.20558353099113,
         "stoploss": 298.86776658760357,
         "confidence": 0.7290921807289124,
-        "volume_ratio": 0.5971714464011945
+        "volume_ratio": 0.5971714464011945,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 2
       },
       "PFC": {
         "entry": 450.20001220703125,
@@ -88539,14 +88611,18 @@
         "target": 191.85930563061578,
         "stoploss": 151.37228116572243,
         "confidence": 0.9314418435096741,
-        "volume_ratio": 0.6099773747251019
+        "volume_ratio": 0.6099773747251019,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 3
       },
       "FINCABLES": {
         "entry": 1151.800048828125,
         "target": 1374.3513921864574,
         "stoploss": 1062.779511484792,
         "confidence": 0.550349771976471,
-        "volume_ratio": 0.9502649693019244
+        "volume_ratio": 0.9502649693019244,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 3
       },
       "NATIONALUM": {
         "entry": 394.0,
@@ -88574,7 +88650,9 @@
         "target": 1327.0407399679348,
         "stoploss": 1116.9837040128261,
         "confidence": 0.8656666874885559,
-        "volume_ratio": 0.580429052112937
+        "volume_ratio": 0.580429052112937,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 3
       },
       "KOTAKBANK": {
         "entry": 381.04998779296875,
@@ -88588,7 +88666,9 @@
         "target": 2673.006298298542,
         "stoploss": 2280.857343961833,
         "confidence": 0.6378087401390076,
-        "volume_ratio": 0.5531266352152678
+        "volume_ratio": 0.5531266352152678,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 2
       },
       "TATASTEEL": {
         "entry": 212.0800018310547,
@@ -88602,7 +88682,9 @@
         "target": 1649.031403478077,
         "stoploss": 1380.7474727884567,
         "confidence": 0.8276066780090332,
-        "volume_ratio": 0.5844647662177345
+        "volume_ratio": 0.5844647662177345,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 2
       },
       "ULTRACEMCO": {
         "entry": 11866.0,
@@ -88617,6 +88699,367 @@
         "stoploss": 123104.76710768683,
         "confidence": 0.8768812417984009,
         "volume_ratio": 0.6506480644188951
+      }
+    },
+    "2026-05-12": {
+      "MARUTI": {
+        "entry": 13483.0,
+        "target": 15111.340287316681,
+        "stoploss": 12831.663885073327,
+        "confidence": 0.7251912355422974,
+        "volume_ratio": 1.2417852913514655
+      },
+      "NTPC": {
+        "entry": 392.95001220703125,
+        "target": 435.54104603912225,
+        "stoploss": 375.9135986741948,
+        "confidence": 0.9851346611976624,
+        "volume_ratio": 1.1003739150387672
+      },
+      "POWERGRID": {
+        "entry": 310.8999938964844,
+        "target": 340.1623149193147,
+        "stoploss": 299.1950654873522,
+        "confidence": 0.6432958841323853,
+        "volume_ratio": 0.8488683147402738,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 1
+      },
+      "TCS": {
+        "entry": 2392.89990234375,
+        "target": 2659.391520851952,
+        "stoploss": 2286.3032549404693,
+        "confidence": 0.6329014897346497,
+        "volume_ratio": 0.567196753798765,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 1
+      },
+      "TATASTEEL": {
+        "entry": 212.0800018310547,
+        "target": 232.64686306536228,
+        "stoploss": 203.85325733733166,
+        "confidence": 0.7754799127578735,
+        "volume_ratio": 0.723541780164675
+      },
+      "TECHM": {
+        "entry": 1457.4000244140625,
+        "target": 1639.0577422642411,
+        "stoploss": 1384.736937273991,
+        "confidence": 0.8398863673210144,
+        "volume_ratio": 0.583679087918209,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 1
+      },
+      "ULTRACEMCO": {
+        "entry": 11866.0,
+        "target": 13150.1528274743,
+        "stoploss": 11352.33886901028,
+        "confidence": 0.7952356338500977,
+        "volume_ratio": 0.6118650115033033
+      },
+      "BRITANNIA": {
+        "entry": 5410.5,
+        "target": 6051.665101399784,
+        "stoploss": 5154.033959440086,
+        "confidence": 0.884813129901886,
+        "volume_ratio": 1.1448081004806077
+      },
+      "UPL": {
+        "entry": 669.0,
+        "target": 754.5311802988045,
+        "stoploss": 634.7875278804781,
+        "confidence": 0.9085559248924255,
+        "volume_ratio": 3.4460872362964308,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 1
+      },
+      "PFC": {
+        "entry": 448.5,
+        "target": 509.033792477987,
+        "stoploss": 424.2864830088052,
+        "confidence": 0.7455607056617737,
+        "volume_ratio": 0.6131183627498015
+      },
+      "KALYANKJIL": {
+        "entry": 385.20001220703125,
+        "target": 456.06607129458587,
+        "stoploss": 356.8535885720094,
+        "confidence": 0.5541390180587769,
+        "volume_ratio": 4.173349619450524,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 1
+      },
+      "IDFCFIRSTB": {
+        "entry": 69.22000122070312,
+        "target": 77.82481127424207,
+        "stoploss": 65.77807719928755,
+        "confidence": 0.7713649272918701,
+        "volume_ratio": 0.8243073345849852
+      },
+      "PNB": {
+        "entry": 104.62000274658203,
+        "target": 118.73066892837335,
+        "stoploss": 98.97573627386551,
+        "confidence": 0.9713054895401001,
+        "volume_ratio": 1.0584712082436323
+      },
+      "UNIONBANK": {
+        "entry": 163.80999755859375,
+        "target": 190.61872202312776,
+        "stoploss": 153.08650777278015,
+        "confidence": 0.964788556098938,
+        "volume_ratio": 0.5072260019194074
+      },
+      "ASHOKLEY": {
+        "entry": 161.52000427246094,
+        "target": 188.88282523587773,
+        "stoploss": 150.5748758870942,
+        "confidence": 0.9313422441482544,
+        "volume_ratio": 0.8951556028430131,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 2
+      },
+      "MRF": {
+        "entry": 128910.0,
+        "target": 142418.5763571605,
+        "stoploss": 123506.5694571358,
+        "confidence": 0.8281250596046448,
+        "volume_ratio": 0.6607358658144173
+      },
+      "BALKRISIND": {
+        "entry": 2181.89990234375,
+        "target": 2520.708600344769,
+        "stoploss": 2046.3764231433424,
+        "confidence": 0.6056873798370361,
+        "volume_ratio": 2.102482577096311
+      },
+      "GLENMARK": {
+        "entry": 2347.300048828125,
+        "target": 2651.9084170128203,
+        "stoploss": 2225.456701554247,
+        "confidence": 0.5842679142951965,
+        "volume_ratio": 1.2180368944219038
+      },
+      "ABB": {
+        "entry": 6387.5,
+        "target": 7540.702796340479,
+        "stoploss": 5926.218881463808,
+        "confidence": 0.997863233089447,
+        "volume_ratio": 3.7948455639274177
+      },
+      "FINCABLES": {
+        "entry": 1132.550048828125,
+        "target": 1340.2762962322906,
+        "stoploss": 1049.4595498664587,
+        "confidence": 0.6626668572425842,
+        "volume_ratio": 1.1381042871854758,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 3
+      },
+      "NATIONALUM": {
+        "entry": 393.04998779296875,
+        "target": 458.0438710264446,
+        "stoploss": 367.0524344995784,
+        "confidence": 0.8402222394943237,
+        "volume_ratio": 0.7037452969925128
+      },
+      "JSWENERGY": {
+        "entry": 517.0499877929688,
+        "target": 610.1886200791588,
+        "stoploss": 479.7945348784927,
+        "confidence": 0.682339072227478,
+        "volume_ratio": 0.5646435909593804
+      }
+    },
+    "2026-05-15": {
+      "BAJFINANCE": {
+        "entry": 910.4500122070312,
+        "target": 1034.537688604556,
+        "stoploss": 860.8149416480213,
+        "confidence": 0.5989845991134644,
+        "volume_ratio": 0.6795144051102918
+      },
+      "BEL": {
+        "entry": 423.6499938964844,
+        "target": 475.31283306992293,
+        "stoploss": 402.98485822710893,
+        "confidence": 0.9667919278144836,
+        "volume_ratio": 0.6636701622049206
+      },
+      "COALINDIA": {
+        "entry": 462.20001220703125,
+        "target": 523.9223091436129,
+        "stoploss": 437.5110934323986,
+        "confidence": 0.6518256068229675,
+        "volume_ratio": 0.7081745265227766
+      },
+      "EICHERMOT": {
+        "entry": 7014.5,
+        "target": 7962.928386240435,
+        "stoploss": 6635.128645503826,
+        "confidence": 0.9431993961334229,
+        "volume_ratio": 0.7006561647385
+      },
+      "HCLTECH": {
+        "entry": 1132.5999755859375,
+        "target": 1297.5210965878955,
+        "stoploss": 1066.6315271851543,
+        "confidence": 0.7422316670417786,
+        "volume_ratio": 0.6496075473417238
+      },
+      "ICICIBANK": {
+        "entry": 1244.5,
+        "target": 1370.0235096153674,
+        "stoploss": 1194.2905961538531,
+        "confidence": 0.8002158999443054,
+        "volume_ratio": 0.6904170821494428
+      },
+      "INDIGO": {
+        "entry": 4314.89990234375,
+        "target": 5061.798878710022,
+        "stoploss": 4016.1403117972413,
+        "confidence": 0.8510991930961609,
+        "volume_ratio": 0.5994395233776777
+      },
+      "INFY": {
+        "entry": 1119.0,
+        "target": 1277.5945518650747,
+        "stoploss": 1055.56217925397,
+        "confidence": 0.6023547649383545,
+        "volume_ratio": 1.3570544718068431
+      },
+      "LT": {
+        "entry": 3909.0,
+        "target": 4379.135900032975,
+        "stoploss": 3720.94563998681,
+        "confidence": 0.8953381776809692,
+        "volume_ratio": 0.5073568970330702
+      },
+      "M&M": {
+        "entry": 3123.10009765625,
+        "target": 3570.2972826431264,
+        "stoploss": 2944.2212236614996,
+        "confidence": 0.9109523892402649,
+        "volume_ratio": 0.7182110480003938
+      },
+      "MARUTI": {
+        "entry": 13221.0,
+        "target": 14891.741372274222,
+        "stoploss": 12552.703451090312,
+        "confidence": 0.6012653708457947,
+        "volume_ratio": 0.5978681073098432
+      },
+      "NTPC": {
+        "entry": 395.25,
+        "target": 438.7865088644191,
+        "stoploss": 377.83539645423235,
+        "confidence": 0.9684544205665588,
+        "volume_ratio": 0.8013381760538886
+      },
+      "ONGC": {
+        "entry": 299.3500061035156,
+        "target": 336.0013941605031,
+        "stoploss": 284.68945088072064,
+        "confidence": 0.7826203107833862,
+        "volume_ratio": 0.7736997749115276
+      },
+      "TCS": {
+        "entry": 2264.0,
+        "target": 2559.110869190056,
+        "stoploss": 2145.9556523239776,
+        "confidence": 0.6777716875076294,
+        "volume_ratio": 0.9173048770380888
+      },
+      "TECHM": {
+        "entry": 1370.5,
+        "target": 1572.9140532104047,
+        "stoploss": 1289.534378715838,
+        "confidence": 0.9584872126579285,
+        "volume_ratio": 2.0887843346439436
+      },
+      "ULTRACEMCO": {
+        "entry": 11487.0,
+        "target": 12855.004416583051,
+        "stoploss": 10939.798233366779,
+        "confidence": 0.9528132677078247,
+        "volume_ratio": 0.8293574053611993
+      },
+      "BPCL": {
+        "entry": 284.45001220703125,
+        "target": 333.04510679905866,
+        "stoploss": 265.0119743702203,
+        "confidence": 0.5666986107826233,
+        "volume_ratio": 1.2950933938801652
+      },
+      "UPL": {
+        "entry": 632.25,
+        "target": 725.5773492609653,
+        "stoploss": 594.9190602956139,
+        "confidence": 0.7171089053153992,
+        "volume_ratio": 0.7055379991390128
+      },
+      "IDFCFIRSTB": {
+        "entry": 67.6500015258789,
+        "target": 76.84286450623442,
+        "stoploss": 63.9728563337367,
+        "confidence": 0.9239957332611084,
+        "volume_ratio": 1.3702399985094955
+      },
+      "PNB": {
+        "entry": 102.05000305175781,
+        "target": 116.62988202577422,
+        "stoploss": 96.21805146215125,
+        "confidence": 0.9731936454772949,
+        "volume_ratio": 1.0713064964269297
+      },
+      "UNIONBANK": {
+        "entry": 161.94000244140625,
+        "target": 188.40648946743966,
+        "stoploss": 151.35340763099288,
+        "confidence": 0.9746606349945068,
+        "volume_ratio": 0.5121972537941839
+      },
+      "ASHOKLEY": {
+        "entry": 153.1300048828125,
+        "target": 181.77319018552848,
+        "stoploss": 141.67273076172611,
+        "confidence": 0.9188538193702698,
+        "volume_ratio": 1.2444695820527392
+      },
+      "MRF": {
+        "entry": 128640.0,
+        "target": 142881.92567142315,
+        "stoploss": 122943.22973143074,
+        "confidence": 0.7995643019676208,
+        "volume_ratio": 0.753735650166531
+      },
+      "APOLLOTYRE": {
+        "entry": 394.5,
+        "target": 455.86780838570706,
+        "stoploss": 369.9528766457172,
+        "confidence": 0.7084878087043762,
+        "volume_ratio": 6.279205769097042
+      },
+      "TORNTPHARM": {
+        "entry": 4405.7001953125,
+        "target": 4925.240652774712,
+        "stoploss": 4197.884012327615,
+        "confidence": 0.9252615571022034,
+        "volume_ratio": 1.0782265169473815
+      },
+      "JSWENERGY": {
+        "entry": 515.0499877929688,
+        "target": 604.7294873935518,
+        "stoploss": 479.1781879527355,
+        "confidence": 0.7064313888549805,
+        "volume_ratio": 1.138805689040307
+      },
+      "NATIONALUM": {
+        "entry": 403.6000061035156,
+        "target": 473.1581861456776,
+        "stoploss": 375.77673408665083,
+        "confidence": 0.8894235491752625,
+        "volume_ratio": 0.990190542496212
       }
     }
   },
@@ -89504,7 +89947,9 @@
         "target": 2701.9750134274227,
         "stoploss": 2247.569857910281,
         "confidence": 0.963985928444309,
-        "volume_ratio": 1.6269492725145975
+        "volume_ratio": 1.6269492725145975,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 50
       }
     },
     "2026-03-30": {
@@ -89513,7 +89958,9 @@
         "target": 2672.0871976826375,
         "stoploss": 2233.624984208195,
         "confidence": 0.9390389890666954,
-        "volume_ratio": 1.7781875435547443
+        "volume_ratio": 1.7781875435547443,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 45
       },
       "AXISBANK": {
         "entry": 1161.300048828125,
@@ -99201,7 +99648,9 @@
         "target": 1358.432274142507,
         "stoploss": 1054.4471587023722,
         "confidence": 0.6547744870185852,
-        "volume_ratio": 2.951103944732393
+        "volume_ratio": 2.951103944732393,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 7
       }
     },
     "2026-05-11": {
@@ -99224,7 +99673,9 @@
         "target": 765.9681866559241,
         "stoploss": 637.9827082477866,
         "confidence": 0.6537274122238159,
-        "volume_ratio": 3.379696067230676
+        "volume_ratio": 3.379696067230676,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 1
       },
       "BALKRISIND": {
         "entry": 2180.0,
@@ -99239,6 +99690,56 @@
         "stoploss": 3976.038172332043,
         "confidence": 0.7534524202346802,
         "volume_ratio": 1.3455354665057595
+      },
+      "LUPIN": {
+        "entry": 2379.5,
+        "target": 2699.3904053891615,
+        "stoploss": 2251.5438378443355,
+        "confidence": 0.8345543146133423,
+        "volume_ratio": 2.5442230236198,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 1
+      }
+    },
+    "2026-05-12": {
+      "UPL": {
+        "entry": 669.0,
+        "target": 754.5311802988045,
+        "stoploss": 634.7875278804781,
+        "confidence": 0.9085559248924255,
+        "volume_ratio": 3.4460872362964308,
+        "_closed_status": "SL HIT",
+        "_days_in_trade": 1
+      },
+      "ABB": {
+        "entry": 6387.5,
+        "target": 7540.702796340479,
+        "stoploss": 5926.218881463808,
+        "confidence": 0.997863233089447,
+        "volume_ratio": 3.7948455639274177
+      }
+    },
+    "2026-05-15": {
+      "TECHM": {
+        "entry": 1370.5,
+        "target": 1572.9140532104047,
+        "stoploss": 1289.534378715838,
+        "confidence": 0.9584872126579285,
+        "volume_ratio": 2.0887843346439436
+      },
+      "IDFCFIRSTB": {
+        "entry": 67.6500015258789,
+        "target": 76.84286450623442,
+        "stoploss": 63.9728563337367,
+        "confidence": 0.9239957332611084,
+        "volume_ratio": 1.3702399985094955
+      },
+      "APOLLOTYRE": {
+        "entry": 394.5,
+        "target": 455.86780838570706,
+        "stoploss": 369.9528766457172,
+        "confidence": 0.7084878087043762,
+        "volume_ratio": 6.279205769097042
       }
     }
   }

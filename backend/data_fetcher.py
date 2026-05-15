@@ -7,12 +7,20 @@ from typing import Dict, Optional
 
 def fetch_daily_data(symbol: str, years: int = 2) -> pd.DataFrame:
     """
-    Fetches daily OHLCV data for a given NSE symbol.
+    Fetches daily OHLCV data for a given symbol.
+    Automatically adds .NS suffix for NSE symbols if not present and no data found.
     """
+    # First try with the symbol as-is
     ticker = yf.Ticker(symbol)
     end_date = datetime.now()
     start_date = end_date - timedelta(days=years * 365)
     df = ticker.history(start=start_date, end=end_date, interval="1d")
+    
+    # If empty and no suffix, try with .NS (NSE)
+    if df.empty and not any(symbol.endswith(suffix) for suffix in ['.NS', '.BO', '.NSE']):
+        ticker = yf.Ticker(symbol + ".NS")
+        df = ticker.history(start=start_date, end=end_date, interval="1d")
+    
     if df.empty:
         return df
     df.columns = [c.lower() for c in df.columns]

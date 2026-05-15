@@ -173787,6 +173787,17 @@
         "_closed_status": "SL HIT",
         "_days_in_trade": 25
       }
+    },
+    "2026-05-11": {
+      "INSM": {
+        "entry": 106.77,
+        "target": 145.65,
+        "stoploss": 91.22,
+        "confidence": 0.9866,
+        "volume_ratio": 1.01,
+        "atr": 7.777,
+        "sector": "US Equities"
+      }
     }
   },
   "US_HIGH_CONVICTION": {
@@ -205438,6 +205449,17 @@
         "confidence": 0.9097,
         "volume_ratio": 1.89,
         "atr": 4.7859,
+        "sector": "US Equities"
+      }
+    },
+    "2026-05-11": {
+      "INSM": {
+        "entry": 105.6,
+        "target": 136.71,
+        "stoploss": 90.05,
+        "confidence": 0.9866,
+        "volume_ratio": 1.56,
+        "atr": 7.777,
         "sector": "US Equities"
       }
     }
